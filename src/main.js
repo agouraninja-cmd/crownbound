@@ -32,6 +32,11 @@ scene.add(playerMesh.group);
 const isUiOpen = () => false; // panels arrive in M3
 const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
 
+// headless smoke-test hook, harmless in normal play
+if (new URLSearchParams(location.search).has('smoke')) {
+  window.__game = { scene, camera, orbitCam, playerMesh };
+}
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -39,8 +44,16 @@ window.addEventListener('resize', () => {
 });
 
 const clock = new THREE.Clock();
+let frames = 0;
 
 function tick() {
+  frames++;
+  if (frames === 90) {
+    window.__smoke = {
+      calls: renderer.info.render.calls,
+      triangles: renderer.info.render.triangles,
+    };
+  }
   const dt = Math.min(clock.getDelta(), 0.05);
 
   world.campfire.update(dt);

@@ -52,7 +52,7 @@ export function buildPlayerMesh() {
   rightArm.add(weapon);
 
   const head = new THREE.Group();
-  head.position.y = 1.13;
+  head.position.y = 0.62;
   body.add(head);
   head.add(mesh(box(0.32, 0.3, 0.3), SKIN, { y: 0.15 }));
   head.add(mesh(box(0.34, 0.1, 0.32), HAIR, { y: 0.31 }));

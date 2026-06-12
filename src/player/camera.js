@@ -57,6 +57,12 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
   return {
     update,
     getYaw: () => yaw,
+    setView(newYaw, newPitch, newDist) {
+      yaw = newYaw;
+      pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, newPitch));
+      dist = Math.min(14, Math.max(3, newDist));
+      everLocked = true; // stop the showcase orbit
+    },
     isLocked: () => document.pointerLockElement === canvas,
     unlock: () => {
       if (document.pointerLockElement === canvas) document.exitPointerLock();

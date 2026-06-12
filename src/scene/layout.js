@@ -7,7 +7,7 @@ export function pathX(z) {
 
 export const LAYOUT = {
   playerSpawn: { x: -5, z: 4 },
-  hovel: { x: -9, z: 2, rotY: Math.PI / 2 },
+  hovel: { x: -9, z: 2, rotY: 0 }, // door on local +x faces the path
   campfire: { x: -4.6, z: 6.2 },
   questBoard: { x: 4, z: -2, rotY: -Math.PI / 2 },
   tome: { x: -3.2, z: -5.5, rotY: Math.PI / 4 },

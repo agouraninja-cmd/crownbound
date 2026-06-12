@@ -99,7 +99,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Commit after each milestone. Keep the Build status below current so any session can resume instantly.
 
 ## Build status
-- [ ] M1 — Scaffold + world scene (terrain, lighting, trees, structures), camera orbiting idle character
+- [x] M1 — Scaffold + world scene (terrain, lighting, trees, structures), camera orbiting idle character
 - [ ] M2 — Third-person controller: movement, sprint, dodge, camera follow, E-interaction prompts
 - [ ] M3 — Quest Board + Character Sheet UI: quest write/complete flow, stats, XP, coins, Treasury
 - [ ] M4 — Persistence: save/load, streak logic, daily/weekly rollover on load
@@ -108,4 +108,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - [ ] M7 — Polish: HUD, flavor messages, parchment styling, performance check
 
 ### Session notes
-- (none yet)
+- Headless verification: `npm run smoke` (or `node scripts/smoke.mjs aerial|front` after a build) serves dist,
+  loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
+  scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
+- Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
+- Git identity is passed per-commit via `-c` flags (no global git config on this machine).

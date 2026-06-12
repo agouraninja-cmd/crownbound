@@ -35,44 +35,54 @@ const GRASS_DRY = new THREE.Color(0x9aa050);
 const DIRT = new THREE.Color(0x96703f);
 const DIRT_DARK = new THREE.Color(0x7d5c34);
 
+function groundColor(x, z, out) {
+  // grass with gentle patchy variation
+  const n = Math.sin(x * 0.21 + 3.1) * Math.cos(z * 0.17 + 1.4) * 0.5 + 0.5;
+  out.copy(GRASS_A).lerp(GRASS_B, n);
+  const dry = Math.sin(x * 0.09 - 2.0) * Math.cos(z * 0.11 + 0.8) * 0.5 + 0.5;
+  out.lerp(GRASS_DRY, dry * 0.35);
+
+  // dirt path with soft edges
+  let dirtAmt = 1 - smoothstep(distToPath(x, z), 1.9, 3.4);
+
+  // worn circles around hearth, hovel, dummy, granary
+  for (const p of LAYOUT.dirtPatches) {
+    const dd = Math.hypot(x - p.x, z - p.z);
+    dirtAmt = Math.max(dirtAmt, 1 - smoothstep(dd, p.r * 0.6, p.r * 1.4));
+  }
+
+  if (dirtAmt > 0) {
+    const dn = Math.sin(x * 0.9 + 1.2) * Math.cos(z * 0.8) * 0.5 + 0.5;
+    out.lerp(DIRT.clone().lerp(DIRT_DARK, dn * 0.6), dirtAmt);
+  }
+  return out;
+}
+
 export function buildTerrain() {
-  const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEGMENTS, SEGMENTS);
+  let geo = new THREE.PlaneGeometry(SIZE, SIZE, SEGMENTS, SEGMENTS);
   geo.rotateX(-Math.PI / 2);
 
-  const pos = geo.attributes.position;
+  let pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setY(i, terrainHeight(pos.getX(i), pos.getZ(i)));
+  }
+
+  // one flat color per triangle — the faceted low-poly look
+  geo = geo.toNonIndexed();
+  pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
   const c = new THREE.Color();
-
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    pos.setY(i, terrainHeight(x, z));
-
-    // grass with gentle patchy variation
-    const n = Math.sin(x * 0.21 + 3.1) * Math.cos(z * 0.17 + 1.4) * 0.5 + 0.5;
-    c.copy(GRASS_A).lerp(GRASS_B, n);
-    const dry = Math.sin(x * 0.09 - 2.0) * Math.cos(z * 0.11 + 0.8) * 0.5 + 0.5;
-    c.lerp(GRASS_DRY, dry * 0.35);
-
-    // dirt path with soft edges
-    const d = distToPath(x, z);
-    let dirtAmt = 1 - smoothstep(d, 1.8, 3.8);
-
-    // worn circles around hearth, hovel, dummy, granary
-    for (const p of LAYOUT.dirtPatches) {
-      const dd = Math.hypot(x - p.x, z - p.z);
-      dirtAmt = Math.max(dirtAmt, 1 - smoothstep(dd, p.r * 0.6, p.r * 1.5));
+  for (let i = 0; i < pos.count; i += 3) {
+    const cx = (pos.getX(i) + pos.getX(i + 1) + pos.getX(i + 2)) / 3;
+    const cz = (pos.getZ(i) + pos.getZ(i + 1) + pos.getZ(i + 2)) / 3;
+    groundColor(cx, cz, c);
+    // faint per-face tonal jitter sells the facets
+    const j = 1 + (Math.sin(cx * 12.9 + cz * 78.2) * 0.5 + 0.5 - 0.5) * 0.07;
+    for (let k = 0; k < 3; k++) {
+      colors[(i + k) * 3] = c.r * j;
+      colors[(i + k) * 3 + 1] = c.g * j;
+      colors[(i + k) * 3 + 2] = c.b * j;
     }
-
-    if (dirtAmt > 0) {
-      const dn = Math.sin(x * 0.9 + 1.2) * Math.cos(z * 0.8) * 0.5 + 0.5;
-      const dirt = DIRT.clone().lerp(DIRT_DARK, dn * 0.6);
-      c.lerp(dirt, dirtAmt);
-    }
-
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
   }
 
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));

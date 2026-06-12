@@ -24,8 +24,8 @@ export function buildHovel() {
   g.add(mesh(box(0.8, 0.14, 0.12), WOOD_PALE, { x: -0.4, y: 1.5, z: 1.48, rz: -0.1 }));
 
   // thatched roof: two slabs meeting at a slightly crooked ridge
-  g.add(mesh(box(4.0, 0.18, 1.9), THATCH, { y: 2.55, z: -0.78, rx: 0.62 }));
-  g.add(mesh(box(4.0, 0.18, 1.9), THATCH_DARK, { y: 2.57, z: 0.78, rx: -0.6, rz: 0.012 }));
+  g.add(mesh(box(4.0, 0.18, 1.9), THATCH, { y: 2.55, z: -0.78, rx: -0.62 }));
+  g.add(mesh(box(4.0, 0.18, 1.9), THATCH_DARK, { y: 2.57, z: 0.78, rx: 0.6, rz: 0.012 }));
   g.add(mesh(box(4.1, 0.16, 0.3), WOOD_DARK, { y: 3.06, rz: 0.01 }));
 
   // door on the +x face
@@ -100,8 +100,8 @@ export function buildGranary() {
   g.add(mesh(box(3.45, 0.1, 2.65), WOOD_DARK, { y: 2.35 }));
   g.add(mesh(box(0.5, 0.7, 0.06), WOOD_DARK, { y: 1.9, z: 1.31 }));
 
-  g.add(mesh(box(3.9, 0.16, 1.75), THATCH, { y: 3.3, z: -0.72, rx: 0.58 }));
-  g.add(mesh(box(3.9, 0.16, 1.75), THATCH_DARK, { y: 3.3, z: 0.72, rx: -0.58 }));
+  g.add(mesh(box(3.9, 0.16, 1.75), THATCH, { y: 3.3, z: -0.72, rx: -0.58 }));
+  g.add(mesh(box(3.9, 0.16, 1.75), THATCH_DARK, { y: 3.3, z: 0.72, rx: 0.58 }));
   g.add(mesh(box(4.0, 0.14, 0.26), WOOD_DARK, { y: 3.76 }));
 
   // ladder up to the door
