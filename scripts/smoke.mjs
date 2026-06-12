@@ -59,12 +59,48 @@ try {
   // optional scenario hook, e.g. node scripts/smoke.mjs aerial
   const scenario = process.argv[2] || '';
 
-  if (scenario === 'rollover') {
-    const dstr = (offset) => {
-      const d = new Date();
-      d.setDate(d.getDate() + offset);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const dstr = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  if (scenario === 'fire') {
+    // a 35-day streak, daily already done today: roaring blaze + full 60 stamina
+    const hot = {
+      saveVersion: 1,
+      createdAt: new Date().toISOString(),
+      lastPlayedAt: new Date().toISOString(),
+      lastQuestDate: dstr(0),
+      rank: 'Peasant',
+      stats: {
+        str: { level: 1, xp: 0 },
+        agi: { level: 1, xp: 0 },
+        wis: { level: 1, xp: 0 },
+        inf: { level: 1, xp: 0 },
+      },
+      coins: 0,
+      treasury: { current: 0, goal: 10000 },
+      streak: { current: 35, best: 35 },
+      quests: {
+        daily: { text: 'today deed', completed: true, date: dstr(0) },
+        weekly: { text: '', completed: false, weekStart: '2020-01-06' },
+        epic: { text: '', progressPct: 0, deadline: '2027-06-08T05:00:00' },
+      },
+      history: [],
+      daysPlayed: 36,
+      stamina: { current: 60, date: dstr(0) },
+      counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
     };
+    await page.evaluateOnNewDocument((save) => {
+      if (!sessionStorage.getItem('smoke-injected')) {
+        sessionStorage.setItem('smoke-injected', '1');
+        localStorage.setItem('crownbound_save', JSON.stringify(save));
+      }
+    }, hot);
+  }
+
+  if (scenario === 'rollover') {
     const stale = {
       saveVersion: 1,
       createdAt: new Date(Date.now() - 3 * 864e5).toISOString(),
@@ -151,7 +187,24 @@ try {
     if (s2.coins !== 42) errors.push('roundtrip: coins lost');
   }
 
-  if (scenario === 'aerial') {
+  if (scenario === 'fire') {
+    await page.evaluate(() => window.__game.orbitCam.setView(Math.PI * 0.98, 0.12, 5));
+    const drain = await page.evaluate(() => {
+      const g = window.__game;
+      const spends = [];
+      for (let i = 0; i < 6; i++) spends.push(g.spendStamina(5)); // 60 -> 30
+      const mid = g.getState().stamina.current;
+      const big = g.spendStamina(30); // -> 0
+      const empty = g.spendStamina(5); // must refuse
+      return { spends, mid, big, empty, end: g.getState().stamina.current };
+    });
+    console.log('stamina drain:', JSON.stringify(drain));
+    if (drain.spends.some((v) => !v)) errors.push('fire: early spends refused');
+    if (drain.mid !== 30) errors.push(`fire: mid stamina ${drain.mid} != 30`);
+    if (!drain.big) errors.push('fire: spend-to-zero refused');
+    if (drain.empty) errors.push('fire: spend allowed at 0 stamina');
+    if (drain.end !== 0) errors.push(`fire: end stamina ${drain.end} != 0`);
+  } else if (scenario === 'aerial') {
     await page.evaluate(() => window.__game?.orbitCam?.setView(2.4, 1.1, 14));
   } else if (scenario === 'front') {
     await page.evaluate(() => window.__game?.orbitCam?.setView(-2.6, 0.25, 7));

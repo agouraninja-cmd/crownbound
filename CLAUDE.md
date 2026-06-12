@@ -103,7 +103,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - [x] M2 — Third-person controller: movement, sprint, dodge, camera follow, E-interaction prompts
 - [x] M3 — Quest Board + Character Sheet UI: quest write/complete flow, stats, XP, coins, Treasury
 - [x] M4 — Persistence: save/load, streak logic, daily/weekly rollover on load
-- [ ] M5 — Campfire streak visuals + stamina system
+- [x] M5 — Campfire streak visuals + stamina system
 - [ ] M6 — Combat: training dummy + granary rats, HP, hit feedback, rat bounty
 - [ ] M7 — Polish: HUD, flavor messages, parchment styling, performance check
 

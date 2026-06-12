@@ -5,7 +5,7 @@ import { LAYOUT } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
-import { loadState, getState, onChange, staminaCap } from './state/state.js';
+import { loadState, getState, onChange, staminaCap, spendStamina } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { toast } from './ui/toasts.js';
 
@@ -25,6 +25,11 @@ const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerH
 
 const world = buildWorld(scene);
 const player = createPlayer(scene, LAYOUT.playerSpawn);
+
+// combat actions draw from the daily stamina pool
+player.trySpend = (cost) => spendStamina(cost);
+player.onActionBlocked = () =>
+  toast('Your arms are spent. Earn your strength — the board awaits.', 'grim');
 
 const isUiOpen = isPanelOpen;
 const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
@@ -80,7 +85,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player, openPanel, getState };
+  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina };
 }
 
 window.addEventListener('resize', () => {
