@@ -159,9 +159,11 @@ try {
         coins: st.coins,
         strLevel: st.stats.str.level,
         epicText: st.quests.epic.text,
+        gutter: window.__game.campfire.getGutter(),
       };
     });
     console.log('after rollover:', JSON.stringify(s1));
+    if (s1.gutter >= 1) errors.push('rollover: campfire not guttering on the new day');
     if (s1.dailyText !== '') errors.push('rollover: daily quest not reset');
     if (s1.dailyDone) errors.push('rollover: daily still completed');
     if (s1.weeklyText !== '') errors.push('rollover: weekly not reset');
@@ -203,6 +205,8 @@ try {
       return { spends, mid, big, empty, end: g.getState().stamina.current };
     });
     console.log('stamina drain:', JSON.stringify(drain));
+    const tended = await page.evaluate(() => window.__game.campfire.getGutter());
+    if (tended !== 1) errors.push(`fire: blaze guttering (${tended}) though daily is done`);
     if (drain.spends.some((v) => !v)) errors.push('fire: early spends refused');
     if (drain.mid !== 30) errors.push(`fire: mid stamina ${drain.mid} != 30`);
     if (!drain.big) errors.push('fire: spend-to-zero refused');
@@ -213,6 +217,7 @@ try {
   } else if (scenario === 'front') {
     await page.evaluate(() => window.__game?.orbitCam?.setView(-2.6, 0.25, 7));
   } else if (scenario === 'quests') {
+    const gutterBefore = await page.evaluate(() => window.__game.campfire.getGutter());
     await page.evaluate(() => window.__game.openPanel('board'));
     await page.type('[data-input]', 'Bench press session');
     await page.click('[data-post]');
@@ -227,9 +232,12 @@ try {
         done: st.quests.daily.completed,
         stamina: st.stamina.current,
         history: st.history.length,
+        gutter: window.__game.campfire.getGutter(),
       };
     });
-    console.log('quest state:', JSON.stringify(s));
+    console.log('quest state:', JSON.stringify(s), `gutterBefore=${gutterBefore}`);
+    if (gutterBefore >= 1) errors.push('fire-warn: campfire not guttering before the daily');
+    if (s.gutter !== 1) errors.push(`fire-warn: campfire still guttering (${s.gutter}) after the daily`);
     if (s.coins !== 10) errors.push(`quests: coins ${s.coins} != 10`);
     if (s.strXp !== 25) errors.push(`quests: strXp ${s.strXp} != 25`);
     if (s.streak !== 1) errors.push(`quests: streak ${s.streak} != 1`);

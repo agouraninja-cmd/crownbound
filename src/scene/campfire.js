@@ -10,6 +10,9 @@ const TIER_PARAMS = {
   roaring: { flame: 1.45, light: 14, dist: 15, rate: 24 },
 };
 
+// an untended fire (today's daily not yet done) burns at this fraction of its tier
+const GUTTER = 0.45;
+
 const MAX_PARTICLES = 60;
 
 export function createCampfire() {
@@ -71,9 +74,12 @@ export function createCampfire() {
   let params = TIER_PARAMS.embers;
   let spawnAcc = 0;
   let t = 0;
+  let gutter = 1; // eases toward gutterTarget so the fire swells, not pops
+  let gutterTarget = 1;
 
-  function setStreak(streak) {
+  function setStreak(streak, tendedToday = true) {
     params = TIER_PARAMS[campfireTier(streak)];
+    gutterTarget = tendedToday ? 1 : GUTTER;
   }
 
   function spawn() {
@@ -96,19 +102,22 @@ export function createCampfire() {
 
   function update(dt) {
     t += dt;
+    gutter += (gutterTarget - gutter) * (1 - Math.exp(-dt * 2.5));
 
-    const flicker = 1 + Math.sin(t * 12.7) * 0.07 + Math.sin(t * 31.1) * 0.05;
-    const fs = params.flame * flicker;
+    // a guttering fire flickers harder — unsteady, starved of its deed
+    const unsteady = 1 + (1 - gutter) * 1.5;
+    const flicker = 1 + (Math.sin(t * 12.7) * 0.07 + Math.sin(t * 31.1) * 0.05) * unsteady;
+    const fs = params.flame * gutter * flicker;
     flameOuter.visible = flameInner.visible = params.flame > 0;
     flameOuter.scale.set(Math.max(fs, 0.001), Math.max(fs, 0.001), Math.max(fs, 0.001));
     flameInner.scale.copy(flameOuter.scale);
     flameOuter.rotation.y = t * 0.9;
     flameInner.rotation.y = -t * 1.3;
 
-    light.intensity = params.light * (1 + Math.sin(t * 9.3) * 0.12 + Math.sin(t * 23.7) * 0.08);
-    light.distance = params.dist;
+    light.intensity = params.light * gutter * (1 + (Math.sin(t * 9.3) * 0.12 + Math.sin(t * 23.7) * 0.08) * unsteady);
+    light.distance = params.dist * (0.7 + 0.3 * gutter);
 
-    spawnAcc += dt * params.rate;
+    spawnAcc += dt * params.rate * gutter;
     while (spawnAcc >= 1) {
       spawnAcc -= 1;
       spawn();
@@ -144,5 +153,5 @@ export function createCampfire() {
   }
 
   setStreak(0);
-  return { group, setStreak, update };
+  return { group, setStreak, update, getGutter: () => gutterTarget };
 }

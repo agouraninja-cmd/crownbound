@@ -193,9 +193,13 @@ export function addCoins(n) {
 
 // ---------- stamina ----------
 
-export function staminaCap() {
+export function dailyDoneToday() {
   const q = state.quests.daily;
-  return q.completed && q.date === todayStr() ? CONFIG.stamina.questCap : CONFIG.stamina.baseCap;
+  return q.completed && q.date === todayStr();
+}
+
+export function staminaCap() {
+  return dailyDoneToday() ? CONFIG.stamina.questCap : CONFIG.stamina.baseCap;
 }
 
 export function spendStamina(cost) {

@@ -72,6 +72,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   Epic: manual progress %, logged to history.
 - Streak: daily completion counts the day. Missing a full day resets to 0 → "The fire died in the night."
 - Campfire tiers by streak: 0 embers / 1–6 small flame / 7–29 healthy fire / 30+ roaring blaze.
+  Until today's daily is done the fire gutters (45% size/light, unsteady flicker) as a living
+  reminder; it swells to full tier the moment the deed is logged.
 - Stamina: base cap 30 (attack 5, dodge 8). Daily completion → refill + cap 60 for that day.
   Empty stamina blocks combat only: "Your arms are spent. Earn your strength — the board awaits."
 - Dummy: tiny STR XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
