@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crownbound</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud">
+    <div id="hud-vitals">
+      <div class="bar-row" id="hp-row">
+        <span class="bar-label">HP</span>
+        <div class="bar hp-bar"><div class="bar-fill" id="hp-fill"></div></div>
+      </div>
+      <div class="bar-row" id="stamina-row">
+        <span class="bar-label">ST</span>
+        <div class="bar stamina-bar"><div class="bar-fill" id="stamina-fill"></div></div>
+      </div>
+    </div>
+    <div id="hud-status">
+      <div id="hud-rank">Peasant</div>
+      <div id="hud-coins"><span class="coin-icon"></span><span id="coin-count">0</span></div>
+      <div id="hud-streak"><span class="flame-icon" id="flame-icon"></span><span id="streak-count">0</span></div>
+    </div>
+    <div id="interact-prompt" class="hidden"></div>
+    <div id="toasts"></div>
+  </div>
+
+  <div id="panel-overlay" class="hidden">
+    <div id="quest-panel" class="panel hidden">
+      <h1>The Quest Board</h1>
+      <div class="panel-body" id="quest-body"></div>
+      <div class="panel-hint">Esc to close</div>
+    </div>
+    <div id="tome-panel" class="panel hidden">
+      <h1>The Chronicle</h1>
+      <div class="panel-body" id="tome-body"></div>
+      <div class="panel-hint">Esc to close</div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
