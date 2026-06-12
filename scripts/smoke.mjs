@@ -393,8 +393,8 @@ try {
     }));
     console.log('after death:', JSON.stringify(wake));
     if (wake.hp !== 20) errors.push(`death: hp ${wake.hp} != 20 after respawn`);
-    if (Math.hypot(wake.x + 5, wake.z - 4) > 1.5)
-      errors.push(`death: respawned at ${wake.x.toFixed(1)},${wake.z.toFixed(1)} not the hovel`);
+    if (Math.hypot(wake.x + 9.3, wake.z - 1.4) > 1.2)
+      errors.push(`death: respawned at ${wake.x.toFixed(1)},${wake.z.toFixed(1)} not at the cot`);
   } else if (scenario === 'walk') {
     const before = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z }));
     await page.keyboard.down('KeyW');
@@ -404,6 +404,103 @@ try {
     const moved = Math.hypot(after.x - before.x, after.z - before.z);
     console.log(`walk check: moved ${moved.toFixed(2)} units`);
     if (moved < 2) errors.push(`walk: player barely moved (${moved.toFixed(2)} units)`);
+  } else if (scenario === 'house') {
+    // 1) closed door bars the gap: stand in the doorway, get pushed back out
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -7.33; // doorway gap (door collider spans x -7.42..-7.3)
+      g.player.pos.z = 1.48;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    const barred = await page.evaluate(() => window.__game.player.pos.x);
+    console.log(`closed door: pushed to x=${barred.toFixed(2)}`);
+    if (barred < -6.96) errors.push(`house: closed door let the player stand in the gap (x ${barred.toFixed(2)})`);
+
+    // 2) open it, stand in the gap freely
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.door.toggle();
+      g.player.pos.x = -7.33;
+      g.player.pos.z = 1.48;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    const open = await page.evaluate(() => ({ x: window.__game.player.pos.x, open: window.__game.door.isOpen }));
+    console.log(`open door: ${JSON.stringify(open)}`);
+    if (!open.open) errors.push('house: toggle did not open the door');
+    if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
+
+    // 3) sleep: wounds mend, the night is marked, you stand up by the cot
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.takeDamage(9, 0, 0);
+      g.sleepAtCot();
+    });
+    await new Promise((r) => setTimeout(r, 1700));
+    const slept = await page.evaluate(() => ({
+      hp: window.__game.player.hp,
+      retired: window.__game.getState().sleep.retiredAt,
+      x: window.__game.player.pos.x,
+      z: window.__game.player.pos.z,
+    }));
+    console.log('after sleep:', JSON.stringify(slept));
+    if (slept.hp !== 20) errors.push(`house: sleep left hp at ${slept.hp}`);
+    if (!slept.retired) errors.push('house: bedtime not recorded');
+    if (Math.hypot(slept.x + 9.3, slept.z - 1.4) > 1.0)
+      errors.push(`house: woke at ${slept.x.toFixed(1)},${slept.z.toFixed(1)} not by the cot`);
+
+    // 4) the dawn rules, judged against fixed clocks (pure function)
+    const verdicts = await page.evaluate(() => {
+      const ev = window.__game.evaluateSleep;
+      const bed = new Date(2026, 5, 11, 23, 0).toISOString(); // 11pm
+      return {
+        goodDawn: ev(bed, new Date(2026, 5, 12, 7, 30)), // 8.5h, up at 7:30
+        lateRise: ev(bed, new Date(2026, 5, 12, 9, 0)), // 10h, but 9:00
+        shortNight: ev(bed, new Date(2026, 5, 12, 3, 0)), // only 4h so far
+        forgotten: ev(bed, new Date(2026, 5, 13, 7, 0)), // 32h ago
+        noBed: ev(null, new Date()),
+      };
+    });
+    console.log('verdicts:', JSON.stringify(verdicts));
+    if (verdicts.goodDawn !== 'reward') errors.push(`house: good dawn -> ${verdicts.goodDawn}`);
+    if (verdicts.lateRise !== 'late') errors.push(`house: late rise -> ${verdicts.lateRise}`);
+    if (verdicts.shortNight !== 'pending') errors.push(`house: short night -> ${verdicts.shortNight}`);
+    if (verdicts.forgotten !== 'stale') errors.push(`house: forgotten bedtime -> ${verdicts.forgotten}`);
+    if (verdicts.noBed !== 'none') errors.push(`house: no bedtime -> ${verdicts.noBed}`);
+
+    // 5) the Well-Rested boon: once per day, +coins +wis xp +stamina headroom
+    const boon = await page.evaluate(() => {
+      const g = window.__game;
+      const before = g.getState();
+      const b = { coins: before.coins, wisXp: before.stats.wis.xp, stamina: before.stamina.current };
+      const granted = g.applySleepReward();
+      const again = g.applySleepReward();
+      const st = g.getState();
+      return {
+        granted,
+        again,
+        dCoins: st.coins - b.coins,
+        dWis: st.stats.wis.xp - b.wisXp,
+        stamina: st.stamina.current,
+        histType: st.history[st.history.length - 1].type,
+        rested: st.sleep.wellRestedDate,
+      };
+    });
+    console.log('boon:', JSON.stringify(boon));
+    if (!boon.granted) errors.push('house: boon refused on first grant');
+    if (boon.again) errors.push('house: boon granted twice in one day');
+    if (boon.dCoins !== 10) errors.push(`house: boon coins ${boon.dCoins} != 10`);
+    if (boon.dWis !== 10) errors.push(`house: boon wis xp ${boon.dWis} != 10`);
+    if (boon.stamina !== 40) errors.push(`house: stamina ${boon.stamina} != 40 (30 + rested cap)`);
+    if (boon.histType !== 'sleep') errors.push(`house: history type ${boon.histType} != sleep`);
+    if (!boon.rested) errors.push('house: wellRestedDate not set');
+
+    // 6) interior screenshot: indoors camera should pull in under the rafters
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -8.6;
+      g.player.pos.z = 1.1;
+      g.orbitCam.setView(2.4, 0.3, 6); // far view; the indoor clamp must pull it in
+    });
   }
   await new Promise((r) => setTimeout(r, 1500));
 

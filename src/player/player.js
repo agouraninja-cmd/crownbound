@@ -112,17 +112,38 @@ export function createPlayer(scene, spawn) {
     player.rollDir = { x: dirX, z: dirZ };
   }
 
+  // colliders are circles {x, z, r} (trees, rocks) or axis-aligned rects
+  // {minX, maxX, minZ, maxZ} (hovel walls, furniture)
   function resolveCollisions(colliders) {
     const p = player.pos;
     for (const c of colliders) {
-      const dx = p.x - c.x;
-      const dz = p.z - c.z;
-      const minDist = c.r + PLAYER_RADIUS;
-      const d2 = dx * dx + dz * dz;
-      if (d2 < minDist * minDist && d2 > 1e-6) {
-        const d = Math.sqrt(d2);
-        p.x = c.x + (dx / d) * minDist;
-        p.z = c.z + (dz / d) * minDist;
+      if (c.r !== undefined) {
+        const dx = p.x - c.x;
+        const dz = p.z - c.z;
+        const minDist = c.r + PLAYER_RADIUS;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < minDist * minDist && d2 > 1e-6) {
+          const d = Math.sqrt(d2);
+          p.x = c.x + (dx / d) * minDist;
+          p.z = c.z + (dz / d) * minDist;
+        }
+      } else {
+        const minX = c.minX - PLAYER_RADIUS;
+        const maxX = c.maxX + PLAYER_RADIUS;
+        const minZ = c.minZ - PLAYER_RADIUS;
+        const maxZ = c.maxZ + PLAYER_RADIUS;
+        if (p.x > minX && p.x < maxX && p.z > minZ && p.z < maxZ) {
+          // push out along the axis of least penetration
+          const toMinX = p.x - minX;
+          const toMaxX = maxX - p.x;
+          const toMinZ = p.z - minZ;
+          const toMaxZ = maxZ - p.z;
+          const m = Math.min(toMinX, toMaxX, toMinZ, toMaxZ);
+          if (m === toMinX) p.x = minX;
+          else if (m === toMaxX) p.x = maxX;
+          else if (m === toMinZ) p.z = minZ;
+          else p.z = maxZ;
+        }
       }
     }
     const r = Math.hypot(p.x, p.z);

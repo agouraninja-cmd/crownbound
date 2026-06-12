@@ -15,10 +15,55 @@ const LEATHER = 0x6b3a26;
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const cyl = (rt, rb, h, seg = 7) => new THREE.CylinderGeometry(rt, rb, h, seg);
 
+// Hollow hovel: same 3.4 × 2.9 footprint and silhouette as the old solid box,
+// but with real walls, a hinged door on the +x face, and a furnished one-room
+// interior. The floor is the terrain itself (a packed-earth dirt patch in
+// layout.js paints it). All dimensions are LOCAL; world.js offsets them — the
+// hovel must stay unrotated (rotY 0) so its wall colliders stay axis-aligned.
+export const HOVEL = {
+  halfX: 1.7,
+  halfZ: 1.45,
+  wallT: 0.12, // walls span x ±[1.58, 1.70], z ±[1.33, 1.45]
+  door: { z0: -0.97, z1: -0.07, h: 1.62, openAngle: 1.9 }, // gap in the +x wall
+  bed: { x: -1.05, z: 0.55 }, // cot centre — the bed interactable + sleep spot
+  wake: { x: -0.3, z: -0.6 }, // open floor where you stand after sleep/death
+  hearth: { x: 0.3, z: 0.45, r: 0.55 },
+  chest: { x0: -1.28, x1: -0.62, z0: -1.21, z1: -0.79 },
+  table: { x: 1.0, z: 0.95, r: 0.5 },
+  ceilY: 1.85, // indoor camera stays under this
+};
+
+// triangle closing an end wall between wall top (y 2.0) and the roof ridge;
+// the extruded slab spans x [xOuter - wallT, xOuter]
+function gable(xOuter) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-HOVEL.halfZ, 2.0);
+  shape.lineTo(HOVEL.halfZ, 2.0);
+  shape.lineTo(0, 2.98);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: HOVEL.wallT, bevelEnabled: false });
+  geo.rotateY(-Math.PI / 2); // shape plane becomes (z,y), extruded toward -x
+  return mesh(geo, WOOD, { x: xOuter });
+}
+
 export function buildHovel() {
   const g = new THREE.Group();
+  const H = HOVEL;
+  const wallX = H.halfX - H.wallT / 2; // 1.64
+  const wallZ = H.halfZ - H.wallT / 2; // 1.39
 
-  g.add(mesh(box(3.4, 2.0, 2.9), WOOD, { y: 1.0, rz: 0.015 }));
+  // walls reach 0.3 below grade so the undulating terrain never shows a gap
+  const wallBox = (w, d) => box(w, 2.3, d);
+  g.add(mesh(wallBox(H.wallT, 2.9), WOOD, { x: -wallX, y: 0.85 })); // -x
+  g.add(mesh(wallBox(3.4, H.wallT), WOOD, { y: 0.85, z: wallZ })); // +z
+  g.add(mesh(wallBox(3.4, H.wallT), WOOD, { y: 0.85, z: -wallZ })); // -z
+  // +x wall, split around the doorway
+  g.add(mesh(wallBox(H.wallT, H.halfZ + H.door.z0), WOOD, { x: wallX, y: 0.85, z: (H.door.z0 - H.halfZ) / 2 }));
+  g.add(mesh(wallBox(H.wallT, H.halfZ - H.door.z1), WOOD, { x: wallX, y: 0.85, z: (H.door.z1 + H.halfZ) / 2 }));
+  g.add(mesh(box(H.wallT, 2.0 - H.door.h, 1.1), WOOD, { x: wallX, y: (2.0 + H.door.h) / 2, z: (H.door.z0 + H.door.z1) / 2 })); // lintel
+  g.add(gable(H.halfX));
+  g.add(gable(-H.halfX + H.wallT));
+
   // patch planks — it should look shabby
   g.add(mesh(box(0.12, 1.1, 0.7), WOOD_DARK, { x: 1.68, y: 0.9, z: 0.6, rx: 0.08 }));
   g.add(mesh(box(0.8, 0.14, 0.12), WOOD_PALE, { x: -0.4, y: 1.5, z: 1.48, rz: -0.1 }));
@@ -27,11 +72,20 @@ export function buildHovel() {
   g.add(mesh(box(4.0, 0.18, 1.9), THATCH, { y: 2.55, z: -0.78, rx: -0.62 }));
   g.add(mesh(box(4.0, 0.18, 1.9), THATCH_DARK, { y: 2.57, z: 0.78, rx: 0.6, rz: 0.012 }));
   g.add(mesh(box(4.1, 0.16, 0.3), WOOD_DARK, { y: 3.06, rz: 0.01 }));
+  // tie beam under the rafters
+  g.add(mesh(box(3.16, 0.1, 0.12), WOOD_DARK, { y: 2.0, z: -0.7 }));
 
-  // door on the +x face
-  g.add(mesh(box(0.1, 1.3, 0.74), WOOD_DARK, { x: 1.72, y: 0.66, z: -0.5 }));
-  g.add(mesh(box(0.06, 1.42, 0.1), WOOD_PALE, { x: 1.73, y: 0.72, z: -0.12 }));
-  g.add(mesh(box(0.06, 1.42, 0.1), WOOD_PALE, { x: 1.73, y: 0.72, z: -0.88 }));
+  // doorway: jamb posts + the hinged leaf (pivot on the south jamb)
+  g.add(mesh(box(0.06, H.door.h, 0.1), WOOD_PALE, { x: 1.66, y: H.door.h / 2, z: H.door.z1 + 0.04 }));
+  g.add(mesh(box(0.06, H.door.h, 0.1), WOOD_PALE, { x: 1.66, y: H.door.h / 2, z: H.door.z0 - 0.04 }));
+  const doorPivot = new THREE.Group();
+  doorPivot.position.set(wallX, 0, H.door.z0);
+  const leafLen = H.door.z1 - H.door.z0 - 0.06;
+  doorPivot.add(mesh(box(0.07, H.door.h - 0.08, leafLen), WOOD_DARK, { y: (H.door.h - 0.08) / 2 + 0.02, z: leafLen / 2 + 0.02 }));
+  doorPivot.add(mesh(box(0.04, 0.12, leafLen), WOOD_PALE, { x: 0.05, y: 1.15, z: leafLen / 2 + 0.02 }));
+  doorPivot.add(mesh(box(0.04, 0.12, leafLen), WOOD_PALE, { x: 0.05, y: 0.45, z: leafLen / 2 + 0.02 }));
+  g.add(doorPivot);
+
   // tiny dark window
   g.add(mesh(box(0.08, 0.42, 0.42), 0x2c2017, { x: 1.71, y: 1.35, z: 0.74 }));
 
@@ -41,7 +95,91 @@ export function buildHovel() {
   g.add(mesh(cyl(0.37, 0.37, 0.07, 9), WOOD_DARK, { x: 1.1, y: 0.2, z: 1.75 }));
   g.add(mesh(cyl(0.37, 0.37, 0.07, 9), WOOD_DARK, { x: 1.1, y: 0.6, z: 1.75 }));
 
-  return g;
+  furnish(g);
+
+  return { group: g, doorPivot };
+}
+
+const WOOL = 0x6b5a44; // undyed peasant blanket
+const CLAY = 0x9c5e3c;
+const HERB = 0x6f7a3e;
+
+// One-room medieval peasant interior: straw cot, open hearth, trestle table,
+// stool, chest, pot shelf, hanging herbs, firewood. Dirt floor is the terrain.
+function furnish(g) {
+  const H = HOVEL;
+
+  // straw cot along the -x wall
+  const bx = H.bed.x;
+  const bz = H.bed.z;
+  g.add(mesh(box(0.9, 0.12, 1.5), WOOD_DARK, { x: bx, y: 0.26, z: bz }));
+  for (const [lx, lz] of [[-0.38, -0.66], [0.38, -0.66], [-0.38, 0.66], [0.38, 0.66]]) {
+    g.add(mesh(box(0.09, 0.26, 0.09), WOOD_DARK, { x: bx + lx, y: 0.13, z: bz + lz }));
+  }
+  g.add(mesh(box(0.8, 0.14, 1.4), STRAW, { x: bx, y: 0.39, z: bz }));
+  g.add(mesh(box(0.82, 0.06, 0.85), WOOL, { x: bx, y: 0.47, z: bz + 0.25 }));
+  g.add(mesh(box(0.55, 0.1, 0.3), 0xcbb98e, { x: bx, y: 0.49, z: bz - 0.5 })); // sack pillow
+
+  // open hearth: stone ring, ash, ember glow, charred logs
+  const hx = H.hearth.x;
+  const hz = H.hearth.z;
+  g.add(mesh(cyl(0.34, 0.38, 0.06, 9), 0x4a423a, { x: hx, y: 0.03, z: hz, shadow: false }));
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + 0.4;
+    g.add(mesh(box(0.16, 0.14, 0.16), STONE, { x: hx + Math.cos(a) * 0.42, y: 0.07, z: hz + Math.sin(a) * 0.42, ry: a }));
+  }
+  const embers = new THREE.Mesh(
+    cyl(0.18, 0.22, 0.05, 7),
+    new THREE.MeshBasicMaterial({ color: 0xd96a2a })
+  );
+  embers.position.set(hx, 0.06, hz);
+  g.add(embers);
+  g.add(mesh(box(0.4, 0.09, 0.1), 0x2c241c, { x: hx, y: 0.1, z: hz, ry: 0.5 }));
+  g.add(mesh(box(0.36, 0.09, 0.1), 0x2c241c, { x: hx, y: 0.1, z: hz, ry: -0.7 }));
+  // a small warm glow — deliberately the scene's only light beyond the sun
+  // (no shadows, tight falloff, so the 60fps budget is untouched)
+  const glow = new THREE.PointLight(0xff9a55, 2.2, 4.5, 2);
+  glow.position.set(hx, 0.8, hz);
+  g.add(glow);
+
+  // trestle table against the +z wall, bowl on top
+  const tx = H.table.x;
+  const tz = H.table.z;
+  g.add(mesh(box(0.85, 0.07, 0.55), WOOD, { x: tx, y: 0.62, z: tz }));
+  for (const [lx, lz] of [[-0.34, -0.2], [0.34, -0.2], [-0.34, 0.2], [0.34, 0.2]]) {
+    g.add(mesh(box(0.07, 0.6, 0.07), WOOD_DARK, { x: tx + lx, y: 0.3, z: tz + lz }));
+  }
+  g.add(mesh(cyl(0.1, 0.07, 0.08, 7), 0x8a6a3f, { x: tx - 0.15, y: 0.7, z: tz }));
+
+  // stool
+  g.add(mesh(cyl(0.16, 0.16, 0.06, 7), WOOD_PALE, { x: 0.45, y: 0.38, z: 1.05 }));
+  g.add(mesh(cyl(0.05, 0.07, 0.36, 6), WOOD_DARK, { x: 0.45, y: 0.18, z: 1.05 }));
+
+  // chest in the -z corner
+  const cx = (H.chest.x0 + H.chest.x1) / 2;
+  const cz = (H.chest.z0 + H.chest.z1) / 2;
+  g.add(mesh(box(0.66, 0.34, 0.42), WOOD, { x: cx, y: 0.17, z: cz }));
+  g.add(mesh(box(0.7, 0.1, 0.46), WOOD_DARK, { x: cx, y: 0.39, z: cz }));
+  g.add(mesh(box(0.08, 0.5, 0.48), 0x3a3a3f, { x: cx, y: 0.2, z: cz })); // iron band
+
+  // pot shelf on the -z wall
+  g.add(mesh(box(1.1, 0.05, 0.26), WOOD_PALE, { x: -0.2, y: 1.28, z: -1.18 }));
+  g.add(mesh(box(0.05, 0.18, 0.2), WOOD_DARK, { x: -0.6, y: 1.18, z: -1.2 }));
+  g.add(mesh(box(0.05, 0.18, 0.2), WOOD_DARK, { x: 0.2, y: 1.18, z: -1.2 }));
+  g.add(mesh(cyl(0.09, 0.11, 0.2, 7), CLAY, { x: -0.5, y: 1.41, z: -1.18 }));
+  g.add(mesh(cyl(0.08, 0.1, 0.18, 7), CLAY, { x: -0.18, y: 1.4, z: -1.18 }));
+  g.add(mesh(cyl(0.07, 0.1, 0.24, 7), 0x86715a, { x: 0.1, y: 1.43, z: -1.18 }));
+
+  // herbs drying on the tie beam
+  for (const hxp of [0.1, 0.65]) {
+    g.add(mesh(box(0.02, 0.22, 0.02), 0x4a3220, { x: hxp, y: 1.86, z: -0.7, shadow: false }));
+    g.add(mesh(new THREE.ConeGeometry(0.09, 0.24, 5), HERB, { x: hxp, y: 1.66, z: -0.7, rx: Math.PI }));
+  }
+
+  // firewood by the +x wall
+  for (const [wy, wz] of [[0.07, 0.22], [0.07, 0.38], [0.18, 0.3]]) {
+    g.add(mesh(cyl(0.06, 0.06, 0.5, 5), WOOD_DARK, { x: 1.3, y: wy, z: wz, rz: Math.PI / 2 }));
+  }
 }
 
 export function buildQuestBoard() {

@@ -79,5 +79,9 @@ export const sfx = {
     tone({ freq: 784, dur: 0.25, gain: 0.35, when: 0.27 });
   },
   page: () => noise({ dur: 0.15, gain: 0.12, freq: 2400 }),
+  creak: () => {
+    tone({ freq: 160, to: 70, type: 'sawtooth', dur: 0.3, gain: 0.12 });
+    noise({ dur: 0.12, gain: 0.08, freq: 600 });
+  },
   hurt: () => tone({ freq: 200, to: 90, type: 'sawtooth', dur: 0.15, gain: 0.3 }),
 };

@@ -86,6 +86,7 @@ function defaultState(now = new Date()) {
     daysPlayed: 1,
     stamina: { current: CONFIG.stamina.baseCap, date: today },
     counters: { date: today, dummyHits: 0, ratsKilled: 0 },
+    sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null },
   };
 }
 
@@ -95,7 +96,59 @@ function migrate(s) {
     s.quests.monthly = { text: '', completed: false, monthStart: monthStartStr() };
     s.saveVersion = 2;
   }
+  if (s.saveVersion === 2) {
+    s.saveVersion = 3;
+  }
+  // hand-edited or restored saves may miss the field regardless of version
+  if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   return s;
+}
+
+// ---------- sleep (the cot) ----------
+
+// Pure verdict on a recorded bedtime, exported so the smoke suite can test the
+// clock rules against fixed dates instead of the real wall clock:
+//   'reward'  slept ≥ minHours and back by wakeByHour — grant Well-Rested
+//   'late'    slept enough but the morning is gone — clear it, no reward
+//   'pending' not enough hours yet (an evening session) — keep it
+//   'stale'   too old to be last night — clear it silently
+//   'none'    no bedtime recorded
+export function evaluateSleep(retiredAtIso, now = new Date()) {
+  if (!retiredAtIso) return 'none';
+  const S = CONFIG.sleep;
+  const hours = (now.getTime() - new Date(retiredAtIso).getTime()) / 3600e3;
+  if (hours < S.minHours) return 'pending';
+  if (hours > S.maxHours) return 'stale';
+  const byTheBell =
+    now.getHours() < S.wakeByHour || (now.getHours() === S.wakeByHour && now.getMinutes() === 0);
+  return byTheBell ? 'reward' : 'late';
+}
+
+// the cot marks the night; the next load judges it (see evaluateSleep)
+export function recordBedtime() {
+  state.sleep.retiredAt = new Date().toISOString();
+  save();
+}
+
+// Grants the Well-Rested boon, once per day. Called by the load path; exported
+// so the smoke suite can exercise the grant without faking the wall clock.
+export function applySleepReward() {
+  const today = todayStr();
+  if (state.sleep.lastRewardDate === today) return false;
+  const S = CONFIG.sleep;
+  state.sleep.lastRewardDate = today;
+  state.sleep.wellRestedDate = today; // staminaCap() reads this for the rest of the day
+  state.coins += S.coins;
+  state.stamina.current = Math.min(state.stamina.current + S.staminaBonus, staminaCap());
+  state.history.push({
+    date: today,
+    questText: 'Rose with the dawn, well-rested',
+    statTrained: 'wis',
+    type: 'sleep',
+  });
+  addXp('wis', S.wisXp); // saves + emits
+  emit('sleep');
+  return true;
 }
 
 // Detect date changes since last play. Returns flavor messages for the player.
@@ -135,6 +188,20 @@ function rollover() {
     state.stamina = { current: staminaCap(), date: today };
   }
 
+  // judge last night's bedtime against the dawn (after the stamina reset,
+  // so the Well-Rested bonus lands in today's pool)
+  const verdict = evaluateSleep(state.sleep.retiredAt);
+  if (verdict !== 'none' && verdict !== 'pending') state.sleep.retiredAt = null;
+  if (verdict === 'reward' && applySleepReward()) {
+    const S = CONFIG.sleep;
+    messages.push({
+      text: `Well-Rested — a full night, up with the dawn. (+${S.wisXp} Wisdom XP, +${S.coins}c, +${S.staminaBonus} stamina)`,
+      style: 'gold',
+    });
+  } else if (verdict === 'late') {
+    messages.push({ text: 'You slept long past the dawn bell. No boon today.', style: 'grim' });
+  }
+
   return messages;
 }
 
@@ -144,7 +211,7 @@ export function loadState() {
   if (!raw) {
     state = defaultState();
     messages.push({ text: 'You wake in a humble clearing. The board awaits.', style: '' });
-    messages.push({ text: 'WASD walk · Shift run · Space jump · C crouch · Double-tap WASD roll · Click swing · E interact', style: '' });
+    messages.push({ text: 'WASD walk · Shift run · Space jump · C crouch · Double-tap WASD roll · Click swing · E interact · F door', style: '' });
   } else {
     try {
       state = migrate(JSON.parse(raw));
@@ -199,7 +266,9 @@ export function dailyDoneToday() {
 }
 
 export function staminaCap() {
-  return dailyDoneToday() ? CONFIG.stamina.questCap : CONFIG.stamina.baseCap;
+  const base = dailyDoneToday() ? CONFIG.stamina.questCap : CONFIG.stamina.baseCap;
+  const rested = state.sleep.wellRestedDate === todayStr() ? CONFIG.sleep.staminaBonus : 0;
+  return base + rested;
 }
 
 export function spendStamina(cost) {
@@ -232,7 +301,7 @@ export function completeDaily(statKey) {
   state.lastQuestDate = today;
 
   state.coins += CONFIG.rewards.daily.coins;
-  state.stamina = { current: CONFIG.stamina.questCap, date: today };
+  state.stamina = { current: staminaCap(), date: today }; // includes Well-Rested bonus if earned
   state.history.push({ date: today, questText: q.text, statTrained: statKey, type: 'daily' });
   const levelUps = addXp(statKey, CONFIG.rewards.daily.xp); // addXp saves + emits
   emit('quests');

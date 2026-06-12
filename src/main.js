@@ -5,7 +5,7 @@ import { LAYOUT } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
-import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday } from './state/state.js';
+import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { toast } from './ui/toasts.js';
 import { initAudio, sfx } from './ui/audio.js';
@@ -70,15 +70,41 @@ player.onDeath = () => {
   player.setEnabled(false);
   fadeEl.classList.add('show');
   setTimeout(() => {
-    player.respawn(LAYOUT.playerSpawn.x, LAYOUT.playerSpawn.z);
+    player.respawn(world.wakeSpot.x, world.wakeSpot.z);
     fadeEl.classList.remove('show');
     toast('You wake on your straw cot, aching. The rats remain.', 'grim');
     if (!isPanelOpen()) player.setEnabled(true);
   }, 1100);
 };
 
+// E on the cot: fade out, mend fully, mark the night for the dawn judgment
+let sleeping = false;
+function sleepAtCot() {
+  if (sleeping) return;
+  sleeping = true;
+  const wounded = player.hp < player.maxHp - 0.01;
+  player.setEnabled(false);
+  orbitCam.unlock();
+  sfx.page();
+  fadeEl.classList.add('show');
+  setTimeout(() => {
+    player.respawn(world.wakeSpot.x, world.wakeSpot.z); // full HP, standing by the cot
+    recordBedtime();
+    fadeEl.classList.remove('show');
+    toast(
+      wounded
+        ? 'Sleep knits your wounds. The night is marked.'
+        : 'You rest your eyes a while. The night is marked.',
+      ''
+    );
+    if (!isPanelOpen()) player.setEnabled(true);
+    sleeping = false;
+  }, 1000);
+}
+
 const isUiOpen = isPanelOpen;
 const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
+orbitCam.setInterior(world.hovelInterior);
 
 initHud();
 initPanels((opened) => {
@@ -105,11 +131,18 @@ setTimeout(() => {
   for (const m of bootMessages) toast(m.text, m.style);
 }, 700);
 
+function insideHovel() {
+  const z = world.hovelInterior;
+  return player.pos.x > z.minX && player.pos.x < z.maxX && player.pos.z > z.minZ && player.pos.z < z.maxZ;
+}
+
 // nearest interactable in range drives the E prompt
 function nearestInteractable() {
   let best = null;
   let bestD = Infinity;
+  const inside = insideHovel();
   for (const it of world.interactables) {
+    if (it.insideOnly && !inside) continue;
     const d = Math.hypot(player.pos.x - it.x, player.pos.z - it.z);
     if (d < it.radius && d < bestD) {
       bestD = d;
@@ -119,19 +152,43 @@ function nearestInteractable() {
   return best;
 }
 
+function doorDist() {
+  return Math.hypot(player.pos.x - world.door.x, player.pos.z - world.door.z);
+}
+
+// the door (F) and the nearest E-interactable share the one prompt line
+function promptText() {
+  const it = nearestInteractable();
+  const dDoor = doorDist();
+  const itD = it ? Math.hypot(player.pos.x - it.x, player.pos.z - it.z) : Infinity;
+  if (dDoor < world.door.radius && dDoor < itD) {
+    return `Press <b>F</b> — ${world.door.isOpen ? 'close the door' : 'open the door'}`;
+  }
+  return it ? `Press <b>E</b> — ${it.label}` : null;
+}
+
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyE' && player.isEnabled() && !isPanelOpen()) {
+  if (!player.isEnabled() || isPanelOpen()) return;
+  if (e.code === 'KeyE') {
     const it = nearestInteractable();
-    if (it) {
+    if (!it) return;
+    if (it.id === 'bed') {
+      sleepAtCot();
+    } else {
       orbitCam.unlock();
       openPanel(it.id);
+    }
+  } else if (e.code === 'KeyF') {
+    if (doorDist() < world.door.radius) {
+      world.door.toggle();
+      sfx.creak();
     }
   }
 });
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire };
+  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, sleepAtCot, evaluateSleep, applySleepReward, wakeSpot: world.wakeSpot };
 }
 
 window.addEventListener('resize', () => {
@@ -157,11 +214,11 @@ function tick() {
     player.update(dt, orbitCam.getYaw(), world.colliders);
     rats.update(dt, player, (dmg, x, z) => player.takeDamage(dmg, x, z));
     dummy.update(dt);
-    const it = nearestInteractable();
-    showPrompt(it ? `Press <b>E</b> — ${it.label}` : null);
+    showPrompt(promptText());
   }
 
   world.campfire.update(dt);
+  world.door.update(dt);
   orbitCam.update(dt, player.pos);
 
   renderer.render(scene, camera);

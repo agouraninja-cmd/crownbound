@@ -11,8 +11,8 @@ The year-long Epic Quest counts down to the **Coronation: June 8, 2027, 5:00 AM*
 - Vite + vanilla JS + Three.js (^0.169). No frameworks. ES modules.
 - All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 2`, migration hook in `state.js`
-  (v1→v2 adds the monthly campaign).
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 3`, migration hook in `state.js`
+  (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking).
 - Target 60fps on mid-range laptop: merged static geometry, one shadow-casting directional light, cheap particles.
 
 ## File structure
@@ -43,7 +43,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 2,
+  saveVersion: 3,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
   stats: { str|agi|wis|inf: { level, xp } },     // next level costs 100 × current level XP
@@ -60,7 +60,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   // v1 additions beyond original spec (documented deviations):
   daysPlayed,                                    // incremented on first login of each local day
   stamina: { current, date },                    // daily pool, persisted within the day
-  counters: { date, dummyXp, ratsKilled }        // per-day scratch: dummy diminishing returns, rat respawn
+  counters: { date, dummyXp, ratsKilled },       // per-day scratch: dummy diminishing returns, rat respawn
+  sleep: { retiredAt, lastRewardDate, wellRestedDate }  // cot bedtime + Well-Rested boon bookkeeping
 }
 ```
 
@@ -78,7 +79,13 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   Empty stamina blocks combat only: "Your arms are spent. Earn your strength — the board awaits."
 - Dummy: tiny STR XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
-  dead rats respawn next day. Player death (0 HP): wake at hovel, full HP, flavor text, no penalty.
+  dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
+- The hovel is enterable: F opens/closes the hinged door (closed = solid collider), furnished
+  one-room peasant interior, indoor camera pulls in close. E on the cot sleeps: fade out, full heal,
+  and the bedtime is recorded. On the next load, if ≥7h passed (≤13h, so it was last night) and it is
+  8:00 AM local or earlier → Well-Rested boon: +10 WIS XP, +10 coins, +10 stamina cap for the day,
+  history entry type "sleep". Once per day; after 8:00 a grim flavor line and no boon. Honor system —
+  "wake time" is when the game is next opened, which doubles as the morning check-in habit.
 
 ## Noted decisions (simplest reasonable choices where spec was ambiguous)
 - Daily/weekly rollover is detected on page load (sessions are short; no mid-session midnight handling).
@@ -97,7 +104,17 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Controls: Space jumps (grounded gravity arc, no double-jump, free — stamina blocks combat only);
   dodge-roll is double-tap of a movement key, rolling in that key's camera-relative direction;
   hold C to crouch (visual stance + slower walk, no stealth effect — Ctrl was rejected because
-  Ctrl+W closes the browser tab). None work while a UI panel is open.
+  Ctrl+W closes the browser tab); F toggles the hovel door (E stays panel-interactions). None work
+  while a UI panel is open.
+- Hovel interior (post-v1 "Hearth & Home"): same footprint, walls became hollow shell + furniture;
+  the hovel must stay unrotated (rotY 0) — its colliders are axis-aligned rects (collision system
+  supports circles + AABBs only). Interior floor is the terrain itself with a packed-earth dirt
+  patch painted under the footprint. The hearth adds the scene's one extra light (PointLight,
+  no shadows, tight falloff) — still within the perf budget. Indoor camera: orbit distance clamps
+  to ~1.8 and stays under ceilY while the player is inside the room bounds.
+- Sleep reward clock rules live in `evaluateSleep()` (pure, exported) so the smoke suite can test
+  fixed dates; `applySleepReward()` is likewise exported for the suite. Sleeping always heals fully
+  and re-records the bedtime (last bed-use of the night wins).
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -125,13 +142,19 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 60fps territory for a mid-range GPU. Pointer-lock mouse camera and audio could not be exercised
 headlessly; everything else covered by the regression suite below.
 
+- [x] Post-v1 — "Hearth & Home" (2026-06-12): enterable hovel (hollow shell, F-door, furnished
+  peasant interior, indoor camera), cot sleep = full heal + death respawn point, Well-Rested
+  dawn reward (7+ h, up by 8:00), saveVersion 3.
+
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
-  `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/death · `walk` movement ·
-  `tome` save export/import round-trip + chronicle deed list + screenshot · `aerial`/`front` screenshots.
+  `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/death (respawn at the cot) ·
+  `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
+  `house` door collider open/close + cot sleep/heal + dawn-verdict clock rules + Well-Rested boon +
+  interior screenshot · `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

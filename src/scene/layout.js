@@ -17,6 +17,7 @@ export const LAYOUT = {
   dirtPatches: [
     { x: -4.6, z: 6.2, r: 2.6 }, // around campfire
     { x: -7, z: 3, r: 3.2 }, // in front of the hovel
+    { x: -9, z: 2, r: 2.6 }, // under the hovel — the packed-earth floor indoors
     { x: -8.5, z: 9.5, r: 2.2 }, // under the dummy
     { x: 11, z: 11, r: 4.2 }, // granary yard
   ],

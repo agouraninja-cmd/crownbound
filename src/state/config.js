@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 2, // v2 added the monthly campaign
+  saveVersion: 3, // v2 added the monthly campaign; v3 the cot's sleep tracking
 
   coronation: '2027-06-08T05:00:00',
 
@@ -26,6 +26,16 @@ export const CONFIG = {
     questCap: 60, // cap for the rest of the day once the daily quest is done
     attackCost: 5,
     dodgeCost: 8,
+  },
+
+  // The cot marks a bedtime; the next game load judges it against the dawn.
+  sleep: {
+    minHours: 7, // a real night's rest
+    maxHours: 13, // the bedtime must be from last night, not days ago
+    wakeByHour: 8, // back at the game by 08:00 local to count as rising with the dawn
+    wisXp: 10,
+    coins: 10,
+    staminaBonus: 10, // extra cap (and pool) for the rest of the day
   },
 
   player: {
