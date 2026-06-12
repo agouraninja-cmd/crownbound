@@ -13,12 +13,21 @@ export function initHud() {
   prompt = el('interact-prompt');
 }
 
+let lastHpPct = -1;
+let lastStPct = -1;
+
 export function setHp(current, max) {
-  hpFill.style.width = `${Math.max(0, (current / max) * 100)}%`;
+  const pct = Math.round(Math.max(0, (current / max) * 100));
+  if (pct === lastHpPct) return;
+  lastHpPct = pct;
+  hpFill.style.width = `${pct}%`;
 }
 
 export function setStamina(current, cap) {
-  staminaFill.style.width = `${Math.max(0, (current / cap) * 100)}%`;
+  const pct = Math.round(Math.max(0, (current / cap) * 100));
+  if (pct === lastStPct) return;
+  lastStPct = pct;
+  staminaFill.style.width = `${pct}%`;
 }
 
 export function setCoins(n) {

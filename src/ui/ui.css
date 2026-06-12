@@ -25,6 +25,18 @@ body {
 
 .hidden { display: none !important; }
 
+#fade {
+  position: fixed;
+  inset: 0;
+  background: #0c0805;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.7s ease;
+  z-index: 15;
+}
+
+#fade.show { opacity: 1; }
+
 /* ---------- HUD ---------- */
 
 #hud {

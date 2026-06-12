@@ -31,6 +31,22 @@ export function mesh(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, 
   return m;
 }
 
+const FLASH_MAT = new THREE.MeshBasicMaterial({ color: 0xff5039 });
+
+// hit feedback: briefly swap every material in the group for hot red
+export function flash(group, ms = 90) {
+  const restore = [];
+  group.traverse((o) => {
+    if (o.isMesh) {
+      restore.push([o, o.material]);
+      o.material = FLASH_MAT;
+    }
+  });
+  setTimeout(() => {
+    for (const [o, m] of restore) o.material = m;
+  }, ms);
+}
+
 // paint a solid vertex color onto a geometry (for merged static scenery)
 export function paint(geo, colorHex) {
   const c = new THREE.Color(colorHex);

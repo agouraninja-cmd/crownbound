@@ -13,6 +13,7 @@ import {
 import { CONFIG } from '../state/config.js';
 import { countdownTo } from '../state/dates.js';
 import { toast } from './toasts.js';
+import { sfx } from './audio.js';
 
 let overlay, boardPanel, tomePanel, boardBody, tomeBody;
 let open = null;
@@ -122,7 +123,11 @@ function renderBoard() {
 
 function rewardToast(name, res) {
   toast(`+${res.xp} ${name} XP · +${res.coins} coins`, 'gold');
-  for (const lvl of res.levelUps) toast(`${name} rises to level ${lvl}!`, 'gold');
+  sfx.questDone();
+  for (const lvl of res.levelUps) {
+    toast(`${name} rises to level ${lvl}!`, 'gold');
+    sfx.levelUp();
+  }
 }
 
 function bindBoard() {
@@ -269,6 +274,7 @@ function close() {
 
 export function openPanel(id) {
   open = id;
+  sfx.page();
   overlay.classList.remove('hidden');
   boardPanel.classList.toggle('hidden', id !== 'board');
   tomePanel.classList.toggle('hidden', id !== 'tome');

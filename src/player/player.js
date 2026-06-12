@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../state/config.js';
 import { terrainHeight } from '../scene/terrain.js';
 import { buildPlayerMesh } from './playerMesh.js';
+import { flash } from '../scene/meshUtils.js';
 
 const P = CONFIG.player;
 const PLAYER_RADIUS = 0.35;
@@ -39,6 +40,13 @@ export function createPlayer(scene, spawn) {
     invulnerable: false,
     walkPhase: 0,
     idleT: 0,
+    time: 0,
+    hp: P.maxHp,
+    maxHp: P.maxHp,
+    lastHurtAt: -99,
+    onHpChange: () => {},
+    onDeath: () => {},
+    onHurt: () => {},
     // wired up by later systems (stamina M5, combat M6)
     trySpend: () => true,
     onAttackSwing: null, // called once at the active frame of a swing
@@ -140,8 +148,39 @@ export function createPlayer(scene, spawn) {
     mm.roller.position.y = 0.6 + Math.abs(Math.sin(player.walkPhase)) * 0.06 * speed01;
   }
 
+  player.takeDamage = function takeDamage(amount, srcX, srcZ) {
+    if (player.invulnerable || player.hp <= 0) return;
+    player.hp = Math.max(0, player.hp - amount);
+    player.lastHurtAt = player.time;
+    const dx = player.pos.x - srcX;
+    const dz = player.pos.z - srcZ;
+    const d = Math.hypot(dx, dz) || 1;
+    player.vel.x += (dx / d) * 5;
+    player.vel.y += (dz / d) * 5;
+    flash(m.group);
+    player.onHurt();
+    player.onHpChange(player.hp, player.maxHp);
+    if (player.hp === 0) player.onDeath();
+  };
+
+  player.respawn = function respawn(x, z) {
+    player.pos.set(x, terrainHeight(x, z), z);
+    player.vel.set(0, 0);
+    player.hp = player.maxHp;
+    player.mode = 'normal';
+    player.invulnerable = false;
+    player.onHpChange(player.hp, player.maxHp);
+  };
+
   player.update = function update(dt, camYaw, colliders) {
     player.modeT += dt;
+    player.time += dt;
+
+    // a peasant mends: slow regen once out of danger
+    if (player.hp > 0 && player.hp < player.maxHp && player.time - player.lastHurtAt > P.regenDelay) {
+      player.hp = Math.min(player.maxHp, player.hp + P.regenPerSecond * dt);
+      player.onHpChange(player.hp, player.maxHp);
+    }
 
     // resolve input direction (camera-relative)
     let ix = 0;
@@ -215,6 +254,8 @@ export function createPlayer(scene, spawn) {
 
     animate(dt, Math.min(speed / P.walkSpeed, 1.3), sprinting);
   };
+
+  player.attack = startAttack;
 
   player.faceToward = function faceToward(x, z) {
     player.facing = Math.atan2(x - player.pos.x, z - player.pos.z);

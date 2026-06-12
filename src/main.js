@@ -8,6 +8,10 @@ import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } 
 import { loadState, getState, onChange, staminaCap, spendStamina } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { toast } from './ui/toasts.js';
+import { initAudio, sfx } from './ui/audio.js';
+import { createDummy } from './combat/dummy.js';
+import { createRats } from './combat/rats.js';
+import { CONFIG } from './state/config.js';
 
 const { messages: bootMessages } = loadState();
 
@@ -31,6 +35,48 @@ player.trySpend = (cost) => spendStamina(cost);
 player.onActionBlocked = () =>
   toast('Your arms are spent. Earn your strength — the board awaits.', 'grim');
 
+initAudio();
+const dummy = createDummy(world.dummy);
+const rats = createRats(scene);
+
+function angleDiff(a, b) {
+  let d = Math.abs(a - b) % (Math.PI * 2);
+  return d > Math.PI ? Math.PI * 2 - d : d;
+}
+
+player.onAttackSwing = () => {
+  sfx.swing();
+  const P = CONFIG.player;
+  const halfArc = (P.attackArcDeg * Math.PI) / 360;
+  rats.tryHit(player.pos.x, player.pos.z, player.facing, P.attackRange, halfArc, P.attackDamage);
+
+  const ddx = dummy.x - player.pos.x;
+  const ddz = dummy.z - player.pos.z;
+  if (Math.hypot(ddx, ddz) < P.attackRange + dummy.radius) {
+    if (angleDiff(Math.atan2(ddx, ddz), player.facing) < halfArc) {
+      dummy.hit(player.pos.x, player.pos.z);
+    }
+  }
+};
+
+player.onHurt = () => {
+  sfx.hurt();
+  orbitCam.shake(0.24);
+};
+player.onHpChange = (hp, max) => setHp(hp, max);
+
+const fadeEl = document.getElementById('fade');
+player.onDeath = () => {
+  player.setEnabled(false);
+  fadeEl.classList.add('show');
+  setTimeout(() => {
+    player.respawn(LAYOUT.playerSpawn.x, LAYOUT.playerSpawn.z);
+    fadeEl.classList.remove('show');
+    toast('You wake on your straw cot, aching. The rats remain.', 'grim');
+    if (!isPanelOpen()) player.setEnabled(true);
+  }, 1100);
+};
+
 const isUiOpen = isPanelOpen;
 const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
 
@@ -49,7 +95,7 @@ function syncHud() {
   setRank(s.rank);
   setStreak(s.streak.current);
   setStamina(s.stamina.current, staminaCap());
-  setHp(1, 1); // real HP arrives with combat (M6)
+  setHp(player.hp, player.maxHp);
   world.campfire.setStreak(s.streak.current);
 }
 onChange(syncHud);
@@ -85,7 +131,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina };
+  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, rats, dummy };
 }
 
 window.addEventListener('resize', () => {
@@ -109,6 +155,8 @@ function tick() {
 
   if (!isUiOpen()) {
     player.update(dt, orbitCam.getYaw(), world.colliders);
+    rats.update(dt, player, (dmg, x, z) => player.takeDamage(dmg, x, z));
+    dummy.update(dt);
     const it = nearestInteractable();
     showPrompt(it ? `Press <b>E</b> — ${it.label}` : null);
   }

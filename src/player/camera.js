@@ -13,6 +13,7 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
   const current = new THREE.Vector3(0, 4, 8);
   const desired = new THREE.Vector3();
   const lookTarget = new THREE.Vector3();
+  let shakeAmt = 0;
 
   canvas.addEventListener('click', () => {
     if (!isUiOpen() && document.pointerLockElement !== canvas) {
@@ -50,6 +51,12 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
     current.lerp(desired, k);
     camera.position.copy(current);
 
+    if (shakeAmt > 0.002) {
+      camera.position.x += (Math.random() - 0.5) * shakeAmt;
+      camera.position.y += (Math.random() - 0.5) * shakeAmt;
+      shakeAmt *= Math.exp(-dt * 7);
+    }
+
     lookTarget.set(target.x, target.y + 1.25, target.z);
     camera.lookAt(lookTarget);
   }
@@ -66,6 +73,9 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
     isLocked: () => document.pointerLockElement === canvas,
     unlock: () => {
       if (document.pointerLockElement === canvas) document.exitPointerLock();
+    },
+    shake: (amount) => {
+      shakeAmt = Math.min(shakeAmt + amount, 0.5);
     },
   };
 }

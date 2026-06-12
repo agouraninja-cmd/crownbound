@@ -234,6 +234,83 @@ try {
     if (s.history !== 1) errors.push(`quests: history ${s.history} != 1`);
   } else if (scenario === 'tome') {
     await page.evaluate(() => window.__game.openPanel('tome'));
+  } else if (scenario === 'combat') {
+    // 1) dummy: teleport beside it, two swings -> 4 STR XP, wobble
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = g.dummy.x + 1.1;
+      g.player.pos.z = g.dummy.z;
+      g.player.faceToward(g.dummy.x, g.dummy.z);
+    });
+    for (let i = 0; i < 2; i++) {
+      await page.evaluate(() => window.__game.player.attack());
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    const afterDummy = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return {
+        strXp: st.stats.str.xp,
+        hits: st.counters.dummyHits,
+        stamina: st.stamina.current,
+        wobble: Math.abs(window.__game.dummy ? 1 : 0),
+      };
+    });
+    console.log('dummy:', JSON.stringify(afterDummy));
+    if (afterDummy.strXp !== 4) errors.push(`combat: dummy strXp ${afterDummy.strXp} != 4`);
+    if (afterDummy.hits !== 2) errors.push(`combat: dummyHits ${afterDummy.hits} != 2`);
+    if (afterDummy.stamina !== 20) errors.push(`combat: stamina ${afterDummy.stamina} != 20`);
+
+    // 2) rats: walk into the granary yard, get bitten, then slay one
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 10;
+      g.player.pos.z = 9.5;
+    });
+    await new Promise((r) => setTimeout(r, 3000)); // let them aggro and bite
+    const bitten = await page.evaluate(() => window.__game.player.hp);
+    console.log('hp after rat ambush:', bitten);
+    if (bitten >= 20) errors.push(`combat: rats never bit (hp ${bitten})`);
+
+    for (let i = 0; i < 4; i++) {
+      await page.evaluate(() => {
+        const g = window.__game;
+        const rat = g.rats.list.find((r) => r.alive);
+        if (rat) {
+          g.player.pos.x = rat.x + 0.9;
+          g.player.pos.z = rat.z;
+          g.player.faceToward(rat.x, rat.z);
+          g.player.attack();
+        }
+      });
+      await new Promise((r) => setTimeout(r, 550));
+    }
+    const afterRats = await page.evaluate(() => {
+      const g = window.__game;
+      const st = g.getState();
+      return {
+        killed: st.counters.ratsKilled,
+        coins: st.coins,
+        aliveRats: g.rats.list.filter((r) => r.alive).length,
+      };
+    });
+    console.log('rats:', JSON.stringify(afterRats));
+    if (afterRats.killed < 1) errors.push('combat: no rat slain');
+    if (afterRats.coins < 2) errors.push(`combat: no bounty paid (coins ${afterRats.coins})`);
+    if (afterRats.aliveRats !== 3 - afterRats.killed)
+      errors.push(`combat: alive ${afterRats.aliveRats} + killed ${afterRats.killed} != 3`);
+
+    // 3) death: take a mortal blow, wake at the hovel with full hp
+    await page.evaluate(() => window.__game.player.takeDamage(99, 11, 11));
+    await new Promise((r) => setTimeout(r, 1800));
+    const wake = await page.evaluate(() => ({
+      hp: window.__game.player.hp,
+      x: window.__game.player.pos.x,
+      z: window.__game.player.pos.z,
+    }));
+    console.log('after death:', JSON.stringify(wake));
+    if (wake.hp !== 20) errors.push(`death: hp ${wake.hp} != 20 after respawn`);
+    if (Math.hypot(wake.x + 5, wake.z - 4) > 1.5)
+      errors.push(`death: respawned at ${wake.x.toFixed(1)},${wake.z.toFixed(1)} not the hovel`);
   } else if (scenario === 'walk') {
     const before = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z }));
     await page.keyboard.down('KeyW');
