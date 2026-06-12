@@ -102,7 +102,7 @@ export function loadState() {
   if (!raw) {
     state = defaultState();
     messages.push({ text: 'You wake in a humble clearing. The board awaits.', style: '' });
-    messages.push({ text: 'WASD walk · Shift run · Space roll · Click swing · E interact', style: '' });
+    messages.push({ text: 'WASD walk · Shift run · Space jump · C crouch · Double-tap WASD roll · Click swing · E interact', style: '' });
   } else {
     try {
       state = migrate(JSON.parse(raw));

@@ -33,9 +33,14 @@ export const CONFIG = {
     regenDelay: 5, // seconds after taking damage
     walkSpeed: 4.2,
     sprintMult: 1.65,
+    crouchMult: 0.45, // hold C — a careful, low shuffle
     turnLerp: 12,
+    jumpSpeed: 6.8, // peak ≈ 0.8 units — a strong human leap, not a superhero
+    gravity: 28,
+    landCrouchTime: 0.18, // knees absorb the landing for this long
     dodgeSpeed: 9,
     dodgeDuration: 0.45,
+    dodgeTapWindow: 0.25, // double-tap a movement key within this to roll
     attackDamage: 1,
     attackRange: 1.9,
     attackArcDeg: 110,

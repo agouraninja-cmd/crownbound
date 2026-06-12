@@ -28,7 +28,7 @@ src/scene/structures.js  hovel, quest board, tome pedestal, granary, training du
 src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight
 src/player/playerMesh.js  procedural peasant figure + pose animation
-src/player/player.js  movement/sprint/dodge/attack state machine, HP, stamina spend
+src/player/player.js  movement/sprint/jump/crouch/dodge/attack state machine, HP, stamina spend
 src/player/camera.js  pointer-lock third-person orbit camera
 src/combat/dummy.js   training dummy wobble + diminishing STR XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
@@ -84,6 +84,10 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - While a UI panel is open, the whole sim pauses except ambient visuals (campfire), not just input.
 - Slow passive HP regen out of combat (no items exist in v1, so this is the "way back").
 - Added /src/combat directory beyond the five spec'd folders to keep enemy logic out of /scene.
+- Controls: Space jumps (grounded gravity arc, no double-jump, free — stamina blocks combat only);
+  dodge-roll is double-tap of a movement key, rolling in that key's camera-relative direction;
+  hold C to crouch (visual stance + slower walk, no stealth effect — Ctrl was rejected because
+  Ctrl+W closes the browser tab). None work while a UI panel is open.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;

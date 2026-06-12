@@ -24,8 +24,19 @@ export function createPlayer(scene, spawn) {
   const keys = new Set();
   let enabled = true;
 
+  // double-tapping a movement key dodge-rolls that way; axes are (right, forward)
+  const TAP_AXES = { KeyW: [0, 1], KeyS: [0, -1], KeyA: [-1, 0], KeyD: [1, 0] };
+  const lastTapAt = {};
+  let pendingRollKey = null;
+
   window.addEventListener('keydown', (e) => {
-    if (enabled) keys.add(e.code);
+    if (!enabled) return;
+    if (!e.repeat && TAP_AXES[e.code]) {
+      const now = performance.now();
+      if (now - (lastTapAt[e.code] || -1e9) < P.dodgeTapWindow * 1000) pendingRollKey = e.code;
+      lastTapAt[e.code] = now;
+    }
+    keys.add(e.code);
   });
   window.addEventListener('keyup', (e) => keys.delete(e.code));
   window.addEventListener('blur', () => keys.clear());
@@ -38,6 +49,11 @@ export function createPlayer(scene, spawn) {
     mode: 'normal', // normal | roll | attack
     modeT: 0,
     invulnerable: false,
+    vy: 0,
+    airborne: false,
+    landT: Infinity, // time since last touchdown, drives the landing crouch
+    crouching: false,
+    crouch01: 0, // eased crouch amount, 0 standing → 1 fully crouched
     walkPhase: 0,
     idleT: 0,
     time: 0,
@@ -53,7 +69,10 @@ export function createPlayer(scene, spawn) {
     onActionBlocked: () => {},
     setEnabled(v) {
       enabled = v;
-      if (!v) keys.clear();
+      if (!v) {
+        keys.clear();
+        pendingRollKey = null;
+      }
     },
     isEnabled: () => enabled,
   };
@@ -75,8 +94,14 @@ export function createPlayer(scene, spawn) {
     player.swungThisAttack = false;
   }
 
+  function startJump() {
+    if (player.mode !== 'normal' || player.airborne) return;
+    player.vy = P.jumpSpeed;
+    player.airborne = true;
+  }
+
   function startRoll(dirX, dirZ) {
-    if (player.mode !== 'normal') return;
+    if (player.mode !== 'normal' || player.airborne) return;
     if (!player.trySpend(CONFIG.stamina.dodgeCost)) {
       player.onActionBlocked();
       return;
@@ -146,6 +171,29 @@ export function createPlayer(scene, spawn) {
     // lean into the run, breathe at rest
     mm.body.rotation.x = speed01 * (sprinting ? 0.18 : 0.1) + Math.sin(player.idleT * 2.1) * 0.012;
     mm.roller.position.y = 0.6 + Math.abs(Math.sin(player.walkPhase)) * 0.06 * speed01;
+
+    // crouch: sink at the knees, hunch the shoulders, keep the shuffle
+    if (player.crouch01 > 0.001) {
+      const c = player.crouch01;
+      mm.roller.position.y -= 0.2 * c;
+      mm.leftLeg.rotation.x -= 0.9 * c;
+      mm.rightLeg.rotation.x -= 0.9 * c;
+      mm.body.rotation.x += 0.3 * c;
+    }
+
+    // jump: lean into the leap on the way up, knees absorb the landing
+    if (player.airborne) {
+      const rise = Math.max(player.vy / P.jumpSpeed, 0); // 1 at takeoff → 0 past apex
+      mm.body.rotation.x += 0.28 * rise;
+      mm.leftLeg.rotation.x = -0.45;
+      mm.rightLeg.rotation.x = -0.45;
+    } else if (player.landT < P.landCrouchTime) {
+      const k = 1 - player.landT / P.landCrouchTime; // 1 at touchdown, easing out
+      mm.roller.position.y -= 0.14 * k;
+      mm.leftLeg.rotation.x = -0.65 * k;
+      mm.rightLeg.rotation.x = -0.65 * k;
+      mm.body.rotation.x += 0.18 * k;
+    }
   }
 
   player.takeDamage = function takeDamage(amount, srcX, srcZ) {
@@ -166,6 +214,8 @@ export function createPlayer(scene, spawn) {
   player.respawn = function respawn(x, z) {
     player.pos.set(x, terrainHeight(x, z), z);
     player.vel.set(0, 0);
+    player.vy = 0;
+    player.airborne = false;
     player.hp = player.maxHp;
     player.mode = 'normal';
     player.invulnerable = false;
@@ -175,6 +225,7 @@ export function createPlayer(scene, spawn) {
   player.update = function update(dt, camYaw, colliders) {
     player.modeT += dt;
     player.time += dt;
+    player.landT += dt;
 
     // a peasant mends: slow regen once out of danger
     if (player.hp > 0 && player.hp < player.maxHp && player.time - player.lastHurtAt > P.regenDelay) {
@@ -191,6 +242,9 @@ export function createPlayer(scene, spawn) {
     if (keys.has('KeyD')) ix += 1;
     const sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
 
+    player.crouching = keys.has('KeyC') && player.mode === 'normal' && !player.airborne;
+    player.crouch01 += ((player.crouching ? 1 : 0) - player.crouch01) * (1 - Math.exp(-dt * 12));
+
     const fwdX = -Math.sin(camYaw);
     const fwdZ = -Math.cos(camYaw);
     const rightX = -fwdZ;
@@ -206,11 +260,13 @@ export function createPlayer(scene, spawn) {
 
     if (keys.has('Space') && enabled) {
       keys.delete('Space');
-      const hasDir = len > 0;
-      startRoll(
-        hasDir ? dirX : Math.sin(player.facing),
-        hasDir ? dirZ : Math.cos(player.facing)
-      );
+      startJump();
+    }
+
+    if (pendingRollKey) {
+      const [tx, tz] = TAP_AXES[pendingRollKey];
+      pendingRollKey = null;
+      startRoll(fwdX * tz + rightX * tx, fwdZ * tz + rightZ * tx);
     }
 
     let targetSpeed = 0;
@@ -234,7 +290,8 @@ export function createPlayer(scene, spawn) {
     }
 
     if (player.mode === 'normal') {
-      targetSpeed = len > 0 ? P.walkSpeed * (sprinting ? P.sprintMult : 1) : 0;
+      const mult = player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1;
+      targetSpeed = len > 0 ? P.walkSpeed * mult : 0;
       const k = 1 - Math.exp(-dt * 10);
       player.vel.x += (dirX * targetSpeed - player.vel.x) * k;
       player.vel.y += (dirZ * targetSpeed - player.vel.y) * k; // Vector2.y holds z
@@ -243,7 +300,19 @@ export function createPlayer(scene, spawn) {
     player.pos.x += player.vel.x * dt;
     player.pos.z += player.vel.y * dt;
     resolveCollisions(colliders);
-    player.pos.y = terrainHeight(player.pos.x, player.pos.z);
+    const groundY = terrainHeight(player.pos.x, player.pos.z);
+    if (player.airborne) {
+      player.vy -= P.gravity * dt;
+      player.pos.y += player.vy * dt;
+      if (player.vy <= 0 && player.pos.y <= groundY) {
+        player.pos.y = groundY;
+        player.vy = 0;
+        player.airborne = false;
+        player.landT = 0;
+      }
+    } else {
+      player.pos.y = groundY;
+    }
 
     const speed = Math.hypot(player.vel.x, player.vel.y);
     if (speed > 0.4 && player.mode !== 'attack') {
