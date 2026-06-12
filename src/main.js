@@ -77,7 +77,8 @@ player.onDeath = () => {
   }, 1100);
 };
 
-// E on the cot: fade out, mend fully, mark the night for the dawn judgment
+// E on the cot: tuck in (glide + lie back, ~1.5s), fade out, mend fully,
+// mark the night for the dawn judgment
 let sleeping = false;
 function sleepAtCot() {
   if (sleeping) return;
@@ -85,8 +86,11 @@ function sleepAtCot() {
   const wounded = player.hp < player.maxHp - 0.01;
   player.setEnabled(false);
   orbitCam.unlock();
-  sfx.page();
-  fadeEl.classList.add('show');
+  player.startSleep(world.bedRest);
+  setTimeout(() => {
+    sfx.page();
+    fadeEl.classList.add('show');
+  }, 1500);
   setTimeout(() => {
     player.respawn(world.wakeSpot.x, world.wakeSpot.z); // full HP, standing by the cot
     recordBedtime();
@@ -99,7 +103,7 @@ function sleepAtCot() {
     );
     if (!isPanelOpen()) player.setEnabled(true);
     sleeping = false;
-  }, 1000);
+  }, 2600);
 }
 
 const isUiOpen = isPanelOpen;
@@ -214,7 +218,7 @@ function tick() {
     player.update(dt, orbitCam.getYaw(), world.colliders);
     rats.update(dt, player, (dmg, x, z) => player.takeDamage(dmg, x, z));
     dummy.update(dt);
-    showPrompt(promptText());
+    showPrompt(player.isEnabled() ? promptText() : null); // none while asleep/dead
   }
 
   world.campfire.update(dt);

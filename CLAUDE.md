@@ -115,6 +115,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Sleep reward clock rules live in `evaluateSleep()` (pure, exported) so the smoke suite can test
   fixed dates; `applySleepReward()` is likewise exported for the suite. Sleeping always heals fully
   and re-records the bedtime (last bed-use of the night wins).
+- Sleeping plays a tuck-in animation (player mode 'sleep': glide to the cot, lie back on the
+  pillow, breathe; the stick is hidden while lying) before the 0.7s fade — full timeline ~2.6s,
+  timed in main.js `sleepAtCot()`. `respawn()` is the universal way out of the sleep pose.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -154,7 +157,7 @@ headlessly; everything else covered by the regression suite below.
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/death (respawn at the cot) ·
   `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
-  `house` door collider open/close + cot sleep/heal + dawn-verdict clock rules + Well-Rested boon +
-  interior screenshot · `aerial`/`front` screenshots.
+  `house` door collider open/close + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
+  + dawn-verdict clock rules + Well-Rested boon + interior screenshot · `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

@@ -92,6 +92,14 @@ export function buildWorld(scene) {
     ceilY: terrainHeight(hx, hz) + H.ceilY,
   };
   const wakeSpot = { x: hx + H.wake.x, z: hz + H.wake.z };
+  // where the sleep animation lays the player: cot centre, mattress top,
+  // facing +z so the head falls back onto the pillow at the cot's -z end
+  const bedRest = {
+    x: hx + H.bed.x,
+    z: hz + H.bed.z,
+    y: terrainHeight(hx, hz) + H.bed.topY,
+    facing: 0,
+  };
 
   const interactables = [
     { id: 'board', label: 'the Quest Board', x: LAYOUT.questBoard.x, z: LAYOUT.questBoard.z, radius: 2.7 },
@@ -100,5 +108,5 @@ export function buildWorld(scene) {
     { id: 'bed', label: 'your straw cot', x: hx + H.bed.x, z: hz + H.bed.z, radius: 1.7, insideOnly: true },
   ];
 
-  return { colliders, interactables, campfire, dummy, door, hovelInterior, wakeSpot };
+  return { colliders, interactables, campfire, dummy, door, hovelInterior, wakeSpot, bedRest };
 }

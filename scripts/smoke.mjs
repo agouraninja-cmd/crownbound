@@ -429,13 +429,23 @@ try {
     if (!open.open) errors.push('house: toggle did not open the door');
     if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
 
-    // 3) sleep: wounds mend, the night is marked, you stand up by the cot
+    // 3) sleep: tuck-in animation plays, wounds mend, the night is marked,
+    //    you stand up by the cot
     await page.evaluate(() => {
       const g = window.__game;
       g.player.takeDamage(9, 0, 0);
       g.sleepAtCot();
     });
-    await new Promise((r) => setTimeout(r, 1700));
+    await new Promise((r) => setTimeout(r, 1200)); // mid-nap: lying on the cot
+    const nap = await page.evaluate(() => ({
+      mode: window.__game.player.mode,
+      lying: window.__game.player.mesh.roller.rotation.x,
+    }));
+    await page.screenshot({ path: 'scripts/smoke-sleep.png' });
+    console.log('mid-nap:', JSON.stringify(nap));
+    if (nap.mode !== 'sleep') errors.push(`house: mid-nap mode ${nap.mode} != sleep`);
+    if (nap.lying > -1.4) errors.push(`house: not lying down (roller.x ${nap.lying.toFixed(2)})`);
+    await new Promise((r) => setTimeout(r, 2300));
     const slept = await page.evaluate(() => ({
       hp: window.__game.player.hp,
       retired: window.__game.getState().sleep.retiredAt,

@@ -100,6 +100,53 @@ export function createPlayer(scene, spawn) {
     player.airborne = true;
   }
 
+  // E on the cot: glide to the bed, lie back on the pillow, breathe.
+  // main.js times the fade-out and ends the nap with respawn().
+  function startSleep(bed) {
+    if (player.mode === 'sleep') return;
+    player.sleepTarget = bed; // { x, z, y: mattress top (world), facing }
+    player.mode = 'sleep';
+    player.modeT = 0;
+    player.vel.set(0, 0);
+    player.vy = 0;
+    player.airborne = false;
+    player.invulnerable = true; // nothing interrupts a tired peasant
+  }
+
+  function updateSleep(dt) {
+    const mm = m;
+    const b = player.sleepTarget;
+
+    // glide onto the cot
+    const k = 1 - Math.exp(-dt * 6);
+    player.pos.x += (b.x - player.pos.x) * k;
+    player.pos.z += (b.z - player.pos.z) * k;
+    player.pos.y = terrainHeight(player.pos.x, player.pos.z);
+    player.facing = lerpAngle(player.facing, b.facing, k);
+    mm.group.rotation.y = player.facing;
+
+    // then lie back, eased
+    const lt = Math.min(Math.max((player.modeT - 0.4) / 0.6, 0), 1);
+    const lie = lt * lt * (3 - 2 * lt);
+    const breathe = lie >= 1 ? Math.sin(player.time * 1.8) * 0.012 : 0;
+    mm.roller.rotation.x = (-Math.PI / 2) * lie;
+    // settle the waist pivot onto the mattress
+    mm.roller.position.y = 0.6 + (b.y + 0.16 - player.pos.y - 0.6) * lie + breathe;
+    mm.weapon.visible = lie < 0.5; // the stick rests for the night too
+
+    // last shuffling steps fade into a flat, resting pose
+    const remaining = Math.hypot(b.x - player.pos.x, b.z - player.pos.z);
+    const stepK = Math.min(remaining * 3, 1) * (1 - lie);
+    player.walkPhase += dt * 7 * stepK;
+    const swing = Math.sin(player.walkPhase) * 0.6 * stepK;
+    mm.leftLeg.rotation.x = swing - 0.05 * lie;
+    mm.rightLeg.rotation.x = -swing - 0.05 * lie;
+    mm.leftArm.rotation.x = -swing * 0.5 + (-0.25 + breathe * 2) * lie;
+    mm.rightArm.rotation.x = swing * 0.5 + (-0.25 + breathe * 2) * lie;
+    mm.body.rotation.x = 0;
+    mm.body.rotation.y = 0;
+  }
+
   function startRoll(dirX, dirZ) {
     if (player.mode !== 'normal' || player.airborne) return;
     if (!player.trySpend(CONFIG.stamina.dodgeCost)) {
@@ -240,6 +287,8 @@ export function createPlayer(scene, spawn) {
     player.hp = player.maxHp;
     player.mode = 'normal';
     player.invulnerable = false;
+    m.weapon.visible = true; // back in hand after a nap
+    m.roller.rotation.x = 0;
     player.onHpChange(player.hp, player.maxHp);
   };
 
@@ -247,6 +296,11 @@ export function createPlayer(scene, spawn) {
     player.modeT += dt;
     player.time += dt;
     player.landT += dt;
+
+    if (player.mode === 'sleep') {
+      updateSleep(dt);
+      return;
+    }
 
     // a peasant mends: slow regen once out of danger
     if (player.hp > 0 && player.hp < player.maxHp && player.time - player.lastHurtAt > P.regenDelay) {
@@ -346,6 +400,7 @@ export function createPlayer(scene, spawn) {
   };
 
   player.attack = startAttack;
+  player.startSleep = startSleep;
 
   player.faceToward = function faceToward(x, z) {
     player.facing = Math.atan2(x - player.pos.x, z - player.pos.z);

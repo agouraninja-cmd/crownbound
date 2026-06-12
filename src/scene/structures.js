@@ -25,7 +25,7 @@ export const HOVEL = {
   halfZ: 1.45,
   wallT: 0.12, // walls span x ±[1.58, 1.70], z ±[1.33, 1.45]
   door: { z0: -0.97, z1: -0.07, h: 1.62, openAngle: 1.9 }, // gap in the +x wall
-  bed: { x: -1.05, z: 0.55 }, // cot centre — the bed interactable + sleep spot
+  bed: { x: -1.05, z: 0.55, topY: 0.46 }, // cot centre + mattress top — interactable & lie-down spot
   wake: { x: -0.3, z: -0.6 }, // open floor where you stand after sleep/death
   hearth: { x: 0.3, z: 0.45, r: 0.55 },
   chest: { x0: -1.28, x1: -0.62, z0: -1.21, z1: -0.79 },
