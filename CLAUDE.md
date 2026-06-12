@@ -11,8 +11,8 @@ The year-long Epic Quest counts down to the **Coronation: June 8, 2027, 5:00 AM*
 - Vite + vanilla JS + Three.js (^0.169). No frameworks. ES modules.
 - All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 3`, migration hook in `state.js`
-  (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking).
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 4`, migration hook in `state.js`
+  (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log).
 - Target 60fps on mid-range laptop: merged static geometry, one shadow-casting directional light, cheap particles.
 
 ## File structure
@@ -25,7 +25,7 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/scene/terrain.js  analytic terrain height fn, vertex-colored ground + dirt path
 src/scene/sky.js      gradient sky dome + fog + lighting
 src/scene/scatter.js  merged pine trees + rocks
-src/scene/structures.js  hovel, quest board, tome pedestal, granary, training dummy mesh
+src/scene/structures.js  hovel (+interior, sleep ledger board), quest board, tome pedestal, granary, dummy mesh
 src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight
 src/player/playerMesh.js  procedural peasant figure + pose animation
@@ -43,7 +43,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 3,
+  saveVersion: 4,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
   stats: { str|agi|wis|inf: { level, xp } },     // next level costs 100 × current level XP
@@ -61,8 +61,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   daysPlayed,                                    // incremented on first login of each local day
   stamina: { current, date },                    // daily pool, persisted within the day
   counters: { date, dummyXp, ratsKilled },       // per-day scratch: dummy diminishing returns, rat respawn
-  sleep: { retiredAt, lastRewardDate, wellRestedDate }  // cot bedtime + Well-Rested boon bookkeeping
-}
+  sleep: { retiredAt, lastRewardDate, wellRestedDate,   // cot bedtime + Well-Rested boon bookkeeping
+           log: [ { bed, wake, verdict } ] }            // every judged night, append-only (kept in full
+}                                                       //   for the v2 Chronicler; ledger shows last 7)
 ```
 
 ## Core rules (tuned in config.js)
@@ -86,6 +87,10 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   8:00 AM local or earlier → Well-Rested boon: +10 WIS XP, +10 coins, +10 stamina cap for the day,
   history entry type "sleep". Once per day; after 8:00 a grim flavor line and no boon. Honor system —
   "wake time" is when the game is next opened, which doubles as the morning check-in habit.
+- The Sleep Ledger (plank board on the hovel's -z interior wall, E to read): every judged night is
+  appended to sleep.log (bed/wake/verdict: dawn|late|unwitnessed); the panel shows the last 7 nights
+  with times, hours slept, and a weekly well-rested count. Log is kept in full — storage is
+  negligible (~20 KB/year) and the v2 Chronicler will narrate from it.
 
 ## Noted decisions (simplest reasonable choices where spec was ambiguous)
 - Daily/weekly rollover is detected on page load (sessions are short; no mid-session midnight handling).
@@ -149,6 +154,8 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "Hearth & Home" (2026-06-12): enterable hovel (hollow shell, hinged E-door, furnished
   peasant interior, indoor camera), cot sleep = full heal + death respawn point, Well-Rested
   dawn reward (7+ h, up by 8:00), saveVersion 3.
+- [x] Post-v1 — "The Sleep Ledger" (2026-06-12): wall board in the hovel logging every judged night
+  (bed/wake/verdict), panel shows the last 7 with hours slept + weekly tally, saveVersion 4.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -159,6 +166,7 @@ headlessly; everything else covered by the regression suite below.
   `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/death (respawn at the cot) ·
   `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
-  + dawn-verdict clock rules + Well-Rested boon + interior screenshot · `aerial`/`front` screenshots.
+  + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
+  interior screenshot · `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

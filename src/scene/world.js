@@ -104,8 +104,9 @@ export function buildWorld(scene) {
   const interactables = [
     { id: 'board', label: 'the Quest Board', x: LAYOUT.questBoard.x, z: LAYOUT.questBoard.z, radius: 2.7 },
     { id: 'tome', label: 'the Tome', x: LAYOUT.tome.x, z: LAYOUT.tome.z, radius: 2.4 },
-    // insideOnly: don't offer the cot through the wall
+    // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bed.x, z: hz + H.bed.z, radius: 1.7, insideOnly: true },
+    { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
   ];
 
   return { colliders, interactables, campfire, dummy, door, hovelInterior, wakeSpot, bedRest };

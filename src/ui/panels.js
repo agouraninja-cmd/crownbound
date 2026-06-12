@@ -20,7 +20,7 @@ import { countdownTo, todayStr } from '../state/dates.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, boardBody, tomeBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, boardBody, tomeBody, ledgerBody;
 let open = null;
 let onOpenChange = () => {};
 let timer = null;
@@ -360,6 +360,63 @@ function renderTome() {
   }
 }
 
+// ---------- The Sleep Ledger ----------
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function nightDate(iso) {
+  const d = new Date(iso);
+  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+function nightTime(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+const NIGHT_TAGS = {
+  dawn: ['rose with the dawn', 'tag-gold'],
+  late: ['past the bell', 'tag-grim'],
+  unwitnessed: ['unwitnessed', ''],
+};
+
+function renderLedger() {
+  const log = getState().sleep.log;
+  const week = log.slice(-7).reverse(); // newest morning first
+  const wellRested = week.filter((n) => n.verdict === 'dawn').length;
+
+  const rows = week
+    .map((n) => {
+      const [tagText, tagClass] = NIGHT_TAGS[n.verdict] ?? ['—', ''];
+      let times = `abed ${nightTime(n.bed)}`;
+      if (n.wake) {
+        const mins = Math.max(0, Math.round((new Date(n.wake) - new Date(n.bed)) / 60000));
+        times += ` · rose ${nightTime(n.wake)} · ${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+      } else {
+        times += ' · the morning went unmarked';
+      }
+      return `<div class="deed">
+        <span class="deed-date">${nightDate(n.wake ?? n.bed)}</span>
+        <span class="deed-text">${times}</span>
+        <span class="deed-tag ${tagClass}">${tagText}</span>
+      </div>`;
+    })
+    .join('');
+
+  ledgerBody.innerHTML = `
+    <div class="sheet-section">
+      <p class="muted">Sleep in thy cot to mark the night; return with the dawn to mark the morning.
+      Seven hours abed and back by ${CONFIG.sleep.wakeByHour} o&#8217;clock earns the Well-Rested boon.</p>
+      ${
+        week.length
+          ? `<div class="kv"><span>This week</span>
+              <span class="v">${wellRested} of ${week.length} night${week.length === 1 ? '' : 's'} well-rested</span></div>
+            <div class="deed-list">${rows}</div>`
+          : `<p class="muted" style="text-align:center; margin-top:14px">No nights yet recorded.
+              The cot awaits, and the dawn keeps its own tally.</p>`
+      }
+    </div>`;
+}
+
 // ---------- open/close ----------
 
 function close() {
@@ -371,6 +428,7 @@ function close() {
   overlay.classList.add('hidden');
   boardPanel.classList.add('hidden');
   tomePanel.classList.add('hidden');
+  ledgerPanel.classList.add('hidden');
   if (timer) clearInterval(timer);
   timer = null;
   onOpenChange(false);
@@ -382,11 +440,14 @@ export function openPanel(id) {
   overlay.classList.remove('hidden');
   boardPanel.classList.toggle('hidden', id !== 'board');
   tomePanel.classList.toggle('hidden', id !== 'tome');
+  ledgerPanel.classList.toggle('hidden', id !== 'ledger');
+  const bodies = { board: boardBody, tome: tomeBody, ledger: ledgerBody };
   if (id === 'board') renderBoard();
+  else if (id === 'ledger') renderLedger();
   else renderTome();
   if (timer) clearInterval(timer);
   timer = setInterval(() => {
-    const el = (id === 'board' ? boardBody : tomeBody).querySelector('[data-countdown]');
+    const el = bodies[id].querySelector('[data-countdown]');
     if (el) el.textContent = countdownText();
   }, 1000);
   onOpenChange(true);
@@ -401,8 +462,10 @@ export function initPanels(openChangeCallback) {
   overlay = document.getElementById('panel-overlay');
   boardPanel = document.getElementById('quest-panel');
   tomePanel = document.getElementById('tome-panel');
+  ledgerPanel = document.getElementById('ledger-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
+  ledgerBody = document.getElementById('ledger-body');
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && open) close();

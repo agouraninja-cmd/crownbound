@@ -86,7 +86,7 @@ function defaultState(now = new Date()) {
     daysPlayed: 1,
     stamina: { current: CONFIG.stamina.baseCap, date: today },
     counters: { date: today, dummyHits: 0, ratsKilled: 0 },
-    sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null },
+    sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
   };
 }
 
@@ -99,8 +99,12 @@ function migrate(s) {
   if (s.saveVersion === 2) {
     s.saveVersion = 3;
   }
-  // hand-edited or restored saves may miss the field regardless of version
+  if (s.saveVersion === 3) {
+    s.saveVersion = 4; // v4: the sleep ledger log
+  }
+  // hand-edited or restored saves may miss fields regardless of version
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
+  if (!s.sleep.log) s.sleep.log = [];
   return s;
 }
 
@@ -191,7 +195,16 @@ function rollover() {
   // judge last night's bedtime against the dawn (after the stamina reset,
   // so the Well-Rested bonus lands in today's pool)
   const verdict = evaluateSleep(state.sleep.retiredAt);
-  if (verdict !== 'none' && verdict !== 'pending') state.sleep.retiredAt = null;
+  if (verdict !== 'none' && verdict !== 'pending') {
+    // every judged night lands in the ledger — the full log is kept (a year
+    // is ~20 KB; the v2 Chronicler will want it), the board shows the last 7
+    state.sleep.log.push({
+      bed: state.sleep.retiredAt,
+      wake: verdict === 'stale' ? null : new Date().toISOString(),
+      verdict: verdict === 'reward' ? 'dawn' : verdict === 'late' ? 'late' : 'unwitnessed',
+    });
+    state.sleep.retiredAt = null;
+  }
   if (verdict === 'reward' && applySleepReward()) {
     const S = CONFIG.sleep;
     messages.push({

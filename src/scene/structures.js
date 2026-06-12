@@ -30,6 +30,7 @@ export const HOVEL = {
   hearth: { x: 0.3, z: 0.45, r: 0.55 },
   chest: { x0: -1.28, x1: -0.62, z0: -1.21, z1: -0.79 },
   table: { x: 1.0, z: 0.95, r: 0.5 },
+  ledger: { x: 0.85, z: -1.1 }, // where you stand to read the sleep ledger
   ceilY: 1.85, // indoor camera stays under this
 };
 
@@ -161,6 +162,19 @@ function furnish(g) {
   g.add(mesh(box(0.66, 0.34, 0.42), WOOD, { x: cx, y: 0.17, z: cz }));
   g.add(mesh(box(0.7, 0.1, 0.46), WOOD_DARK, { x: cx, y: 0.39, z: cz }));
   g.add(mesh(box(0.08, 0.5, 0.48), 0x3a3a3f, { x: cx, y: 0.2, z: cz })); // iron band
+
+  // the sleep ledger: a plank and parchment by the shelf, tally scratched in ink
+  g.add(mesh(box(0.55, 0.62, 0.04), WOOD_DARK, { x: H.ledger.x, y: 1.25, z: -1.31 }));
+  g.add(mesh(box(0.42, 0.5, 0.02), PARCHMENT, { x: H.ledger.x, y: 1.24, z: -1.285, shadow: false }));
+  for (let i = 0; i < 5; i++) {
+    g.add(mesh(box(0.28, 0.018, 0.012), 0x3a2c1c, {
+      x: H.ledger.x + (i % 2 ? 0.02 : -0.02),
+      y: 1.42 - i * 0.08,
+      z: -1.272,
+      rz: i % 2 ? -0.05 : 0.04,
+      shadow: false,
+    }));
+  }
 
   // pot shelf on the -z wall
   g.add(mesh(box(1.1, 0.05, 0.26), WOOD_PALE, { x: -0.2, y: 1.28, z: -1.18 }));

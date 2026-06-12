@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 3, // v2 added the monthly campaign; v3 the cot's sleep tracking
+  saveVersion: 4, // v2 monthly campaign; v3 sleep tracking; v4 the sleep ledger log
 
   coronation: '2027-06-08T05:00:00',
 

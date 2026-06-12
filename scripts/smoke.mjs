@@ -505,7 +505,39 @@ try {
     if (boon.histType !== 'sleep') errors.push(`house: history type ${boon.histType} != sleep`);
     if (!boon.rested) errors.push('house: wellRestedDate not set');
 
-    // 6) interior screenshot: indoors camera should pull in under the rafters
+    // 6) the ledger: a bedtime from 8h ago gets judged on load and lands in
+    //    the log (verdict depends on the wall clock, but it always lands)
+    const imported = await page.evaluate(() => {
+      const g = window.__game;
+      const copy = JSON.parse(g.exportSave());
+      copy.sleep.retiredAt = new Date(Date.now() - 8 * 3600e3).toISOString();
+      copy.sleep.lastRewardDate = null;
+      copy.sleep.log = [];
+      return g.importSave(JSON.stringify(copy));
+    });
+    if (!imported) errors.push('house: ledger save import refused');
+    await page.reload({ waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 2000));
+    const log = await page.evaluate(() => window.__game.getState().sleep.log);
+    console.log('ledger log:', JSON.stringify(log));
+    if (log.length !== 1) errors.push(`house: ledger log ${log.length} entries != 1`);
+    else {
+      if (!log[0].bed || !log[0].wake) errors.push('house: ledger entry missing times');
+      if (!['dawn', 'late'].includes(log[0].verdict))
+        errors.push(`house: ledger verdict "${log[0].verdict}" not dawn/late`);
+    }
+    await page.evaluate(() => window.__game.openPanel('ledger'));
+    const ledgerRows = await page.evaluate(() => ({
+      rows: document.querySelectorAll('#ledger-body .deed').length,
+      summary: document.querySelector('#ledger-body .kv .v')?.textContent ?? '',
+    }));
+    console.log('ledger panel:', JSON.stringify(ledgerRows));
+    if (ledgerRows.rows !== 1) errors.push(`house: ledger panel rows ${ledgerRows.rows} != 1`);
+    if (!ledgerRows.summary.includes('of 1 night')) errors.push(`house: ledger summary "${ledgerRows.summary}"`);
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+    // 7) interior screenshot: indoors camera should pull in under the rafters
     await page.evaluate(() => {
       const g = window.__game;
       g.player.pos.x = -8.6;
