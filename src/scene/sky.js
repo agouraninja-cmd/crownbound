@@ -31,7 +31,7 @@ export function buildSky() {
 export function addLighting(scene) {
   scene.fog = new THREE.Fog(0xe9d2a6, 75, 230);
 
-  const hemi = new THREE.HemisphereLight(0xf5e2bb, 0x66743f, 0.85);
+  const hemi = new THREE.HemisphereLight(0xf5e2bb, 0x66743f, 0.95);
   scene.add(hemi);
 
   // fixed warm late-afternoon sun

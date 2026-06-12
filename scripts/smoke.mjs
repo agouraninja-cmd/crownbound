@@ -232,6 +232,28 @@ try {
     if (!s.done) errors.push('quests: daily not completed');
     if (s.stamina !== 60) errors.push(`quests: stamina ${s.stamina} != 60`);
     if (s.history !== 1) errors.push(`quests: history ${s.history} != 1`);
+
+    // weekly bounty: post, complete, train Wisdom (+100 XP -> level 2 with 0 spare)
+    await page.type('[data-input]', 'Ship the Felmark proposal');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    await page.click('[data-pick="wis"]');
+    const w = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return {
+        coins: st.coins,
+        wis: st.stats.wis,
+        done: st.quests.weekly.completed,
+        history: st.history.length,
+        rank: st.rank,
+      };
+    });
+    console.log('weekly state:', JSON.stringify(w));
+    if (w.coins !== 60) errors.push(`weekly: coins ${w.coins} != 60`);
+    if (w.wis.level !== 2 || w.wis.xp !== 0)
+      errors.push(`weekly: wis L${w.wis.level}/${w.wis.xp} != L2/0`);
+    if (!w.done) errors.push('weekly: not completed');
+    if (w.history !== 2) errors.push(`weekly: history ${w.history} != 2`);
   } else if (scenario === 'tome') {
     await page.evaluate(() => window.__game.openPanel('tome'));
   } else if (scenario === 'combat') {

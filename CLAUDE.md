@@ -105,11 +105,19 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - [x] M4 — Persistence: save/load, streak logic, daily/weekly rollover on load
 - [x] M5 — Campfire streak visuals + stamina system
 - [x] M6 — Combat: training dummy + granary rats, HP, hit feedback, rat bounty
-- [ ] M7 — Polish: HUD, flavor messages, parchment styling, performance check
+- [x] M7 — Polish: HUD, flavor messages, parchment styling, performance check
+
+**v1 COMPLETE** (2026-06-11). Verified headlessly: ~63–92 draw calls, ~37k triangles — comfortable
+60fps territory for a mid-range GPU. Pointer-lock mouse camera and audio could not be exercised
+headlessly; everything else covered by the regression suite below.
 
 ### Session notes
-- Headless verification: `npm run smoke` (or `node scripts/smoke.mjs aerial|front` after a build) serves dist,
+- Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
+- Regression scenarios (run all after meaningful changes):
+  `''` render · `quests` daily+weekly complete flow · `rollover` stale-save day handling ·
+  `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/death · `walk` movement ·
+  `aerial`/`front`/`tome` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

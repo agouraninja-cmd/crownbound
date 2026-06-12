@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { mesh } from '../scene/meshUtils.js';
 
-const TUNIC = 0x8a7355; // humble, patched wool
-const TUNIC_DARK = 0x6e5a42;
+const TUNIC = 0x9a8164; // humble, patched wool
+const TUNIC_DARK = 0x7a6650;
 const SKIN = 0xd9a877;
 const HAIR = 0x4a3220;
 const PANTS = 0x5d4f3d;
