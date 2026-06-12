@@ -160,33 +160,34 @@ function doorDist() {
   return Math.hypot(player.pos.x - world.door.x, player.pos.z - world.door.z);
 }
 
-// the door (F) and the nearest E-interactable share the one prompt line
-function promptText() {
+// the door and the panel-interactables all share the E key; nearest wins
+function nearestAction() {
   const it = nearestInteractable();
   const dDoor = doorDist();
   const itD = it ? Math.hypot(player.pos.x - it.x, player.pos.z - it.z) : Infinity;
-  if (dDoor < world.door.radius && dDoor < itD) {
-    return `Press <b>F</b> — ${world.door.isOpen ? 'close the door' : 'open the door'}`;
-  }
-  return it ? `Press <b>E</b> — ${it.label}` : null;
+  if (dDoor < world.door.radius && dDoor < itD) return { id: 'door' };
+  return it;
+}
+
+function promptText() {
+  const a = nearestAction();
+  if (!a) return null;
+  const label = a.id === 'door' ? (world.door.isOpen ? 'close the door' : 'open the door') : a.label;
+  return `Press <b>E</b> — ${label}`;
 }
 
 window.addEventListener('keydown', (e) => {
-  if (!player.isEnabled() || isPanelOpen()) return;
-  if (e.code === 'KeyE') {
-    const it = nearestInteractable();
-    if (!it) return;
-    if (it.id === 'bed') {
-      sleepAtCot();
-    } else {
-      orbitCam.unlock();
-      openPanel(it.id);
-    }
-  } else if (e.code === 'KeyF') {
-    if (doorDist() < world.door.radius) {
-      world.door.toggle();
-      sfx.creak();
-    }
+  if (e.code !== 'KeyE' || !player.isEnabled() || isPanelOpen()) return;
+  const a = nearestAction();
+  if (!a) return;
+  if (a.id === 'door') {
+    world.door.toggle();
+    sfx.creak();
+  } else if (a.id === 'bed') {
+    sleepAtCot();
+  } else {
+    orbitCam.unlock();
+    openPanel(a.id);
   }
 });
 

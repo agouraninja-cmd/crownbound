@@ -416,17 +416,18 @@ try {
     console.log(`closed door: pushed to x=${barred.toFixed(2)}`);
     if (barred < -6.96) errors.push(`house: closed door let the player stand in the gap (x ${barred.toFixed(2)})`);
 
-    // 2) open it, stand in the gap freely
+    // 2) open it with the real interact key, then stand in the gap freely
+    await page.keyboard.press('KeyE'); // pushed-out spot is still within door radius
+    await new Promise((r) => setTimeout(r, 200));
     await page.evaluate(() => {
       const g = window.__game;
-      g.door.toggle();
       g.player.pos.x = -7.33;
       g.player.pos.z = 1.48;
     });
     await new Promise((r) => setTimeout(r, 300));
     const open = await page.evaluate(() => ({ x: window.__game.player.pos.x, open: window.__game.door.isOpen }));
     console.log(`open door: ${JSON.stringify(open)}`);
-    if (!open.open) errors.push('house: toggle did not open the door');
+    if (!open.open) errors.push('house: E near the door did not open it');
     if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
 
     // 3) sleep: tuck-in animation plays, wounds mend, the night is marked,

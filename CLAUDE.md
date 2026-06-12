@@ -80,7 +80,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Dummy: tiny STR XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
-- The hovel is enterable: F opens/closes the hinged door (closed = solid collider), furnished
+- The hovel is enterable: E opens/closes the hinged door (closed = solid collider), furnished
   one-room peasant interior, indoor camera pulls in close. E on the cot sleeps: fade out, full heal,
   and the bedtime is recorded. On the next load, if ≥7h passed (≤13h, so it was last night) and it is
   8:00 AM local or earlier → Well-Rested boon: +10 WIS XP, +10 coins, +10 stamina cap for the day,
@@ -104,8 +104,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Controls: Space jumps (grounded gravity arc, no double-jump, free — stamina blocks combat only);
   dodge-roll is double-tap of a movement key, rolling in that key's camera-relative direction;
   hold C to crouch (visual stance + slower walk, no stealth effect — Ctrl was rejected because
-  Ctrl+W closes the browser tab); F toggles the hovel door (E stays panel-interactions). None work
-  while a UI panel is open.
+  Ctrl+W closes the browser tab); E is the one interact key — quest board, tome, cot, and the hovel
+  door all use it, nearest target wins (a separate F-for-doors binding was tried and consolidated
+  away). None work while a UI panel is open.
 - Hovel interior (post-v1 "Hearth & Home"): same footprint, walls became hollow shell + furniture;
   the hovel must stay unrotated (rotY 0) — its colliders are axis-aligned rects (collision system
   supports circles + AABBs only). Interior floor is the terrain itself with a packed-earth dirt
@@ -145,7 +146,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 60fps territory for a mid-range GPU. Pointer-lock mouse camera and audio could not be exercised
 headlessly; everything else covered by the regression suite below.
 
-- [x] Post-v1 — "Hearth & Home" (2026-06-12): enterable hovel (hollow shell, F-door, furnished
+- [x] Post-v1 — "Hearth & Home" (2026-06-12): enterable hovel (hollow shell, hinged E-door, furnished
   peasant interior, indoor camera), cot sleep = full heal + death respawn point, Well-Rested
   dawn reward (7+ h, up by 8:00), saveVersion 3.
 
