@@ -5,6 +5,11 @@ import { LAYOUT } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
+import { loadState, getState, onChange, staminaCap } from './state/state.js';
+import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
+import { toast } from './ui/toasts.js';
+
+const { messages: bootMessages } = loadState();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -21,15 +26,33 @@ const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerH
 const world = buildWorld(scene);
 const player = createPlayer(scene, LAYOUT.playerSpawn);
 
-const isUiOpen = () => false; // panels arrive in M3
+const isUiOpen = isPanelOpen;
 const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
 
 initHud();
-setHp(1, 1);
-setStamina(1, 1);
-setCoins(0);
-setRank('Peasant');
-setStreak(0);
+initPanels((opened) => {
+  player.setEnabled(!opened);
+  if (opened) {
+    orbitCam.unlock();
+    showPrompt(null);
+  }
+});
+
+function syncHud() {
+  const s = getState();
+  setCoins(s.coins);
+  setRank(s.rank);
+  setStreak(s.streak.current);
+  setStamina(s.stamina.current, staminaCap());
+  setHp(1, 1); // real HP arrives with combat (M6)
+  world.campfire.setStreak(s.streak.current);
+}
+onChange(syncHud);
+syncHud();
+
+setTimeout(() => {
+  for (const m of bootMessages) toast(m.text, m.style);
+}, 700);
 
 // nearest interactable in range drives the E prompt
 function nearestInteractable() {
@@ -45,17 +68,19 @@ function nearestInteractable() {
   return best;
 }
 
-let onInteract = () => {}; // panels.js takes this over in M3
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyE' && player.isEnabled()) {
+  if (e.code === 'KeyE' && player.isEnabled() && !isPanelOpen()) {
     const it = nearestInteractable();
-    if (it) onInteract(it);
+    if (it) {
+      orbitCam.unlock();
+      openPanel(it.id);
+    }
   }
 });
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player };
+  window.__game = { scene, camera, orbitCam, player, openPanel, getState };
 }
 
 window.addEventListener('resize', () => {

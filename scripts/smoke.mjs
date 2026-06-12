@@ -68,6 +68,32 @@ try {
     await page.evaluate(() => window.__game?.orbitCam?.setView(2.4, 1.1, 14));
   } else if (scenario === 'front') {
     await page.evaluate(() => window.__game?.orbitCam?.setView(-2.6, 0.25, 7));
+  } else if (scenario === 'quests') {
+    await page.evaluate(() => window.__game.openPanel('board'));
+    await page.type('[data-input]', 'Bench press session');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    await page.click('[data-pick="str"]');
+    const s = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return {
+        coins: st.coins,
+        strXp: st.stats.str.xp,
+        streak: st.streak.current,
+        done: st.quests.daily.completed,
+        stamina: st.stamina.current,
+        history: st.history.length,
+      };
+    });
+    console.log('quest state:', JSON.stringify(s));
+    if (s.coins !== 10) errors.push(`quests: coins ${s.coins} != 10`);
+    if (s.strXp !== 25) errors.push(`quests: strXp ${s.strXp} != 25`);
+    if (s.streak !== 1) errors.push(`quests: streak ${s.streak} != 1`);
+    if (!s.done) errors.push('quests: daily not completed');
+    if (s.stamina !== 60) errors.push(`quests: stamina ${s.stamina} != 60`);
+    if (s.history !== 1) errors.push(`quests: history ${s.history} != 1`);
+  } else if (scenario === 'tome') {
+    await page.evaluate(() => window.__game.openPanel('tome'));
   } else if (scenario === 'walk') {
     const before = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z }));
     await page.keyboard.down('KeyW');

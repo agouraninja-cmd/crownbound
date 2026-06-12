@@ -101,7 +101,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ## Build status
 - [x] M1 — Scaffold + world scene (terrain, lighting, trees, structures), camera orbiting idle character
 - [x] M2 — Third-person controller: movement, sprint, dodge, camera follow, E-interaction prompts
-- [ ] M3 — Quest Board + Character Sheet UI: quest write/complete flow, stats, XP, coins, Treasury
+- [x] M3 — Quest Board + Character Sheet UI: quest write/complete flow, stats, XP, coins, Treasury
 - [ ] M4 — Persistence: save/load, streak logic, daily/weekly rollover on load
 - [ ] M5 — Campfire streak visuals + stamina system
 - [ ] M6 — Combat: training dummy + granary rats, HP, hit feedback, rat bounty
