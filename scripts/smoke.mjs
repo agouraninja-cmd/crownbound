@@ -102,7 +102,7 @@ try {
 
   if (scenario === 'rollover') {
     const stale = {
-      saveVersion: 1,
+      saveVersion: 2,
       createdAt: new Date(Date.now() - 3 * 864e5).toISOString(),
       lastPlayedAt: new Date(Date.now() - 2 * 864e5).toISOString(),
       lastQuestDate: dstr(-2),
@@ -119,6 +119,7 @@ try {
       quests: {
         daily: { text: 'old deed', completed: true, date: dstr(-2) },
         weekly: { text: 'old bounty', completed: true, weekStart: '2020-01-06' },
+        monthly: { text: 'old campaign', completed: true, monthStart: '2020-01-01' },
         epic: { text: 'Become Crowned', progressPct: 10, deadline: '2027-06-08T05:00:00' },
       },
       history: [{ date: dstr(-2), questText: 'old deed', statTrained: 'str', type: 'daily' }],
@@ -148,6 +149,8 @@ try {
         dailyText: st.quests.daily.text,
         dailyDone: st.quests.daily.completed,
         weeklyText: st.quests.weekly.text,
+        monthlyText: st.quests.monthly.text,
+        monthlyDone: st.quests.monthly.completed,
         streak: st.streak.current,
         best: st.streak.best,
         stamina: st.stamina.current,
@@ -162,6 +165,7 @@ try {
     if (s1.dailyText !== '') errors.push('rollover: daily quest not reset');
     if (s1.dailyDone) errors.push('rollover: daily still completed');
     if (s1.weeklyText !== '') errors.push('rollover: weekly not reset');
+    if (s1.monthlyText !== '' || s1.monthlyDone) errors.push('rollover: monthly not reset');
     if (s1.streak !== 0) errors.push(`rollover: streak ${s1.streak} != 0 (fire should die)`);
     if (s1.best !== 9) errors.push(`rollover: best streak ${s1.best} != 9`);
     if (s1.stamina !== 30) errors.push(`rollover: stamina ${s1.stamina} != 30`);
@@ -254,7 +258,45 @@ try {
       errors.push(`weekly: wis L${w.wis.level}/${w.wis.xp} != L2/0`);
     if (!w.done) errors.push('weekly: not completed');
     if (w.history !== 2) errors.push(`weekly: history ${w.history} != 2`);
+
+    // monthly campaign: post, complete, train Influence (+300 XP -> level 3 with 0 spare)
+    await page.type('[data-input]', 'Land the first paying client');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    await page.click('[data-pick="inf"]');
+    const m = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return {
+        coins: st.coins,
+        inf: st.stats.inf,
+        done: st.quests.monthly.completed,
+        history: st.history.length,
+        type: st.history[st.history.length - 1].type,
+      };
+    });
+    console.log('monthly state:', JSON.stringify(m));
+    if (m.coins !== 210) errors.push(`monthly: coins ${m.coins} != 210`);
+    if (m.inf.level !== 3 || m.inf.xp !== 0)
+      errors.push(`monthly: inf L${m.inf.level}/${m.inf.xp} != L3/0`);
+    if (!m.done) errors.push('monthly: not completed');
+    if (m.history !== 3) errors.push(`monthly: history ${m.history} != 3`);
+    if (m.type !== 'monthly') errors.push(`monthly: history type ${m.type} != monthly`);
   } else if (scenario === 'tome') {
+    // the Scribe: export a copy, doctor it, restore it, expect it back after reload
+    const trip = await page.evaluate(() => {
+      const g = window.__game;
+      const bad = g.importSave('{"coins":7}'); // no saveVersion/stats/quests
+      const copy = JSON.parse(g.exportSave());
+      copy.coins = 777;
+      return { bad, ok: g.importSave(JSON.stringify(copy)) };
+    });
+    await page.reload({ waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 2000));
+    const coins = await page.evaluate(() => window.__game.getState().coins);
+    console.log(`scribe round-trip: badRefused=${!trip.bad} ok=${trip.ok} coins=${coins}`);
+    if (trip.bad) errors.push('scribe: importSave accepted an invalid scroll');
+    if (!trip.ok) errors.push('scribe: importSave refused a valid copy');
+    if (coins !== 777) errors.push(`scribe: coins ${coins} != 777 after restore`);
     await page.evaluate(() => window.__game.openPanel('tome'));
   } else if (scenario === 'combat') {
     // 1) dummy: teleport beside it, two swings -> 4 STR XP, wobble

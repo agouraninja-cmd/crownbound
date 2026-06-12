@@ -1,5 +1,5 @@
 import { CONFIG, rankForTotalLevels } from './config.js';
-import { todayStr, yesterdayStr, weekStartStr } from './dates.js';
+import { todayStr, yesterdayStr, weekStartStr, monthStartStr } from './dates.js';
 
 export const STAT_NAMES = {
   str: 'Strength',
@@ -27,6 +27,38 @@ export function save() {
   localStorage.setItem(CONFIG.saveKey, JSON.stringify(state));
 }
 
+// ---------- backup (the Scribe) ----------
+
+export function exportSave() {
+  return JSON.stringify(state, null, 2);
+}
+
+function parseSave(text) {
+  try {
+    const s = JSON.parse(text);
+    if (s && typeof s === 'object' && typeof s.saveVersion === 'number' && s.stats && s.quests) {
+      return s;
+    }
+  } catch {}
+  return null;
+}
+
+export function isSaveText(text) {
+  return parseSave(text) !== null;
+}
+
+// Writes the copy and returns true; the caller reloads the page so the normal
+// load path (migrate + rollover) vets it like any stored save. The replaced
+// save is kept under `<saveKey>_prev` as a last resort against a bad copy.
+export function importSave(text) {
+  const parsed = parseSave(text);
+  if (!parsed) return false;
+  const current = localStorage.getItem(CONFIG.saveKey);
+  if (current) localStorage.setItem(CONFIG.saveKey + '_prev', current);
+  localStorage.setItem(CONFIG.saveKey, JSON.stringify(parsed));
+  return true;
+}
+
 function defaultState(now = new Date()) {
   const today = todayStr(now);
   return {
@@ -47,6 +79,7 @@ function defaultState(now = new Date()) {
     quests: {
       daily: { text: '', completed: false, date: today },
       weekly: { text: '', completed: false, weekStart: weekStartStr(now) },
+      monthly: { text: '', completed: false, monthStart: monthStartStr(now) },
       epic: { text: '', progressPct: 0, deadline: CONFIG.coronation },
     },
     history: [],
@@ -58,6 +91,10 @@ function defaultState(now = new Date()) {
 
 // future save versions translate old shapes here
 function migrate(s) {
+  if (s.saveVersion === 1) {
+    s.quests.monthly = { text: '', completed: false, monthStart: monthStartStr() };
+    s.saveVersion = 2;
+  }
   return s;
 }
 
@@ -78,6 +115,11 @@ function rollover() {
   const ws = weekStartStr();
   if (state.quests.weekly.weekStart !== ws) {
     state.quests.weekly = { text: '', completed: false, weekStart: ws };
+  }
+
+  const ms = monthStartStr();
+  if (state.quests.monthly.monthStart !== ms) {
+    state.quests.monthly = { text: '', completed: false, monthStart: ms };
   }
 
   if (
@@ -215,6 +257,30 @@ export function completeWeekly(statKey) {
   const levelUps = addXp(statKey, CONFIG.rewards.weekly.xp);
   emit('quests');
   return { levelUps, xp: CONFIG.rewards.weekly.xp, coins: CONFIG.rewards.weekly.coins };
+}
+
+export function postMonthly(text) {
+  const t = text.trim();
+  if (!t) return;
+  state.quests.monthly = { text: t, completed: false, monthStart: monthStartStr() };
+  save();
+  emit('quests');
+}
+
+export function completeMonthly(statKey) {
+  const q = state.quests.monthly;
+  if (!q.text || q.completed) return null;
+  q.completed = true;
+  state.coins += CONFIG.rewards.monthly.coins;
+  state.history.push({
+    date: todayStr(),
+    questText: q.text,
+    statTrained: statKey,
+    type: 'monthly',
+  });
+  const levelUps = addXp(statKey, CONFIG.rewards.monthly.xp);
+  emit('quests');
+  return { levelUps, xp: CONFIG.rewards.monthly.xp, coins: CONFIG.rewards.monthly.coins };
 }
 
 export function setEpicText(text) {

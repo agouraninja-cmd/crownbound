@@ -21,6 +21,11 @@ export function weekStartStr(d = new Date()) {
   return todayStr(copy);
 }
 
+// First day of the current local month, as YYYY-MM-DD
+export function monthStartStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 export function countdownTo(isoString) {
   const ms = new Date(isoString).getTime() - Date.now();
   if (ms <= 0) return { past: true, days: 0, hours: 0, minutes: 0 };

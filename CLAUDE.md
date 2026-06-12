@@ -11,7 +11,8 @@ The year-long Epic Quest counts down to the **Coronation: June 8, 2027, 5:00 AM*
 - Vite + vanilla JS + Three.js (^0.169). No frameworks. ES modules.
 - All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 1`, migration hook in `state.js`.
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 2`, migration hook in `state.js`
+  (v1→v2 adds the monthly campaign).
 - Target 60fps on mid-range laptop: merged static geometry, one shadow-casting directional light, cheap particles.
 
 ## File structure
@@ -42,7 +43,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 1,
+  saveVersion: 2,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
   stats: { str|agi|wis|inf: { level, xp } },     // next level costs 100 × current level XP
@@ -52,6 +53,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   quests: {
     daily:  { text, completed, date },           // resets each local day
     weekly: { text, completed, weekStart },      // resets each Monday (local)
+    monthly:{ text, completed, monthStart },     // resets the 1st of each month (local)
     epic:   { text, progressPct, deadline: "2027-06-08T05:00:00" }
   },
   history: [ { date, questText, statTrained, type } ],  // append-only; future Chronicler reads this
@@ -66,7 +68,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Stats start level 1. Next level = 100 × level XP. Rank by total stat levels:
   Peasant (4+) → Squire (12) → Knight (25) → Lord (45) → King (70). v1 renders only Peasant visuals.
 - Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day, feeds streak.
-- Weekly bounty: +100 XP to chosen stat, +50 coins. Epic: manual progress %, logged to history.
+- Weekly bounty: +100 XP to chosen stat, +50 coins. Monthly campaign: +300 XP, +150 coins.
+  Epic: manual progress %, logged to history.
 - Streak: daily completion counts the day. Missing a full day resets to 0 → "The fire died in the night."
 - Campfire tiers by streak: 0 embers / 1–6 small flame / 7–29 healthy fire / 30+ roaring blaze.
 - Stamina: base cap 30 (attack 5, dodge 8). Daily completion → refill + cap 60 for that day.
@@ -84,6 +87,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - While a UI panel is open, the whole sim pauses except ambient visuals (campfire), not just input.
 - Slow passive HP regen out of combat (no items exist in v1, so this is the "way back").
 - Added /src/combat directory beyond the five spec'd folders to keep enemy logic out of /scene.
+- Tome offers save backup ("The Scribe"): download the save as JSON; restore validates the file,
+  stashes the replaced save at `crownbound_save_prev`, writes the copy, and reloads the page so the
+  standard load/migrate/rollover path vets it like any stored save.
 - Controls: Space jumps (grounded gravity arc, no double-jump, free — stamina blocks combat only);
   dodge-roll is double-tap of a movement key, rolling in that key's camera-relative direction;
   hold C to crouch (visual stance + slower walk, no stealth effect — Ctrl was rejected because
@@ -120,8 +126,8 @@ headlessly; everything else covered by the regression suite below.
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
 - Regression scenarios (run all after meaningful changes):
-  `''` render · `quests` daily+weekly complete flow · `rollover` stale-save day handling ·
+  `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/death · `walk` movement ·
-  `aerial`/`front`/`tome` screenshots.
+  `tome` save export/import round-trip + screenshot · `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

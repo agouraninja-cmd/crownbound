@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 1,
+  saveVersion: 2, // v2 added the monthly campaign
 
   coronation: '2027-06-08T05:00:00',
 
@@ -17,6 +17,7 @@ export const CONFIG = {
   rewards: {
     daily: { xp: 25, coins: 10 },
     weekly: { xp: 100, coins: 50 },
+    monthly: { xp: 300, coins: 150 },
     ratCoins: 2,
   },
 

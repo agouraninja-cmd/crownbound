@@ -4,14 +4,19 @@ import {
   completeDaily,
   postWeekly,
   completeWeekly,
+  postMonthly,
+  completeMonthly,
   setEpicText,
   setEpicProgress,
   setTreasury,
   xpToNext,
   STAT_NAMES,
+  exportSave,
+  isSaveText,
+  importSave,
 } from '../state/state.js';
 import { CONFIG } from '../state/config.js';
-import { countdownTo } from '../state/dates.js';
+import { countdownTo, todayStr } from '../state/dates.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
@@ -19,8 +24,18 @@ let overlay, boardPanel, tomePanel, boardBody, tomeBody;
 let open = null;
 let onOpenChange = () => {};
 let timer = null;
-let statPickFor = null; // 'daily' | 'weekly'
+let statPickFor = null; // 'daily' | 'weekly' | 'monthly'
 let editingEpic = false;
+let pendingImport = null; // { name, text } awaiting the player's confirmation
+
+const QUEST_TITLES = { daily: 'Daily Quest', weekly: 'Weekly Bounty', monthly: 'Monthly Campaign' };
+const QUEST_DONE_LINES = {
+  daily: 'The day is won. The fire grows.',
+  weekly: 'A bounty well earned.',
+  monthly: 'A campaign concluded in glory.',
+};
+const POST_FNS = { daily: postDaily, weekly: postWeekly, monthly: postMonthly };
+const COMPLETE_FNS = { daily: completeDaily, weekly: completeWeekly, monthly: completeMonthly };
 
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -37,7 +52,7 @@ function questSlot({ kind, q, sub, placeholder }) {
   if (!q.text) {
     return `
       <div class="quest-block" data-kind="${kind}">
-        <h2>${kind === 'daily' ? 'Daily Quest' : 'Weekly Bounty'} <span class="sub">${sub}</span></h2>
+        <h2>${QUEST_TITLES[kind]} <span class="sub">${sub}</span></h2>
         <p class="muted">${placeholder}</p>
         <div class="row">
           <input type="text" class="grow" data-input maxlength="120"
@@ -52,7 +67,7 @@ function questSlot({ kind, q, sub, placeholder }) {
       .join('');
     return `
       <div class="quest-block" data-kind="${kind}">
-        <h2>${kind === 'daily' ? 'Daily Quest' : 'Weekly Bounty'} <span class="sub">${sub}</span></h2>
+        <h2>${QUEST_TITLES[kind]} <span class="sub">${sub}</span></h2>
         <div class="quest-text">“${esc(q.text)}”</div>
         <p class="muted">Which virtue did this deed train?</p>
         <div class="stat-pick">${picks}</div>
@@ -61,7 +76,7 @@ function questSlot({ kind, q, sub, placeholder }) {
   if (!q.completed) {
     return `
       <div class="quest-block" data-kind="${kind}">
-        <h2>${kind === 'daily' ? 'Daily Quest' : 'Weekly Bounty'} <span class="sub">${sub}</span></h2>
+        <h2>${QUEST_TITLES[kind]} <span class="sub">${sub}</span></h2>
         <div class="quest-text">“${esc(q.text)}”</div>
         <div class="row right"><button class="primary" data-complete>Mark Complete</button></div>
       </div>`;
@@ -69,9 +84,9 @@ function questSlot({ kind, q, sub, placeholder }) {
   return `
     <div class="quest-block" data-kind="${kind}">
       <div class="stamp">Done</div>
-      <h2>${kind === 'daily' ? 'Daily Quest' : 'Weekly Bounty'}</h2>
+      <h2>${QUEST_TITLES[kind]}</h2>
       <div class="quest-text">“${esc(q.text)}”</div>
-      <p class="muted">${kind === 'daily' ? 'The day is won. The fire grows.' : 'A bounty well earned.'}</p>
+      <p class="muted">${QUEST_DONE_LINES[kind]}</p>
     </div>`;
 }
 
@@ -112,6 +127,12 @@ function renderBoard() {
       sub: `+${r.weekly.xp} XP · +${r.weekly.coins} coins · resets Monday`,
       placeholder: 'One greater labor for this week.',
     })}
+    ${questSlot({
+      kind: 'monthly',
+      q: s.quests.monthly,
+      sub: `+${r.monthly.xp} XP · +${r.monthly.coins} coins · resets the 1st`,
+      placeholder: 'One mighty campaign for this moon.',
+    })}
     <div class="quest-block">
       <h2>The Epic Quest <span class="sub">the year&#8217;s great work</span></h2>
       ${epicBody}
@@ -138,7 +159,7 @@ function bindBoard() {
     if (postBtn) {
       const post = () => {
         if (!input.value.trim()) return;
-        (kind === 'daily' ? postDaily : postWeekly)(input.value);
+        POST_FNS[kind](input.value);
         renderBoard();
       };
       postBtn.addEventListener('click', post);
@@ -154,7 +175,7 @@ function bindBoard() {
     for (const btn of block.querySelectorAll('[data-pick]')) {
       btn.addEventListener('click', () => {
         const stat = btn.dataset.pick;
-        const res = kind === 'daily' ? completeDaily(stat) : completeWeekly(stat);
+        const res = COMPLETE_FNS[kind](stat);
         statPickFor = null;
         if (res) rewardToast(STAT_NAMES[stat], res);
         renderBoard();
@@ -241,6 +262,23 @@ function renderTome() {
       <div class="kv"><span>Streak</span><span class="v">${s.streak.current} days (best ${s.streak.best})</span></div>
       <div class="kv"><span>Days walked this land</span><span class="v">${s.daysPlayed}</span></div>
       <div class="kv"><span>Deeds recorded</span><span class="v">${s.history.length}</span></div>
+    </div>
+    <div class="sheet-section">
+      <h2>The Scribe</h2>
+      <p class="muted">Thy chronicle lives only in this browser. Keep a copy against misfortune.</p>
+      ${
+        pendingImport
+          ? `<p>Replace thy current chronicle with “${esc(pendingImport.name)}”? All present progress yields to the copy.</p>
+            <div class="row">
+              <button class="primary" data-import-confirm>Restore the copy</button>
+              <button data-import-cancel>Keep mine</button>
+            </div>`
+          : `<div class="row">
+              <button data-export>Download a copy</button>
+              <button data-import-pick>Restore from a copy</button>
+              <input type="file" accept=".json,application/json" data-import-file class="hidden" />
+            </div>`
+      }
     </div>`;
 
   tomeBody.querySelector('[data-t-set]').addEventListener('click', () => {
@@ -252,6 +290,45 @@ function renderTome() {
       renderTome();
     }
   });
+  tomeBody.querySelector('[data-export]')?.addEventListener('click', () => {
+    const blob = new Blob([exportSave()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `crownbound-save-${todayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('The scribe copies thy chronicle.', 'gold');
+  });
+
+  const fileInput = tomeBody.querySelector('[data-import-file]');
+  tomeBody.querySelector('[data-import-pick]')?.addEventListener('click', () => fileInput.click());
+  fileInput?.addEventListener('change', async () => {
+    const f = fileInput.files[0];
+    if (!f) return;
+    const text = await f.text();
+    if (!isSaveText(text)) {
+      toast('That scroll is no chronicle of this realm.', 'grim');
+      fileInput.value = '';
+      return;
+    }
+    pendingImport = { name: f.name, text };
+    renderTome();
+  });
+  tomeBody.querySelector('[data-import-confirm]')?.addEventListener('click', () => {
+    if (importSave(pendingImport.text)) {
+      toast('The chronicle is restored. The realm awakens anew.', 'gold');
+      setTimeout(() => location.reload(), 900);
+    } else {
+      toast('That scroll is no chronicle of this realm.', 'grim');
+      pendingImport = null;
+      renderTome();
+    }
+  });
+  tomeBody.querySelector('[data-import-cancel]')?.addEventListener('click', () => {
+    pendingImport = null;
+    renderTome();
+  });
+
   for (const inp of tomeBody.querySelectorAll('input')) {
     inp.addEventListener('keydown', (e) => e.stopPropagation());
   }
@@ -264,6 +341,7 @@ function close() {
   open = null;
   statPickFor = null;
   editingEpic = false;
+  pendingImport = null;
   overlay.classList.add('hidden');
   boardPanel.classList.add('hidden');
   tomePanel.classList.add('hidden');
