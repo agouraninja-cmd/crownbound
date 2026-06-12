@@ -404,3 +404,25 @@ button:disabled {
 
 .kv { display: flex; justify-content: space-between; font-size: 16px; margin: 4px 0; }
 .kv .v { font-weight: bold; }
+
+.deed-list {
+  max-height: 190px;
+  overflow-y: auto;
+  margin-top: 8px;
+  border-top: 1px solid var(--parchment-edge);
+  padding-top: 4px;
+}
+
+.deed {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 14px;
+  padding: 3px 0;
+  border-bottom: 1px dotted rgba(43, 32, 20, 0.18);
+}
+
+.deed:last-child { border-bottom: none; }
+.deed-date { color: var(--ink-faded); white-space: nowrap; min-width: 76px; }
+.deed-text { flex: 1; }
+.deed-tag { color: var(--ink-faded); font-variant: small-caps; letter-spacing: 0.5px; white-space: nowrap; }

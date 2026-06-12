@@ -288,6 +288,11 @@ try {
       const bad = g.importSave('{"coins":7}'); // no saveVersion/stats/quests
       const copy = JSON.parse(g.exportSave());
       copy.coins = 777;
+      copy.history = [
+        { date: '2026-06-10', questText: 'Bench press session', statTrained: 'str', type: 'daily' },
+        { date: '2026-06-11', questText: 'Ship the proposal', statTrained: 'wis', type: 'weekly' },
+        { date: '2026-06-12', questText: 'Become Crowned', statTrained: null, type: 'epic', progressPct: 40 },
+      ];
       return { bad, ok: g.importSave(JSON.stringify(copy)) };
     });
     await page.reload({ waitUntil: 'networkidle2' });
@@ -298,6 +303,13 @@ try {
     if (!trip.ok) errors.push('scribe: importSave refused a valid copy');
     if (coins !== 777) errors.push(`scribe: coins ${coins} != 777 after restore`);
     await page.evaluate(() => window.__game.openPanel('tome'));
+    const deeds = await page.evaluate(() => ({
+      count: document.querySelectorAll('.deed').length,
+      firstTag: document.querySelector('.deed .deed-tag')?.textContent ?? '',
+    }));
+    console.log(`chronicle: ${deeds.count} deeds, newest tagged "${deeds.firstTag}"`);
+    if (deeds.count !== 3) errors.push(`chronicle: ${deeds.count} deed rows != 3`);
+    if (!deeds.firstTag.includes('40%')) errors.push('chronicle: newest deed not first');
   } else if (scenario === 'combat') {
     // 1) dummy: teleport beside it, two swings -> 4 STR XP, wobble
     await page.evaluate(() => {

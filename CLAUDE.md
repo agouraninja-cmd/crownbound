@@ -87,6 +87,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - While a UI panel is open, the whole sim pauses except ambient visuals (campfire), not just input.
 - Slow passive HP regen out of combat (no items exist in v1, so this is the "way back").
 - Added /src/combat directory beyond the five spec'd folders to keep enemy logic out of /scene.
+- The Tome's Chronicle section lists every recorded deed from history (newest first, scrollable) —
+  a plain-prose preview of what the v2 Chronicler will narrate.
 - Tome offers save backup ("The Scribe"): download the save as JSON; restore validates the file,
   stashes the replaced save at `crownbound_save_prev`, writes the copy, and reloads the page so the
   standard load/migrate/rollover path vets it like any stored save.
@@ -128,6 +130,6 @@ headlessly; everything else covered by the regression suite below.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/death · `walk` movement ·
-  `tome` save export/import round-trip + screenshot · `aerial`/`front` screenshots.
+  `tome` save export/import round-trip + chronicle deed list + screenshot · `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

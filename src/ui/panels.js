@@ -209,6 +209,31 @@ function bindBoard() {
 
 // ---------- Character Sheet (the Tome) ----------
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function deedDate(ymd) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return `${d} ${MONTHS[m - 1]} ’${String(y).slice(2)}`;
+}
+
+function deedRows(history) {
+  if (!history.length) return `<p class="muted">No deeds yet writ. The board awaits.</p>`;
+  return [...history]
+    .reverse()
+    .map((h) => {
+      const tag =
+        h.type === 'epic'
+          ? `the great work · ${h.progressPct}%`
+          : `${STAT_NAMES[h.statTrained] ?? '—'} · ${h.type}`;
+      return `<div class="deed">
+        <span class="deed-date">${deedDate(h.date)}</span>
+        <span class="deed-text">“${esc(h.questText)}”</span>
+        <span class="deed-tag">${tag}</span>
+      </div>`;
+    })
+    .join('');
+}
+
 function renderTome() {
   const s = getState();
 
@@ -262,6 +287,7 @@ function renderTome() {
       <div class="kv"><span>Streak</span><span class="v">${s.streak.current} days (best ${s.streak.best})</span></div>
       <div class="kv"><span>Days walked this land</span><span class="v">${s.daysPlayed}</span></div>
       <div class="kv"><span>Deeds recorded</span><span class="v">${s.history.length}</span></div>
+      <div class="deed-list">${deedRows(s.history)}</div>
     </div>
     <div class="sheet-section">
       <h2>The Scribe</h2>
