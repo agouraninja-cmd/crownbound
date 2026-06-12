@@ -68,6 +68,15 @@ try {
     await page.evaluate(() => window.__game?.orbitCam?.setView(2.4, 1.1, 14));
   } else if (scenario === 'front') {
     await page.evaluate(() => window.__game?.orbitCam?.setView(-2.6, 0.25, 7));
+  } else if (scenario === 'walk') {
+    const before = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z }));
+    await page.keyboard.down('KeyW');
+    await new Promise((r) => setTimeout(r, 2000));
+    await page.keyboard.up('KeyW');
+    const after = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z }));
+    const moved = Math.hypot(after.x - before.x, after.z - before.z);
+    console.log(`walk check: moved ${moved.toFixed(2)} units`);
+    if (moved < 2) errors.push(`walk: player barely moved (${moved.toFixed(2)} units)`);
   }
   await new Promise((r) => setTimeout(r, 1500));
 

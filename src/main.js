@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import './ui/ui.css';
 import { buildWorld } from './scene/world.js';
-import { terrainHeight } from './scene/terrain.js';
 import { LAYOUT } from './scene/layout.js';
-import { buildPlayerMesh } from './player/playerMesh.js';
+import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
+import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -19,22 +19,43 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
 
 const world = buildWorld(scene);
-
-const playerMesh = buildPlayerMesh();
-playerMesh.group.position.set(
-  LAYOUT.playerSpawn.x,
-  terrainHeight(LAYOUT.playerSpawn.x, LAYOUT.playerSpawn.z),
-  LAYOUT.playerSpawn.z
-);
-playerMesh.group.rotation.y = Math.PI / 3;
-scene.add(playerMesh.group);
+const player = createPlayer(scene, LAYOUT.playerSpawn);
 
 const isUiOpen = () => false; // panels arrive in M3
 const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
 
+initHud();
+setHp(1, 1);
+setStamina(1, 1);
+setCoins(0);
+setRank('Peasant');
+setStreak(0);
+
+// nearest interactable in range drives the E prompt
+function nearestInteractable() {
+  let best = null;
+  let bestD = Infinity;
+  for (const it of world.interactables) {
+    const d = Math.hypot(player.pos.x - it.x, player.pos.z - it.z);
+    if (d < it.radius && d < bestD) {
+      bestD = d;
+      best = it;
+    }
+  }
+  return best;
+}
+
+let onInteract = () => {}; // panels.js takes this over in M3
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyE' && player.isEnabled()) {
+    const it = nearestInteractable();
+    if (it) onInteract(it);
+  }
+});
+
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, playerMesh };
+  window.__game = { scene, camera, orbitCam, player };
 }
 
 window.addEventListener('resize', () => {
@@ -56,8 +77,14 @@ function tick() {
   }
   const dt = Math.min(clock.getDelta(), 0.05);
 
+  if (!isUiOpen()) {
+    player.update(dt, orbitCam.getYaw(), world.colliders);
+    const it = nearestInteractable();
+    showPrompt(it ? `Press <b>E</b> — ${it.label}` : null);
+  }
+
   world.campfire.update(dt);
-  orbitCam.update(dt, playerMesh.group.position);
+  orbitCam.update(dt, player.pos);
 
   renderer.render(scene, camera);
   requestAnimationFrame(tick);

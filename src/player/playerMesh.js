@@ -12,24 +12,28 @@ const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
 // A simple jointed figure. Limbs are Groups pivoted at the joint so the
 // controller can swing them; geometry hangs below/inside each pivot.
+// `roller` wraps everything at waist height so dodge-rolls can somersault.
 export function buildPlayerMesh() {
   const group = new THREE.Group();
+  const roller = new THREE.Group();
+  roller.position.y = 0.6;
+  group.add(roller);
 
   const makeLeg = (x) => {
     const leg = new THREE.Group();
-    leg.position.set(x, 0.55, 0);
+    leg.position.set(x, -0.05, 0);
     const geo = mesh(box(0.17, 0.55, 0.2), PANTS, { y: -0.275 });
     leg.add(geo);
     leg.add(mesh(box(0.19, 0.1, 0.26), 0x3d3127, { y: -0.53, z: 0.02 })); // worn shoe
-    group.add(leg);
+    roller.add(leg);
     return leg;
   };
   const leftLeg = makeLeg(-0.12);
   const rightLeg = makeLeg(0.12);
 
   const body = new THREE.Group();
-  body.position.y = 0.55;
-  group.add(body);
+  body.position.y = -0.05;
+  roller.add(body);
 
   body.add(mesh(box(0.5, 0.58, 0.3), TUNIC, { y: 0.29 }));
   body.add(mesh(box(0.52, 0.07, 0.32), TUNIC_DARK, { y: 0.12 })); // rope belt
@@ -61,5 +65,5 @@ export function buildPlayerMesh() {
   head.add(mesh(box(0.04, 0.05, 0.02), 0x241a12, { x: -0.08, y: 0.14, z: 0.16, shadow: false }));
   head.add(mesh(box(0.04, 0.05, 0.02), 0x241a12, { x: 0.08, y: 0.14, z: 0.16, shadow: false }));
 
-  return { group, body, head, leftLeg, rightLeg, leftArm, rightArm, weapon };
+  return { group, roller, body, head, leftLeg, rightLeg, leftArm, rightArm, weapon };
 }
