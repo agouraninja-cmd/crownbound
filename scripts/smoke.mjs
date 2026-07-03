@@ -66,7 +66,7 @@ try {
   };
 
   if (scenario === 'fire') {
-    // a 35-day streak, daily already done today: roaring blaze + full 60 stamina
+    // a 35-day streak, daily already done today: roaring blaze + full 120 stamina
     const hot = {
       saveVersion: 1,
       createdAt: new Date().toISOString(),
@@ -89,7 +89,7 @@ try {
       },
       history: [],
       daysPlayed: 36,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 120, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
     };
     await page.evaluateOnNewDocument((save) => {
@@ -124,7 +124,7 @@ try {
       },
       history: [{ date: dstr(-2), questText: 'old deed', statTrained: 'str', type: 'daily' }],
       daysPlayed: 3,
-      stamina: { current: 60, date: dstr(-2) },
+      stamina: { current: 120, date: dstr(-2) },
       counters: { date: dstr(-2), dummyHits: 25, ratsKilled: 3 },
     };
     // inject once; sessionStorage flag stops re-injection on reload
@@ -170,7 +170,7 @@ try {
     if (s1.monthlyText !== '' || s1.monthlyDone) errors.push('rollover: monthly not reset');
     if (s1.streak !== 0) errors.push(`rollover: streak ${s1.streak} != 0 (fire should die)`);
     if (s1.best !== 9) errors.push(`rollover: best streak ${s1.best} != 9`);
-    if (s1.stamina !== 30) errors.push(`rollover: stamina ${s1.stamina} != 30`);
+    if (s1.stamina !== 60) errors.push(`rollover: stamina ${s1.stamina} != 60`);
     if (s1.dummyHits !== 0) errors.push('rollover: day counters not reset');
     if (s1.daysPlayed !== 4) errors.push(`rollover: daysPlayed ${s1.daysPlayed} != 4`);
     if (s1.coins !== 42) errors.push('rollover: coins not preserved');
@@ -198,9 +198,9 @@ try {
     const drain = await page.evaluate(() => {
       const g = window.__game;
       const spends = [];
-      for (let i = 0; i < 6; i++) spends.push(g.spendStamina(5)); // 60 -> 30
+      for (let i = 0; i < 6; i++) spends.push(g.spendStamina(5)); // 120 -> 90
       const mid = g.getState().stamina.current;
-      const big = g.spendStamina(30); // -> 0
+      const big = g.spendStamina(90); // -> 0
       const empty = g.spendStamina(5); // must refuse
       return { spends, mid, big, empty, end: g.getState().stamina.current };
     });
@@ -208,7 +208,7 @@ try {
     const tended = await page.evaluate(() => window.__game.campfire.getGutter());
     if (tended !== 1) errors.push(`fire: blaze guttering (${tended}) though daily is done`);
     if (drain.spends.some((v) => !v)) errors.push('fire: early spends refused');
-    if (drain.mid !== 30) errors.push(`fire: mid stamina ${drain.mid} != 30`);
+    if (drain.mid !== 90) errors.push(`fire: mid stamina ${drain.mid} != 90`);
     if (!drain.big) errors.push('fire: spend-to-zero refused');
     if (drain.empty) errors.push('fire: spend allowed at 0 stamina');
     if (drain.end !== 0) errors.push(`fire: end stamina ${drain.end} != 0`);
@@ -242,7 +242,7 @@ try {
     if (s.strXp !== 25) errors.push(`quests: strXp ${s.strXp} != 25`);
     if (s.streak !== 1) errors.push(`quests: streak ${s.streak} != 1`);
     if (!s.done) errors.push('quests: daily not completed');
-    if (s.stamina !== 60) errors.push(`quests: stamina ${s.stamina} != 60`);
+    if (s.stamina !== 120) errors.push(`quests: stamina ${s.stamina} != 120`);
     if (s.history !== 1) errors.push(`quests: history ${s.history} != 1`);
 
     // weekly bounty: post, complete, train Wisdom (+100 XP -> level 2 with 0 spare)
@@ -342,7 +342,7 @@ try {
     console.log('dummy:', JSON.stringify(afterDummy));
     if (afterDummy.strXp !== 4) errors.push(`combat: dummy strXp ${afterDummy.strXp} != 4`);
     if (afterDummy.hits !== 2) errors.push(`combat: dummyHits ${afterDummy.hits} != 2`);
-    if (afterDummy.stamina !== 20) errors.push(`combat: stamina ${afterDummy.stamina} != 20`);
+    if (afterDummy.stamina !== 50) errors.push(`combat: stamina ${afterDummy.stamina} != 50`);
 
     // 2) rats: walk into the granary yard, get bitten, then slay one
     await page.evaluate(() => {
@@ -507,7 +507,7 @@ try {
     if (boon.again) errors.push('house: boon granted twice in one day');
     if (boon.dCoins !== 10) errors.push(`house: boon coins ${boon.dCoins} != 10`);
     if (boon.dWis !== 10) errors.push(`house: boon wis xp ${boon.dWis} != 10`);
-    if (boon.stamina !== 40) errors.push(`house: stamina ${boon.stamina} != 40 (30 + rested cap)`);
+    if (boon.stamina !== 70) errors.push(`house: stamina ${boon.stamina} != 70 (60 + rested cap)`);
     if (boon.histType !== 'sleep') errors.push(`house: history type ${boon.histType} != sleep`);
     if (!boon.rested) errors.push('house: wellRestedDate not set');
 

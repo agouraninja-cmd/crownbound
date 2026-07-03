@@ -22,8 +22,8 @@ export const CONFIG = {
   },
 
   stamina: {
-    baseCap: 30,
-    questCap: 60, // cap for the rest of the day once the daily quest is done
+    baseCap: 60,
+    questCap: 120, // cap for the rest of the day once the daily quest is done
     attackCost: 5,
     dodgeCost: 8,
   },
