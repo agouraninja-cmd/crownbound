@@ -156,12 +156,15 @@ function furnish(g) {
   g.add(mesh(cyl(0.16, 0.16, 0.06, 7), WOOD_PALE, { x: 0.45, y: 0.38, z: 1.05 }));
   g.add(mesh(cyl(0.05, 0.07, 0.36, 6), WOOD_DARK, { x: 0.45, y: 0.18, z: 1.05 }));
 
-  // chest in the -z corner
+  // strongbox chest in the -z corner — the Treasury (E opens its panel)
   const cx = (H.chest.x0 + H.chest.x1) / 2;
   const cz = (H.chest.z0 + H.chest.z1) / 2;
   g.add(mesh(box(0.66, 0.34, 0.42), WOOD, { x: cx, y: 0.17, z: cz }));
   g.add(mesh(box(0.7, 0.1, 0.46), WOOD_DARK, { x: cx, y: 0.39, z: cz }));
   g.add(mesh(box(0.08, 0.5, 0.48), 0x3a3a3f, { x: cx, y: 0.2, z: cz })); // iron band
+  // brass padlock on the room-facing side — marks it as thy true hoard
+  g.add(mesh(box(0.07, 0.05, 0.04), 0x8a6a3f, { x: cx, y: 0.33, z: cz + 0.23, shadow: false }));
+  g.add(mesh(box(0.11, 0.13, 0.05), 0xb08d4f, { x: cx, y: 0.25, z: cz + 0.23, shadow: false }));
 
   // the sleep ledger: a plank and parchment by the shelf, tally scratched in ink
   g.add(mesh(box(0.55, 0.62, 0.04), WOOD_DARK, { x: H.ledger.x, y: 1.25, z: -1.31 }));

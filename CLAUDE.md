@@ -36,7 +36,7 @@ src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
-src/ui/panels.js      Quest Board UI + Character Sheet UI
+src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury panel UIs
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ```
 
@@ -124,6 +124,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Sleeping plays a tuck-in animation (player mode 'sleep': glide to the cot, lie back on the
   pillow, breathe; the stick is hidden while lying) before the 0.7s fade — full timeline ~2.6s,
   timed in main.js `sleepAtCot()`. `respawn()` is the universal way out of the sleep pose.
+- The Treasury lives at the strongbox chest inside the hovel (E opens its panel; brass padlock
+  marks it) rather than in the Tome — wealth kept where a peasant would keep it. The Tome's
+  Wealth section shows coins only and points home. Data model unchanged.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -156,6 +159,8 @@ headlessly; everything else covered by the regression suite below.
   dawn reward (7+ h, up by 8:00), saveVersion 3.
 - [x] Post-v1 — "The Sleep Ledger" (2026-06-12): wall board in the hovel logging every judged night
   (bed/wake/verdict), panel shows the last 7 with hours slept + weekly tally, saveVersion 4.
+- [x] Post-v1 — "The Strongbox" (2026-07-03): Treasury moved out of the Tome to the hovel's
+  chest (E → Treasury panel); Tome's Wealth section shows coins only.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -167,6 +172,6 @@ headlessly; everything else covered by the regression suite below.
   `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
-  interior screenshot · `aerial`/`front` screenshots.
+  strongbox E-open + Treasury set + interior screenshot · `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

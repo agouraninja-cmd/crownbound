@@ -107,6 +107,7 @@ export function buildWorld(scene) {
     // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bed.x, z: hz + H.bed.z, radius: 1.7, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
+    { id: 'treasury', label: 'your strongbox', x: hx + (H.chest.x0 + H.chest.x1) / 2, z: hz + (H.chest.z0 + H.chest.z1) / 2, radius: 1.5, insideOnly: true },
   ];
 
   return { colliders, interactables, campfire, dummy, door, hovelInterior, wakeSpot, bedRest };

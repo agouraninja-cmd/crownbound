@@ -20,7 +20,7 @@ import { countdownTo, todayStr } from '../state/dates.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, ledgerPanel, boardBody, tomeBody, ledgerBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, boardBody, tomeBody, ledgerBody, treasuryBody;
 let open = null;
 let onOpenChange = () => {};
 let timer = null;
@@ -255,9 +255,6 @@ function renderTome() {
     })
     .join('');
 
-  const t = s.treasury;
-  const tPct = Math.min(100, (t.current / t.goal) * 100);
-
   tomeBody.innerHTML = `
     <div class="sheet-section">
       <div class="rank-ladder">${ladder}</div>
@@ -272,15 +269,7 @@ function renderTome() {
     <div class="sheet-section">
       <h2>Wealth</h2>
       <div class="kv"><span>Coins (quest spoils)</span><span class="v">${s.coins}</span></div>
-      <div class="kv"><span>Treasury (true savings)</span>
-        <span class="v">${t.current.toLocaleString()} / ${t.goal.toLocaleString()}</span></div>
-      <div class="xpbar treasury" style="margin:6px 0"><div style="width:${tPct}%"></div></div>
-      <div class="row">
-        <input type="number" data-t-current min="0" value="${t.current}" title="Current savings" />
-        <input type="number" data-t-goal min="1" value="${t.goal}" title="Savings goal" />
-        <button data-t-set>Set</button>
-      </div>
-      <p class="muted">The Treasury is thy true hoard — coins of the realm buy nothing here. Yet.</p>
+      <p class="muted">Thy true hoard lies in the strongbox at home.</p>
     </div>
     <div class="sheet-section">
       <h2>The Chronicle</h2>
@@ -307,15 +296,6 @@ function renderTome() {
       }
     </div>`;
 
-  tomeBody.querySelector('[data-t-set]').addEventListener('click', () => {
-    const cur = Number(tomeBody.querySelector('[data-t-current]').value);
-    const goal = Number(tomeBody.querySelector('[data-t-goal]').value);
-    if (Number.isFinite(cur) && Number.isFinite(goal)) {
-      setTreasury(cur, goal);
-      toast('The Treasury ledger is updated.', 'gold');
-      renderTome();
-    }
-  });
   tomeBody.querySelector('[data-export]')?.addEventListener('click', () => {
     const blob = new Blob([exportSave()], { type: 'application/json' });
     const a = document.createElement('a');
@@ -417,6 +397,39 @@ function renderLedger() {
     </div>`;
 }
 
+// ---------- The Treasury (the strongbox in the hovel) ----------
+
+function renderTreasury() {
+  const t = getState().treasury;
+  const tPct = Math.min(100, (t.current / t.goal) * 100);
+
+  treasuryBody.innerHTML = `
+    <div class="sheet-section">
+      <div class="kv"><span>True savings</span>
+        <span class="v">${t.current.toLocaleString()} / ${t.goal.toLocaleString()}</span></div>
+      <div class="xpbar treasury" style="margin:6px 0"><div style="width:${tPct}%"></div></div>
+      <div class="row">
+        <input type="number" data-t-current min="0" value="${t.current}" title="Current savings" />
+        <input type="number" data-t-goal min="1" value="${t.goal}" title="Savings goal" />
+        <button data-t-set>Set</button>
+      </div>
+      <p class="muted">The strongbox keeps thy true hoard — coins of the realm buy nothing here. Yet.</p>
+    </div>`;
+
+  treasuryBody.querySelector('[data-t-set]').addEventListener('click', () => {
+    const cur = Number(treasuryBody.querySelector('[data-t-current]').value);
+    const goal = Number(treasuryBody.querySelector('[data-t-goal]').value);
+    if (Number.isFinite(cur) && Number.isFinite(goal)) {
+      setTreasury(cur, goal);
+      toast('The Treasury ledger is updated.', 'gold');
+      renderTreasury();
+    }
+  });
+  for (const inp of treasuryBody.querySelectorAll('input')) {
+    inp.addEventListener('keydown', (e) => e.stopPropagation());
+  }
+}
+
 // ---------- open/close ----------
 
 function close() {
@@ -429,6 +442,7 @@ function close() {
   boardPanel.classList.add('hidden');
   tomePanel.classList.add('hidden');
   ledgerPanel.classList.add('hidden');
+  treasuryPanel.classList.add('hidden');
   if (timer) clearInterval(timer);
   timer = null;
   onOpenChange(false);
@@ -441,9 +455,11 @@ export function openPanel(id) {
   boardPanel.classList.toggle('hidden', id !== 'board');
   tomePanel.classList.toggle('hidden', id !== 'tome');
   ledgerPanel.classList.toggle('hidden', id !== 'ledger');
-  const bodies = { board: boardBody, tome: tomeBody, ledger: ledgerBody };
+  treasuryPanel.classList.toggle('hidden', id !== 'treasury');
+  const bodies = { board: boardBody, tome: tomeBody, ledger: ledgerBody, treasury: treasuryBody };
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
+  else if (id === 'treasury') renderTreasury();
   else renderTome();
   if (timer) clearInterval(timer);
   timer = setInterval(() => {
@@ -463,9 +479,11 @@ export function initPanels(openChangeCallback) {
   boardPanel = document.getElementById('quest-panel');
   tomePanel = document.getElementById('tome-panel');
   ledgerPanel = document.getElementById('ledger-panel');
+  treasuryPanel = document.getElementById('treasury-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
   ledgerBody = document.getElementById('ledger-body');
+  treasuryBody = document.getElementById('treasury-body');
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && open) close();

@@ -437,15 +437,21 @@ try {
       g.player.takeDamage(9, 0, 0);
       g.sleepAtCot();
     });
-    await new Promise((r) => setTimeout(r, 1200)); // mid-nap: lying on the cot
-    const nap = await page.evaluate(() => ({
-      mode: window.__game.player.mode,
-      lying: window.__game.player.mesh.roller.rotation.x,
-    }));
+    // mid-nap: poll until he lies flat — the eased pose runs on frame dt, which
+    // lags wall-clock under the software renderer, so a fixed delay is flaky
+    let nap = { mode: '?', lying: 0 };
+    for (let i = 0; i < 22 && nap.lying > -1.4; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      nap = await page.evaluate(() => ({
+        mode: window.__game.player.mode,
+        lying: window.__game.player.mesh.roller.rotation.x,
+      }));
+      if (nap.mode !== 'sleep') break; // respawned without ever lying down
+    }
     await page.screenshot({ path: 'scripts/smoke-sleep.png' });
     console.log('mid-nap:', JSON.stringify(nap));
     if (nap.mode !== 'sleep') errors.push(`house: mid-nap mode ${nap.mode} != sleep`);
-    if (nap.lying > -1.4) errors.push(`house: not lying down (roller.x ${nap.lying.toFixed(2)})`);
+    if (nap.lying > -1.4) errors.push(`house: never lay down (roller.x ${nap.lying.toFixed(2)})`);
     await new Promise((r) => setTimeout(r, 2300));
     const slept = await page.evaluate(() => ({
       hp: window.__game.player.hp,
@@ -537,7 +543,34 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
-    // 7) interior screenshot: indoors camera should pull in under the rafters
+    // 7) the strongbox: E beside the chest opens the Treasury panel, Set writes state
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -9.5; // beside the chest, nearer to it than cot/ledger/door
+      g.player.pos.z = 1.2;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    const strongbox = await page.evaluate(() => {
+      const opened = !document.getElementById('treasury-panel').classList.contains('hidden');
+      const cur = document.querySelector('#treasury-body [data-t-current]');
+      const goal = document.querySelector('#treasury-body [data-t-goal]');
+      if (cur && goal) {
+        cur.value = '2500';
+        goal.value = '20000';
+        document.querySelector('#treasury-body [data-t-set]').click();
+      }
+      return { opened, ...window.__game.getState().treasury };
+    });
+    console.log('strongbox:', JSON.stringify(strongbox));
+    if (!strongbox.opened) errors.push('house: E by the chest did not open the Treasury');
+    if (strongbox.current !== 2500 || strongbox.goal !== 20000)
+      errors.push(`house: treasury set ${strongbox.current}/${strongbox.goal} != 2500/20000`);
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+    // 8) interior screenshot: indoors camera should pull in under the rafters
     await page.evaluate(() => {
       const g = window.__game;
       g.player.pos.x = -8.6;
