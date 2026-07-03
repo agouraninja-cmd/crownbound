@@ -150,7 +150,10 @@ export function renderGuide(guideBody) {
       <div class="kv"><span>Coins</span><span class="v">quest spoils and rat bounties</span></div>
       <div class="kv"><span>The Treasury</span><span class="v">thy true savings, kept at the Exchequer</span></div>
       <p class="muted">They never mix. Coins of the realm will never buy back a virtue,
-      and thy true hoard answers to no game.</p>
+      and thy true hoard answers to no game. When each month turns, the clerk hears the
+      Reckoning — coin earned, coin spent, what was laid in the hoard, and the hoard counted
+      true — judges it against thy pledge, and enters the roll. Summits are named, climbed
+      by the month, and conquered only at a filing.</p>
     </div>
     ${marketSection}
     <div class="sheet-section">

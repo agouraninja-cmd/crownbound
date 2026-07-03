@@ -1,5 +1,5 @@
 import { CONFIG, rankForTotalLevels } from './config.js';
-import { todayStr, yesterdayStr, weekStartStr, monthStartStr } from './dates.js';
+import { todayStr, yesterdayStr, weekStartStr, monthStartStr, prevMonthKey, nextMonthKey } from './dates.js';
 
 export const STAT_NAMES = {
   str: 'Strength',
@@ -74,7 +74,8 @@ function defaultState(now = new Date()) {
       inf: { level: 1, xp: 0 },
     },
     coins: 0,
-    treasury: { current: 0, goal: 10000 },
+    // real savings: a named cumulative summit plus the monthly reckoning rolls
+    treasury: { name: '', current: 0, goal: 10000, pledge: 0, rolls: [], conquered: [] },
     streak: { current: 0, best: 0 },
     quests: {
       daily: { text: '', completed: false, date: today },
@@ -111,11 +112,18 @@ function migrate(s) {
     s.saveVersion = 6; // v6: the Coronation is earned at King, not scheduled
     delete s.quests.epic.deadline;
   }
+  if (s.saveVersion === 6) {
+    s.saveVersion = 7; // v7: the monthly reckoning at the Exchequer
+  }
   // hand-edited or restored saves may miss fields regardless of version
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   if (!s.sleep.log) s.sleep.log = [];
   if (!s.shop) s.shop = { owned: [] };
   if (!('coronationAt' in s)) s.coronationAt = null;
+  if (!('name' in s.treasury)) s.treasury.name = '';
+  if (!('pledge' in s.treasury)) s.treasury.pledge = 0;
+  if (!s.treasury.rolls) s.treasury.rolls = [];
+  if (!s.treasury.conquered) s.treasury.conquered = [];
   return s;
 }
 
@@ -445,11 +453,99 @@ export function buyItem(id) {
   return { ok: true, item };
 }
 
-// ---------- treasury ----------
+// ---------- treasury (the monthly reckoning) ----------
+// Real savings, honor system, no game value: the Exchequer is a virtual
+// summarized financial statement. Filing a reckoning pays no XP and no coins —
+// coins and the hoard never mix in either direction.
 
+// corrections outside the ritual: fix the count or move the summit line.
+// Deliberately NO conquest check here — a summit falls only to a filed
+// reckoning (see fileReckoning), never to a typo in the goal box.
 export function setTreasury(current, goal) {
   state.treasury.current = Math.max(0, current);
-  state.treasury.goal = Math.max(1, goal);
+  state.treasury.goal = Math.max(0, goal); // 0 = no summit raised (post-conquest)
+  save();
+  emit('treasury');
+}
+
+// the standing commitment the monthly verdict is judged against
+export function setPledge(n) {
+  state.treasury.pledge = Math.max(0, Math.round(n));
+  save();
+  emit('treasury');
+}
+
+// Pure verdict on a month's numbers, judged against the pledge (exported for
+// the smoke suite):
+//   'fat'   laid in the hoard at least the pledged amount (needs a pledge set)
+//   'held'  kept ≥ 0 — spent no more than was earned
+//   'bled'  spent more than was earned
+export function judgeReckoning({ earned, spent, saved }, pledge) {
+  if (pledge > 0 && saved >= pledge) return 'fat';
+  return earned - spent >= 0 ? 'held' : 'bled';
+}
+
+// The month a reckoning is owed for — the one that just ended — or null once
+// it has been filed. One roll per month, ever.
+export function reckoningDue(now = new Date()) {
+  const due = prevMonthKey(now);
+  return state.treasury.rolls.some((r) => r.month === due) ? null : due;
+}
+
+// File the month's statement. Skipped months between the last roll and this
+// one land as 'unreckoned' (like unwitnessed nights) rather than vanishing.
+// `counted` is the reconciliation: what the accounts truly say, and it becomes
+// the new hoard total. Returns { roll, conquered } or null if nothing is due.
+export function fileReckoning({ earned, spent, saved, counted }, now = new Date()) {
+  const due = reckoningDue(now);
+  if (!due) return null;
+  const t = state.treasury;
+
+  const last = t.rolls[t.rolls.length - 1];
+  if (last) {
+    let m = nextMonthKey(last.month);
+    for (let guard = 0; m < due && guard < 240; guard++) {
+      t.rolls.push({ month: m, verdict: 'unreckoned' });
+      m = nextMonthKey(m);
+    }
+  }
+
+  const roll = {
+    month: due,
+    earned: Math.max(0, earned),
+    spent: Math.max(0, spent),
+    saved: Math.max(0, saved),
+    counted: Math.max(0, counted),
+    verdict: judgeReckoning({ earned, spent, saved }, t.pledge),
+  };
+  t.rolls.push(roll);
+  t.current = roll.counted;
+
+  // conquest: the clerk declares a summit taken only at a filing. The fallen
+  // summit is archived and the goal cleared until the next one is raised.
+  let conquered = null;
+  if (t.goal > 0 && t.current >= t.goal) {
+    conquered = { name: t.name || 'the unnamed hoard', goal: t.goal, conqueredAt: new Date().toISOString() };
+    t.conquered.push(conquered);
+    t.goal = 0;
+    t.name = '';
+    state.history.push({
+      date: todayStr(),
+      questText: `${conquered.name} — the hoard reached ${conquered.goal.toLocaleString()}`,
+      statTrained: null,
+      type: 'treasury',
+    });
+  }
+
+  save();
+  emit('treasury');
+  return { roll, conquered };
+}
+
+// raise the next summit after a conquest (or rename/re-aim the current one)
+export function setSummit(name, goal) {
+  state.treasury.name = name.trim();
+  state.treasury.goal = Math.max(1, Math.round(goal));
   save();
   emit('treasury');
 }

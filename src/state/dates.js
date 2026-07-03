@@ -25,3 +25,18 @@ export function weekStartStr(d = new Date()) {
 export function monthStartStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
+
+// Month identity as YYYY-MM — zero-padded so string comparison orders correctly
+export function monthKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// The month a reckoning is due for: the one that just ended
+export function prevMonthKey(now = new Date()) {
+  return monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+}
+
+export function nextMonthKey(key) {
+  const [y, m] = key.split('-').map(Number);
+  return monthKey(new Date(y, m, 1)); // m is 1-based, so as a 0-based index it IS next month
+}

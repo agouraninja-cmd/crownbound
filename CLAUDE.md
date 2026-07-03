@@ -12,9 +12,10 @@ happens the moment the character reaches King** (70 total virtue levels).
 - Vite + vanilla JS + Three.js (^0.169). No frameworks. ES modules.
 - All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 6`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 7`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
-  v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline).
+  v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
+  v6→v7 the monthly reckoning — grows the treasury).
 - Target 60fps on mid-range laptop: merged static geometry, one shadow-casting directional light, cheap particles.
 
 ## File structure
@@ -52,7 +53,13 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   rank: "Peasant",
   stats: { str|agi|wis|inf: { level, xp } },     // next level costs 100 × current level XP
   coins,
-  treasury: { current, goal },                   // real savings, manual, never converts with coins
+  treasury: {                                    // real savings, manual, never converts with coins
+    name, current, goal,                         // the named cumulative summit (goal 0 = none raised)
+    pledge,                                      // standing monthly laid-in commitment (verdict yardstick)
+    rolls: [ { month: "YYYY-MM", earned, spent, saved, counted,   // one reckoning per month, append-only
+               verdict: fat|held|bled|unreckoned } ],             //   (unreckoned rolls carry month+verdict only)
+    conquered: [ { name, goal, conqueredAt } ]   // summits taken; conquests also land in history as "treasury"
+  },
   streak: { current, best },
   quests: {
     daily:  { text, completed, date },           // resets each local day
@@ -167,6 +174,17 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   clerk and chapman. E opens no panel: it toasts a one-line tally of today's ratsKilled
   (`millerGreeting()` in main.js). He stands just outside the granary's collision circle so the
   player can reach him.
+- The Reckoning (2026-07-03): the Treasury is a monthly personal financial statement — a
+  virtual summarized spreadsheet with NO game value (no XP, no coins, ever; quests reward the
+  deed of saving, the roll only records the fact). Four entered lines per month (earned, spent,
+  laid in the hoard, hoard counted true — the last reconciles `current`); kept and keep-rate are
+  derived; the verdict judges laid-in against the standing `pledge` (fat ≥ pledge / held ≥ 0
+  kept / bled < 0), thresholds pledge-relative, not config numbers. Goals are cumulative
+  summits: named, climbed by month, archived to `conquered` on conquest — which fires ONLY at a
+  filing (`fileReckoning`), never from goal edits, so a typo can't take a summit. Skipped months
+  are backfilled as `unreckoned` rolls at the next filing, sleep-ledger style. One roll per
+  month, ever (`reckoningDue` guards). Pure fns `judgeReckoning`/`reckoningDue` exported for the
+  smoke suite. Panel shows last 6 rolls; the full log is kept for the v2 Chronicler.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -216,6 +234,9 @@ headlessly; everything else covered by the regression suite below.
   by the path (E → scrollable guide panel); numbers render live from config.js. No save change.
 - [x] Post-v1 — "The Miller" (2026-07-03): the bounty-payer made flesh — flour-dusted figure
   in the granary yard, breathing sway, E toasts today's rat tally. No save change.
+- [x] Post-v1 — "The Reckoning" (2026-07-03): the Treasury becomes a monthly financial
+  statement — pledge, four-line monthly rolls with verdicts, cumulative named summits with a
+  conquered-goals list, all in the Treasury panel (no world changes). saveVersion 7.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -230,9 +251,11 @@ headlessly; everything else covered by the regression suite below.
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
-  mesh shown, rank gate, cudgel damage, loaf heal) + cart screenshot · `crown` v5→v6 migration
+  mesh shown, rank gate, cudgel damage, loaf heal) + cart screenshot · `crown` v5→current migration
   + last-level daily completion → King + coronation once-only · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
+  `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat) + conquest & next
+  summit + double-file guard + unreckoned backfill (panel screenshot → scripts/smoke-reckoning.png) ·
   `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

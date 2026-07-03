@@ -5,7 +5,7 @@ import { LAYOUT } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
-import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward } from './state/state.js';
+import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { toast } from './ui/toasts.js';
 import { initAudio, sfx } from './ui/audio.js';
@@ -256,7 +256,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {

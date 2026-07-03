@@ -176,6 +176,46 @@ try {
     }, eve);
   }
 
+  if (scenario === 'reckoning') {
+    // a v6 save with the old flat treasury — migration must grow the
+    // name/pledge/rolls/conquered fields; 800 of 1000 so one filing conquers
+    const ledger = {
+      saveVersion: 6,
+      createdAt: new Date().toISOString(),
+      lastPlayedAt: new Date().toISOString(),
+      lastQuestDate: null,
+      rank: 'Peasant',
+      stats: {
+        str: { level: 1, xp: 0 },
+        agi: { level: 1, xp: 0 },
+        wis: { level: 1, xp: 0 },
+        inf: { level: 1, xp: 0 },
+      },
+      coins: 0,
+      treasury: { current: 800, goal: 1000 },
+      streak: { current: 0, best: 0 },
+      quests: {
+        daily: { text: '', completed: false, date: dstr(0) },
+        weekly: { text: '', completed: false, weekStart: '2020-01-06' },
+        monthly: { text: '', completed: false, monthStart: '2020-01-01' },
+        epic: { text: '', progressPct: 0 },
+      },
+      history: [],
+      daysPlayed: 1,
+      stamina: { current: 60, date: dstr(0) },
+      counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
+      sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
+      shop: { owned: [] },
+      coronationAt: null,
+    };
+    await page.evaluateOnNewDocument((save) => {
+      if (!sessionStorage.getItem('smoke-injected')) {
+        sessionStorage.setItem('smoke-injected', '1');
+        localStorage.setItem('crownbound_save', JSON.stringify(save));
+      }
+    }, ledger);
+  }
+
   await page.goto(`http://localhost:${PORT}/?smoke=${scenario}`, {
     waitUntil: 'networkidle2',
     timeout: 40000,
@@ -698,6 +738,136 @@ try {
       g.player.pos.z = -0.3;
       g.orbitCam.setView(-0.85, 0.18, 4.1);
     });
+  } else if (scenario === 'reckoning') {
+    // month keys computed the same way dates.js does, offset in months
+    const mk = (offset) => {
+      const d = new Date();
+      const m = new Date(d.getFullYear(), d.getMonth() + offset, 1);
+      return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+    };
+
+    // 1) the v6 → v7 migration grew the new fields
+    const migrated = await page.evaluate(() => {
+      const t = window.__game.getState().treasury;
+      return {
+        version: window.__game.getState().saveVersion,
+        name: t.name,
+        pledge: t.pledge,
+        rolls: Array.isArray(t.rolls) && t.rolls.length === 0,
+        conquered: Array.isArray(t.conquered) && t.conquered.length === 0,
+      };
+    });
+    console.log('migrated:', JSON.stringify(migrated));
+    if (migrated.version !== 7) errors.push(`reckoning: saveVersion ${migrated.version} != 7`);
+    if (migrated.name !== '' || migrated.pledge !== 0 || !migrated.rolls || !migrated.conquered)
+      errors.push('reckoning: migration did not grow the v7 treasury fields');
+
+    // 2) the pure verdict rules, judged against fixed figures
+    const verdicts = await page.evaluate(() => {
+      const j = window.__game.judgeReckoning;
+      return {
+        fat: j({ earned: 100, spent: 80, saved: 30 }, 20),
+        underPledge: j({ earned: 100, spent: 80, saved: 10 }, 20),
+        noPledge: j({ earned: 100, spent: 80, saved: 30 }, 0),
+        bled: j({ earned: 100, spent: 120, saved: 0 }, 0),
+      };
+    });
+    console.log('verdicts:', JSON.stringify(verdicts));
+    if (verdicts.fat !== 'fat') errors.push(`reckoning: pledge met -> ${verdicts.fat}`);
+    if (verdicts.underPledge !== 'held') errors.push(`reckoning: under pledge -> ${verdicts.underPledge}`);
+    if (verdicts.noPledge !== 'held') errors.push(`reckoning: no pledge -> ${verdicts.noPledge}`);
+    if (verdicts.bled !== 'bled') errors.push(`reckoning: overspent -> ${verdicts.bled}`);
+
+    const due = await page.evaluate(() => window.__game.reckoningDue());
+    if (due !== mk(-1)) errors.push(`reckoning: due "${due}" != "${mk(-1)}"`);
+
+    // 3) file the month through the panel: pledge 200, then the four lines;
+    //    counted 1100 tops the 1000 summit — the conquest must fire
+    await page.evaluate(() => window.__game.openPanel('treasury'));
+    const filed = await page.evaluate(() => {
+      const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
+      q('[data-t-pledge]').value = '200';
+      q('[data-t-set]').click(); // rerenders the panel
+      const r = (sel, v) => (document.querySelector(`#treasury-body ${sel}`).value = v);
+      r('[data-r-earned]', '5000');
+      r('[data-r-spent]', '3800');
+      r('[data-r-saved]', '300');
+      r('[data-r-counted]', '1100');
+      document.querySelector('#treasury-body [data-r-file]').click();
+      const st = window.__game.getState();
+      const t = st.treasury;
+      return {
+        rolls: t.rolls.length,
+        verdict: t.rolls[0]?.verdict,
+        current: t.current,
+        goal: t.goal,
+        conquered: t.conquered.length,
+        conqueredGoal: t.conquered[0]?.goal,
+        histType: st.history[st.history.length - 1]?.type,
+        summitForm: !!document.querySelector('#treasury-body [data-s-name]'),
+      };
+    });
+    console.log('filed:', JSON.stringify(filed));
+    if (filed.rolls !== 1) errors.push(`reckoning: ${filed.rolls} rolls != 1`);
+    if (filed.verdict !== 'fat') errors.push(`reckoning: verdict ${filed.verdict} != fat (300 >= 200 pledged)`);
+    if (filed.current !== 1100) errors.push(`reckoning: counted-true ${filed.current} != 1100`);
+    if (filed.goal !== 0) errors.push(`reckoning: goal ${filed.goal} != 0 after conquest`);
+    if (filed.conquered !== 1 || filed.conqueredGoal !== 1000)
+      errors.push('reckoning: the 1000 summit was not conquered');
+    if (filed.histType !== 'treasury') errors.push(`reckoning: history type ${filed.histType} != treasury`);
+    if (!filed.summitForm) errors.push('reckoning: no next-summit form after conquest');
+
+    // 4) raise the next summit; the month refuses a second filing
+    const raised = await page.evaluate(() => {
+      const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
+      q('[data-s-name]').value = 'The War Chest';
+      q('[data-s-goal]').value = '5000';
+      q('[data-s-set]').click();
+      const t = window.__game.getState().treasury;
+      return {
+        name: t.name,
+        goal: t.goal,
+        dueAgain: window.__game.reckoningDue(),
+        refiled: window.__game.fileReckoning({ earned: 1, spent: 1, saved: 1, counted: 1 }),
+      };
+    });
+    console.log('raised:', JSON.stringify(raised));
+    if (raised.name !== 'The War Chest' || raised.goal !== 5000)
+      errors.push(`reckoning: summit "${raised.name}"/${raised.goal} != "The War Chest"/5000`);
+    if (raised.dueAgain !== null) errors.push('reckoning: month still due after filing');
+    if (raised.refiled !== null) errors.push('reckoning: a second filing was accepted');
+
+    // 5) skipped months land as unreckoned: seed one roll four months back,
+    //    reload, file — the gap must be marked, not hidden
+    const seeded = await page.evaluate((old) => {
+      const g = window.__game;
+      const copy = JSON.parse(g.exportSave());
+      copy.treasury.rolls = [{ month: old, earned: 1000, spent: 900, saved: 100, counted: 100, verdict: 'held' }];
+      return g.importSave(JSON.stringify(copy));
+    }, mk(-4));
+    if (!seeded) errors.push('reckoning: seed save import refused');
+    await page.reload({ waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 2000));
+    const gap = await page.evaluate(() => {
+      const g = window.__game;
+      g.fileReckoning({ earned: 100, spent: 50, saved: 0, counted: 1200 });
+      return g.getState().treasury.rolls.map((r) => r.verdict);
+    });
+    console.log('gap verdicts:', JSON.stringify(gap));
+    if (gap.length !== 4 || gap[1] !== 'unreckoned' || gap[2] !== 'unreckoned')
+      errors.push(`reckoning: gap months not marked unreckoned (${JSON.stringify(gap)})`);
+
+    // 6) the panel shows the rolls; screenshot for eyeballing
+    await page.evaluate(() => window.__game.openPanel('treasury'));
+    const panel = await page.evaluate(() => ({
+      rows: document.querySelectorAll('#treasury-body .deed').length,
+      conqueredHeader: document.querySelector('#treasury-body').textContent.includes('Summits Conquered'),
+    }));
+    console.log('panel:', JSON.stringify(panel));
+    if (panel.rows < 5) errors.push(`reckoning: panel shows ${panel.rows} rows, expected rolls + conquest`);
+    if (!panel.conqueredHeader) errors.push('reckoning: conquered summit not shown');
+    await page.screenshot({ path: 'scripts/smoke-reckoning.png' });
+    await page.keyboard.press('Escape');
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
     await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });
@@ -810,10 +980,12 @@ try {
     // the migration must have stripped the old scheduled deadline
     const migrated = await page.evaluate(() => {
       const st = window.__game.getState();
-      return { version: st.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt };
+      // migration must land on the CURRENT version, whatever it is by now
+      return { version: st.saveVersion, latest: window.__game.CONFIG.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt };
     });
     console.log('migrated:', JSON.stringify(migrated));
-    if (migrated.version !== 6) errors.push(`crown: saveVersion ${migrated.version} != 6`);
+    if (migrated.version !== migrated.latest)
+      errors.push(`crown: saveVersion ${migrated.version} != current ${migrated.latest}`);
     if (migrated.hasDeadline) errors.push('crown: epic deadline survived the migration');
     if (migrated.at !== null) errors.push('crown: coronationAt set before the crowning');
 

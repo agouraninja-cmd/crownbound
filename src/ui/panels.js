@@ -9,6 +9,10 @@ import {
   setEpicText,
   setEpicProgress,
   setTreasury,
+  setSummit,
+  setPledge,
+  fileReckoning,
+  reckoningDue,
   buyItem,
   xpToNext,
   totalLevels,
@@ -405,34 +409,176 @@ function renderLedger() {
     </div>`;
 }
 
-// ---------- The Treasury (the Exchequer's booth by the path) ----------
+// ---------- The Treasury (the Exchequer's monthly reckoning) ----------
+
+const ROLL_TAGS = {
+  fat: ['the hoard grew fat', 'tag-gold'],
+  held: ['held the line', ''],
+  bled: ['the purse bled', 'tag-grim'],
+  unreckoned: ['unreckoned', ''],
+};
+
+function rollMonth(key) {
+  const [y, m] = key.split('-').map(Number);
+  return `${MONTHS[m - 1]} ’${String(y).slice(2)}`;
+}
 
 function renderTreasury() {
   const t = getState().treasury;
-  const tPct = Math.min(100, (t.current / t.goal) * 100);
+  const due = reckoningDue();
+
+  // the summit: a named cumulative goal — or, after a conquest, the raising of the next
+  const summit =
+    t.goal > 0
+      ? `<div class="sheet-section">
+          <h2>${t.name ? esc(t.name) : 'The Hoard'}</h2>
+          <div class="kv"><span>True savings</span>
+            <span class="v">${t.current.toLocaleString()} / ${t.goal.toLocaleString()}</span></div>
+          <div class="xpbar treasury" style="margin:6px 0"><div style="width:${Math.min(100, (t.current / t.goal) * 100)}%"></div></div>
+        </div>`
+      : `<div class="sheet-section">
+          <h2>The Next Summit</h2>
+          <p class="muted">The hoard stands at ${t.current.toLocaleString()} and no summit is raised.
+          Name the next hoard and its height.</p>
+          <div class="row">
+            <input type="text" class="grow" data-s-name maxlength="60" placeholder="Name the hoard..." />
+            <input type="number" data-s-goal min="1" placeholder="Goal" style="width:110px" />
+            <button class="primary" data-s-set>Raise it</button>
+          </div>
+        </div>`;
+
+  // the reckoning: the month just ended awaits its statement
+  const reckoning = due
+    ? `<div class="sheet-section">
+        <h2>The Reckoning — ${rollMonth(due)}</h2>
+        <p class="muted">The clerk awaits the month&#8217;s statement.${
+          t.pledge > 0
+            ? ` The pledge stands at ${t.pledge.toLocaleString()} laid in.`
+            : ' No pledge stands — set one under Revisions and the months will be judged by it.'
+        }</p>
+        <div class="row">
+          <input type="number" data-r-earned min="0" placeholder="Coin earned" title="All income this month" />
+          <input type="number" data-r-spent min="0" placeholder="Coin spent" title="All spending this month" />
+        </div>
+        <div class="row">
+          <input type="number" data-r-saved min="0" placeholder="Laid in the hoard" title="Moved into savings this month" />
+          <input type="number" data-r-counted min="0" placeholder="Hoard, counted true" title="What the accounts truly say the total now is" />
+          <button class="primary" data-r-file>File</button>
+        </div>
+      </div>`
+    : `<div class="sheet-section">
+        <p class="muted">The month&#8217;s reckoning is filed. The clerk hears the next when the month turns.</p>
+      </div>`;
+
+  // the rolls: last six months, newest first, sleep-ledger style
+  const rollRows = [...t.rolls]
+    .slice(-6)
+    .reverse()
+    .map((r) => {
+      const [tagText, tagClass] = ROLL_TAGS[r.verdict] ?? ['—', ''];
+      const line =
+        r.verdict === 'unreckoned'
+          ? 'no statement was heard'
+          : `earned ${r.earned.toLocaleString()} · spent ${r.spent.toLocaleString()} · kept ${(r.earned - r.spent).toLocaleString()} · laid in ${r.saved.toLocaleString()}`;
+      return `<div class="deed">
+        <span class="deed-date">${rollMonth(r.month)}</span>
+        <span class="deed-text">${line}</span>
+        <span class="deed-tag ${tagClass}">${tagText}</span>
+      </div>`;
+    })
+    .join('');
+  const rolls = t.rolls.length
+    ? `<div class="sheet-section"><h2>The Rolls</h2><div class="deed-list">${rollRows}</div></div>`
+    : '';
+
+  // summits already taken
+  const conquered = t.conquered.length
+    ? `<div class="sheet-section"><h2>Summits Conquered</h2><div class="deed-list">${[...t.conquered]
+        .reverse()
+        .map(
+          (c) => `<div class="deed">
+            <span class="deed-date">${deedDate(c.conqueredAt.slice(0, 10))}</span>
+            <span class="deed-text">“${esc(c.name)}”</span>
+            <span class="deed-tag tag-gold">${c.goal.toLocaleString()}</span>
+          </div>`
+        )
+        .join('')}</div></div>`
+    : '';
 
   treasuryBody.innerHTML = `
+    ${summit}
+    ${reckoning}
+    ${rolls}
+    ${conquered}
     <div class="sheet-section">
-      <div class="kv"><span>True savings</span>
-        <span class="v">${t.current.toLocaleString()} / ${t.goal.toLocaleString()}</span></div>
-      <div class="xpbar treasury" style="margin:6px 0"><div style="width:${tPct}%"></div></div>
-      <div class="row">
-        <input type="number" data-t-current min="0" value="${t.current}" title="Current savings" />
-        <input type="number" data-t-goal min="1" value="${t.goal}" title="Savings goal" />
-        <button data-t-set>Set</button>
-      </div>
-      <p class="muted">The Exchequer keeps thy true hoard — coins of the realm buy nothing here. Yet.</p>
+      <h2>Revisions</h2>
+      <div class="row"><span class="muted grow">The hoard, corrected</span>
+        <input type="number" data-t-current min="0" value="${t.current}" style="width:130px" /></div>
+      ${
+        t.goal > 0
+          ? `<div class="row"><span class="muted grow">The summit</span>
+              <input type="number" data-t-goal min="1" value="${t.goal}" style="width:130px" /></div>`
+          : ''
+      }
+      <div class="row"><span class="muted grow">The monthly pledge</span>
+        <input type="number" data-t-pledge min="0" value="${t.pledge}" style="width:130px" /></div>
+      <div class="row right"><button data-t-set>Set</button></div>
+      <p class="muted">The Exchequer keeps thy true hoard — coins of the realm buy nothing here.
+      Corrections move no summit; only a filed reckoning conquers one.</p>
     </div>`;
+
+  treasuryBody.querySelector('[data-r-file]')?.addEventListener('click', () => {
+    const num = (sel) => Number(treasuryBody.querySelector(sel).value);
+    const entry = {
+      earned: num('[data-r-earned]'),
+      spent: num('[data-r-spent]'),
+      saved: num('[data-r-saved]'),
+      counted: num('[data-r-counted]'),
+    };
+    if (!Object.values(entry).every((v) => Number.isFinite(v) && v >= 0)) {
+      toast('The clerk squints — those figures are no figures.', 'grim');
+      return;
+    }
+    const res = fileReckoning(entry);
+    if (!res) return;
+    sfx.page();
+    const kept = res.roll.earned - res.roll.spent;
+    const [verdictText] = ROLL_TAGS[res.roll.verdict];
+    toast(
+      res.roll.earned > 0
+        ? `The roll is entered — ${verdictText}. Of every hundred earned, ${Math.max(0, Math.round((kept / res.roll.earned) * 100))} were kept.`
+        : `The roll is entered — ${verdictText}.`,
+      res.roll.verdict === 'fat' ? 'gold' : res.roll.verdict === 'bled' ? 'grim' : ''
+    );
+    if (res.conquered) {
+      sfx.levelUp();
+      toast(`${esc(res.conquered.name)} — conquered! The hoard stands at ${getState().treasury.current.toLocaleString()}.`, 'gold');
+    }
+    renderTreasury();
+  });
+
+  treasuryBody.querySelector('[data-s-set]')?.addEventListener('click', () => {
+    const name = treasuryBody.querySelector('[data-s-name]').value;
+    const goal = Number(treasuryBody.querySelector('[data-s-goal]').value);
+    if (!Number.isFinite(goal) || goal < 1) return;
+    setSummit(name, goal);
+    toast('A new summit is raised. The climb resumes.', 'gold');
+    renderTreasury();
+  });
 
   treasuryBody.querySelector('[data-t-set]').addEventListener('click', () => {
     const cur = Number(treasuryBody.querySelector('[data-t-current]').value);
-    const goal = Number(treasuryBody.querySelector('[data-t-goal]').value);
-    if (Number.isFinite(cur) && Number.isFinite(goal)) {
-      setTreasury(cur, goal);
-      toast('The Treasury ledger is updated.', 'gold');
-      renderTreasury();
+    const goalEl = treasuryBody.querySelector('[data-t-goal]');
+    const goal = goalEl ? Number(goalEl.value) : NaN;
+    const pledge = Number(treasuryBody.querySelector('[data-t-pledge]').value);
+    if (Number.isFinite(pledge)) setPledge(pledge);
+    if (Number.isFinite(cur)) {
+      setTreasury(cur, goalEl && Number.isFinite(goal) && goal >= 1 ? goal : t.goal);
     }
+    toast('The Treasury ledger is updated.', 'gold');
+    renderTreasury();
   });
+
   for (const inp of treasuryBody.querySelectorAll('input')) {
     inp.addEventListener('keydown', (e) => e.stopPropagation());
   }

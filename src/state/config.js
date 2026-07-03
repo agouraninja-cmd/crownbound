@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 6, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation
+  saveVersion: 7, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning
 
   xpPerLevel: 100, // next level costs 100 × current level
 
