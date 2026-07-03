@@ -224,6 +224,7 @@ function tick() {
 
   world.campfire.update(dt);
   world.door.update(dt);
+  world.exchequer.update(dt);
   orbitCam.update(dt, player.pos);
 
   renderer.render(scene, camera);

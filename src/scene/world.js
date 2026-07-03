@@ -3,7 +3,7 @@ import { LAYOUT } from './layout.js';
 import { buildTerrain, terrainHeight } from './terrain.js';
 import { buildSky, addLighting } from './sky.js';
 import { buildScatter } from './scatter.js';
-import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, HOVEL } from './structures.js';
+import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, HOVEL } from './structures.js';
 import { createCampfire } from './campfire.js';
 
 export { terrainHeight };
@@ -38,6 +38,18 @@ export function buildWorld(scene) {
 
   const campfire = createCampfire();
   placeAt(campfire.group, LAYOUT.campfire, 0.7);
+
+  // the Exchequer booth; the clerk breathes so he doesn't read as furniture
+  const exch = buildExchequer();
+  placeAt(exch.group, LAYOUT.exchequer, 1.35);
+  let exchT = 0;
+  const exchequer = {
+    update(dt) {
+      exchT += dt;
+      exch.sway.rotation.x = Math.sin(exchT * 1.3) * 0.028;
+      exch.sway.rotation.z = Math.sin(exchT * 0.7) * 0.02;
+    },
+  };
 
   // hovel collision: axis-aligned wall/furniture rects (the hovel is unrotated)
   const H = HOVEL;
@@ -107,8 +119,15 @@ export function buildWorld(scene) {
     // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bed.x, z: hz + H.bed.z, radius: 1.7, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
-    { id: 'treasury', label: 'your strongbox', x: hx + (H.chest.x0 + H.chest.x1) / 2, z: hz + (H.chest.z0 + H.chest.z1) / 2, radius: 1.5, insideOnly: true },
+    {
+      id: 'treasury',
+      label: 'the Exchequer’s table',
+      // the counter front in world coords — the booth is rotated toward the path
+      x: LAYOUT.exchequer.x + 0.9 * Math.cos(LAYOUT.exchequer.rotY),
+      z: LAYOUT.exchequer.z - 0.9 * Math.sin(LAYOUT.exchequer.rotY),
+      radius: 2.2,
+    },
   ];
 
-  return { colliders, interactables, campfire, dummy, door, hovelInterior, wakeSpot, bedRest };
+  return { colliders, interactables, campfire, dummy, door, exchequer, hovelInterior, wakeSpot, bedRest };
 }

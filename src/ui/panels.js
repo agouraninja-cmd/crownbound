@@ -269,7 +269,7 @@ function renderTome() {
     <div class="sheet-section">
       <h2>Wealth</h2>
       <div class="kv"><span>Coins (quest spoils)</span><span class="v">${s.coins}</span></div>
-      <p class="muted">Thy true hoard lies in the strongbox at home.</p>
+      <p class="muted">Thy true hoard is counted at the Exchequer&#8217;s table.</p>
     </div>
     <div class="sheet-section">
       <h2>The Chronicle</h2>
@@ -397,7 +397,7 @@ function renderLedger() {
     </div>`;
 }
 
-// ---------- The Treasury (the strongbox in the hovel) ----------
+// ---------- The Treasury (the Exchequer's booth by the path) ----------
 
 function renderTreasury() {
   const t = getState().treasury;
@@ -413,7 +413,7 @@ function renderTreasury() {
         <input type="number" data-t-goal min="1" value="${t.goal}" title="Savings goal" />
         <button data-t-set>Set</button>
       </div>
-      <p class="muted">The strongbox keeps thy true hoard — coins of the realm buy nothing here. Yet.</p>
+      <p class="muted">The Exchequer keeps thy true hoard — coins of the realm buy nothing here. Yet.</p>
     </div>`;
 
   treasuryBody.querySelector('[data-t-set]').addEventListener('click', () => {

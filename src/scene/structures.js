@@ -156,15 +156,12 @@ function furnish(g) {
   g.add(mesh(cyl(0.16, 0.16, 0.06, 7), WOOD_PALE, { x: 0.45, y: 0.38, z: 1.05 }));
   g.add(mesh(cyl(0.05, 0.07, 0.36, 6), WOOD_DARK, { x: 0.45, y: 0.18, z: 1.05 }));
 
-  // strongbox chest in the -z corner — the Treasury (E opens its panel)
+  // chest in the -z corner
   const cx = (H.chest.x0 + H.chest.x1) / 2;
   const cz = (H.chest.z0 + H.chest.z1) / 2;
   g.add(mesh(box(0.66, 0.34, 0.42), WOOD, { x: cx, y: 0.17, z: cz }));
   g.add(mesh(box(0.7, 0.1, 0.46), WOOD_DARK, { x: cx, y: 0.39, z: cz }));
   g.add(mesh(box(0.08, 0.5, 0.48), 0x3a3a3f, { x: cx, y: 0.2, z: cz })); // iron band
-  // brass padlock on the room-facing side — marks it as thy true hoard
-  g.add(mesh(box(0.07, 0.05, 0.04), 0x8a6a3f, { x: cx, y: 0.33, z: cz + 0.23, shadow: false }));
-  g.add(mesh(box(0.11, 0.13, 0.05), 0xb08d4f, { x: cx, y: 0.25, z: cz + 0.23, shadow: false }));
 
   // the sleep ledger: a plank and parchment by the shelf, tally scratched in ink
   g.add(mesh(box(0.55, 0.62, 0.04), WOOD_DARK, { x: H.ledger.x, y: 1.25, z: -1.31 }));
@@ -235,6 +232,94 @@ export function buildTome() {
   g.add(leafL, leafR, coverL, coverR);
   g.add(mesh(box(0.05, 0.045, 0.3), 0x8a2418, { y: 1.23, z: 0.18, shadow: false }));
   return g;
+}
+
+// The Exchequer: an open-fronted money-changer's booth — four posts, a pent
+// thatch roof, and a counting table across the front (the "banca" that named
+// banks; the checkered counting cloth is what named the royal Exchequer).
+// The clerk behind it is scenery until v2 gives him words; E at the counter
+// opens the Treasury panel. Front faces local +x; world.js turns it to the
+// path. Returns { group, sway } — sway is the clerk's breathing upper body.
+export function buildExchequer() {
+  const g = new THREE.Group();
+  const BRASS = 0xb08d4f;
+  const COIN = 0xc9a227;
+  const CLOTH_PALE = 0xd8cfae;
+  const CLOTH_DARK = 0x50603a;
+  const ROBE = 0x4c5a36;
+  const SKIN = 0xcfa46f;
+  const IRON = 0x3a3a3f;
+
+  // posts sunk below grade; pent roof, high edge over the counter
+  for (const [px, pz] of [[0.85, -1.25], [0.85, 1.25], [-0.85, -1.25], [-0.85, 1.25]]) {
+    g.add(mesh(cyl(0.09, 0.11, 2.5, 6), WOOD_DARK, { x: px, y: 0.8, z: pz }));
+  }
+  g.add(mesh(box(2.7, 0.14, 3.1), THATCH, { y: 2.2, rz: 0.16 }));
+  g.add(mesh(box(0.16, 0.07, 3.12), THATCH_DARK, { x: 1.3, y: 2.41, rz: 0.16 })); // front eave
+  g.add(mesh(box(0.12, 0.1, 2.9), WOOD_DARK, { x: 0.85, y: 2.28 })); // front beam
+
+  // half-height back wall + side rails
+  g.add(mesh(box(0.1, 1.2, 2.6), WOOD, { x: -0.9, y: 0.45 }));
+  g.add(mesh(box(1.6, 0.08, 0.08), WOOD_PALE, { y: 0.95, z: 1.25 }));
+  g.add(mesh(box(1.6, 0.08, 0.08), WOOD_PALE, { y: 0.95, z: -1.25 }));
+
+  // the counting table
+  g.add(mesh(box(0.55, 1.0, 2.3), WOOD, { x: 0.7, y: 0.4 }));
+  g.add(mesh(box(0.66, 0.07, 2.44), WOOD_PALE, { x: 0.7, y: 0.94 }));
+
+  // the checkered counting cloth
+  g.add(mesh(box(0.5, 0.02, 1.46), CLOTH_PALE, { x: 0.7, y: 0.985, shadow: false }));
+  for (let col = 0; col < 2; col++) {
+    for (let row = 0; row < 6; row++) {
+      if ((col + row) % 2) continue;
+      g.add(mesh(box(0.24, 0.015, 0.24), CLOTH_DARK, {
+        x: 0.7 + (col ? 0.12 : -0.12),
+        y: 0.992,
+        z: -0.6 + row * 0.24,
+        shadow: false,
+      }));
+    }
+  }
+
+  // balance scales
+  g.add(mesh(cyl(0.02, 0.028, 0.32, 5), BRASS, { x: 0.7, y: 1.16, z: -0.5 }));
+  g.add(mesh(box(0.02, 0.02, 0.46), BRASS, { x: 0.7, y: 1.33, z: -0.5 }));
+  for (const s of [-1, 1]) {
+    g.add(mesh(box(0.012, 0.1, 0.012), IRON, { x: 0.7, y: 1.27, z: -0.5 + s * 0.22, shadow: false }));
+    g.add(mesh(cyl(0.07, 0.05, 0.025, 7), BRASS, { x: 0.7, y: 1.21, z: -0.5 + s * 0.22 }));
+  }
+
+  // counted coin and the day's ledger
+  g.add(mesh(cyl(0.05, 0.05, 0.1, 7), COIN, { x: 0.74, y: 1.04, z: 0.28 }));
+  g.add(mesh(cyl(0.05, 0.05, 0.06, 7), COIN, { x: 0.62, y: 1.02, z: 0.38 }));
+  g.add(mesh(cyl(0.045, 0.045, 0.014, 7), COIN, { x: 0.7, y: 1.0, z: 0.14, shadow: false }));
+  g.add(mesh(box(0.22, 0.02, 0.3), PAGE, { x: 0.66, y: 1.0, z: 0.82, rz: 0.09 }));
+  g.add(mesh(box(0.22, 0.02, 0.3), PAGE, { x: 0.84, y: 1.0, z: 0.82, rz: -0.09 }));
+
+  // the clerk: robe and belt stand still; chest, head, coif and arms breathe
+  g.add(mesh(cyl(0.17, 0.24, 0.95, 7), ROBE, { x: 0.05, y: 0.32 }));
+  g.add(mesh(cyl(0.185, 0.185, 0.06, 7), LEATHER, { x: 0.05, y: 0.66 }));
+  const sway = new THREE.Group();
+  sway.position.set(0.05, 0.78, 0);
+  sway.add(mesh(cyl(0.15, 0.175, 0.34, 7), ROBE, { y: 0.12 }));
+  sway.add(mesh(new THREE.SphereGeometry(0.13, 7, 6), SKIN, { y: 0.42 }));
+  sway.add(mesh(cyl(0.14, 0.15, 0.11, 7), CLOTH_PALE, { y: 0.49 })); // linen coif
+  sway.add(mesh(box(0.06, 0.36, 0.06), ROBE, { x: 0.2, y: 0.1, z: -0.13, rz: -1.15 }));
+  sway.add(mesh(box(0.06, 0.36, 0.06), ROBE, { x: 0.2, y: 0.1, z: 0.13, rz: -1.15 }));
+  g.add(sway);
+
+  // iron-banded coffer at his heel
+  g.add(mesh(box(0.52, 0.3, 0.36), WOOD, { x: -0.5, y: 0.15, z: 0.7 }));
+  g.add(mesh(box(0.56, 0.09, 0.4), WOOD_DARK, { x: -0.5, y: 0.34, z: 0.7 }));
+  g.add(mesh(box(0.07, 0.44, 0.42), IRON, { x: -0.5, y: 0.17, z: 0.7 }));
+  g.add(mesh(box(0.09, 0.11, 0.04), BRASS, { x: -0.22, y: 0.2, z: 0.7, shadow: false })); // padlock
+
+  // hanging sign: a gold coin on a board, read from the path
+  g.add(mesh(box(0.015, 0.34, 0.015), IRON, { x: 1.02, y: 2.05, z: -0.95, shadow: false }));
+  g.add(mesh(box(0.04, 0.36, 0.5), WOOD_DARK, { x: 1.02, y: 1.72, z: -0.95 }));
+  g.add(mesh(cyl(0.11, 0.11, 0.05, 9), COIN, { x: 1.05, y: 1.72, z: -0.95, rz: Math.PI / 2, shadow: false }));
+
+  return { group: g, sway };
 }
 
 export function buildGranary() {

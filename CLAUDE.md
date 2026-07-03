@@ -25,7 +25,7 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/scene/terrain.js  analytic terrain height fn, vertex-colored ground + dirt path
 src/scene/sky.js      gradient sky dome + fog + lighting
 src/scene/scatter.js  merged pine trees + rocks
-src/scene/structures.js  hovel (+interior, sleep ledger board), quest board, tome pedestal, granary, dummy mesh
+src/scene/structures.js  hovel (+interior, sleep ledger board), quest board, tome pedestal, exchequer booth (+clerk), granary, dummy mesh
 src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight
 src/player/playerMesh.js  procedural peasant figure + pose animation
@@ -124,9 +124,12 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Sleeping plays a tuck-in animation (player mode 'sleep': glide to the cot, lie back on the
   pillow, breathe; the stick is hidden while lying) before the 0.7s fade — full timeline ~2.6s,
   timed in main.js `sleepAtCot()`. `respawn()` is the universal way out of the sleep pose.
-- The Treasury lives at the strongbox chest inside the hovel (E opens its panel; brass padlock
-  marks it) rather than in the Tome — wealth kept where a peasant would keep it. The Tome's
-  Wealth section shows coins only and points home. Data model unchanged.
+- The Treasury lives at the Exchequer — an open-fronted money-changer's booth by the path at
+  (6.5, 3), counter toward the road (E at the counting table opens the Treasury panel). Checkered
+  counting cloth, scales, coffer; the clerk behind it is mute scenery with a breathing sway
+  (world.exchequer.update) and is a natural v2 NPC candidate. The Tome's Wealth section shows
+  coins only. Data model unchanged. (Lived briefly at the hovel's chest before getting its own
+  building the same week.)
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -161,6 +164,9 @@ headlessly; everything else covered by the regression suite below.
   (bed/wake/verdict), panel shows the last 7 with hours slept + weekly tally, saveVersion 4.
 - [x] Post-v1 — "The Strongbox" (2026-07-03): Treasury moved out of the Tome to the hovel's
   chest (E → Treasury panel); Tome's Wealth section shows coins only.
+- [x] Post-v1 — "The Exchequer" (2026-07-03): the Treasury gets its own building — a
+  money-changer's booth by the path (counting table, checkered cloth, scales, breathing clerk,
+  coffer, hanging coin sign) replaces the hovel-chest interactable; chest is furniture again.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -172,6 +178,7 @@ headlessly; everything else covered by the regression suite below.
   `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
-  strongbox E-open + Treasury set + interior screenshot · `aerial`/`front` screenshots.
+  interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
+  `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

@@ -543,16 +543,30 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
-    // 7) the strongbox: E beside the chest opens the Treasury panel, Set writes state
+    // 7) interior screenshot: indoors camera should pull in under the rafters
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.5; // beside the chest, nearer to it than cot/ledger/door
-      g.player.pos.z = 1.2;
+      g.player.pos.x = -8.6;
+      g.player.pos.z = 1.1;
+      g.orbitCam.setView(2.4, 0.3, 6); // far view; the indoor clamp must pull it in
     });
-    await new Promise((r) => setTimeout(r, 300));
+  } else if (scenario === 'exchequer') {
+    // walk up to the counter: the prompt offers the table, E opens the
+    // Treasury, Set writes state; screenshot frames the booth and clerk
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 4.8; // on the path side of the counter
+      g.player.pos.z = 3.1;
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    const prompt = await page.evaluate(
+      () => document.getElementById('interact-prompt').textContent
+    );
+    console.log('prompt:', JSON.stringify(prompt));
+    if (!prompt.includes('Exchequer')) errors.push(`exchequer: prompt "${prompt}" does not offer the table`);
     await page.keyboard.press('KeyE');
     await new Promise((r) => setTimeout(r, 300));
-    const strongbox = await page.evaluate(() => {
+    const bank = await page.evaluate(() => {
       const opened = !document.getElementById('treasury-panel').classList.contains('hidden');
       const cur = document.querySelector('#treasury-body [data-t-current]');
       const goal = document.querySelector('#treasury-body [data-t-goal]');
@@ -563,19 +577,18 @@ try {
       }
       return { opened, ...window.__game.getState().treasury };
     });
-    console.log('strongbox:', JSON.stringify(strongbox));
-    if (!strongbox.opened) errors.push('house: E by the chest did not open the Treasury');
-    if (strongbox.current !== 2500 || strongbox.goal !== 20000)
-      errors.push(`house: treasury set ${strongbox.current}/${strongbox.goal} != 2500/20000`);
+    console.log('exchequer:', JSON.stringify(bank));
+    if (!bank.opened) errors.push('exchequer: E at the counter did not open the Treasury');
+    if (bank.current !== 2500 || bank.goal !== 20000)
+      errors.push(`exchequer: treasury set ${bank.current}/${bank.goal} != 2500/20000`);
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
-
-    // 8) interior screenshot: indoors camera should pull in under the rafters
+    // step back so the screenshot frames the whole booth and its clerk
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -8.6;
-      g.player.pos.z = 1.1;
-      g.orbitCam.setView(2.4, 0.3, 6); // far view; the indoor clamp must pull it in
+      g.player.pos.x = 5.9;
+      g.player.pos.z = 1.3;
+      g.orbitCam.setView(-0.4, 0.25, 3.5);
     });
   }
   await new Promise((r) => setTimeout(r, 1500));
