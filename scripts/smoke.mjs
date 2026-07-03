@@ -630,6 +630,51 @@ try {
       g.player.pos.z = 1.3;
       g.orbitCam.setView(-0.4, 0.25, 3.5);
     });
+  } else if (scenario === 'guide') {
+    // the Village Charter: prompt at the post, E opens the guide panel, and
+    // the rules on it are drawn live from config — not hardcoded prose
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 1.2;
+      g.player.pos.z = 1.4; // by the charter post, out of the quest board's reach
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    const prompt = await page.evaluate(
+      () => document.getElementById('interact-prompt').textContent
+    );
+    console.log('prompt:', JSON.stringify(prompt));
+    if (!prompt.includes('Charter')) errors.push(`guide: prompt "${prompt}" does not offer the charter`);
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    const charter = await page.evaluate(() => {
+      const C = window.__game.CONFIG;
+      const text = document.getElementById('guide-body').textContent;
+      return {
+        opened: !document.getElementById('guide-panel').classList.contains('hidden'),
+        sections: document.querySelectorAll('#guide-body .sheet-section').length,
+        daily: text.includes(`+${C.rewards.daily.xp} XP`),
+        caps: text.includes(`${C.stamina.baseCap}`) && text.includes(`${C.stamina.questCap}`),
+        king: text.includes(`${C.ranks[C.ranks.length - 1].totalLevels}`),
+        market: !C.shop || text.includes('Chapman'),
+      };
+    });
+    console.log('charter:', JSON.stringify(charter));
+    await page.screenshot({ path: 'scripts/smoke-guide.png' });
+    if (!charter.opened) errors.push('guide: E at the post did not open the charter');
+    if (charter.sections < 8) errors.push(`guide: only ${charter.sections} sections render`);
+    if (!charter.daily) errors.push('guide: daily reward not drawn from config');
+    if (!charter.caps) errors.push('guide: stamina caps not drawn from config');
+    if (!charter.king) errors.push('guide: rank ladder not drawn from config');
+    if (!charter.market) errors.push('guide: shop is configured but the charter is silent on market days');
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+    // frame the post from the northwest so the parchment faces the camera
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 1.9;
+      g.player.pos.z = -0.3;
+      g.orbitCam.setView(-0.85, 0.18, 4.1);
+    });
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
     await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });

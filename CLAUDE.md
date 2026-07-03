@@ -27,7 +27,7 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/scene/terrain.js  analytic terrain height fn, vertex-colored ground + dirt path
 src/scene/sky.js      gradient sky dome + fog + lighting
 src/scene/scatter.js  merged pine trees + rocks
-src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, exchequer booth (+clerk), granary, dummy mesh
+src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
 src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight
@@ -40,6 +40,7 @@ src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury panel UIs
+src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ```
 
@@ -150,6 +151,11 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   (world.exchequer.update) and is a natural v2 NPC candidate. The Tome's Wealth section shows
   coins only. Data model unchanged. (Lived briefly at the hovel's chest before getting its own
   building the same week.)
+- The Village Charter (post by the path at (1.2, 0.4), E → guide panel) is the in-game rule
+  sheet. All numbers on it — rewards, stamina costs, streak tiers, rank ladder, dummy curve,
+  sleep clock — are read from config.js at render time so re-tuning can never leave it stale;
+  only the prose in src/ui/guide.js is fixed. The Chapman section renders only while
+  CONFIG.shop exists. (Companion out-of-game doc: CROWNBOUND-Guide.docx, kept by hand.)
 - The chapman's cart was pulled forward from v3 at the owner's request (2026-07-03), in mute
   form: the chapman and mule are scenery (breath/nod/tail sways via world.cart.update) until v2
   gives them dialogue. Stock rotation from the original pitch is deferred until the catalogue
@@ -201,6 +207,8 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "The Earned Crown" (2026-07-03): the Coronation date and countdown removed;
   the Coronation now fires the moment rank reaches King (70 total levels), recorded in
   `coronationAt` + history, celebrated with bells. saveVersion 6.
+- [x] Post-v1 — "The Village Charter" (2026-07-03): in-game rule sheet — a parchment-on-post
+  by the path (E → scrollable guide panel); numbers render live from config.js. No save change.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -215,6 +223,8 @@ headlessly; everything else covered by the regression suite below.
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaf heal) + cart screenshot · `crown` v5→v6 migration
-  + last-level daily completion → King + coronation once-only · `aerial`/`front` screenshots.
+  + last-level daily completion → King + coronation once-only · `guide` charter prompt + E-open
+  + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
+  `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

@@ -19,10 +19,11 @@ import {
 } from '../state/state.js';
 import { CONFIG } from '../state/config.js';
 import { todayStr } from '../state/dates.js';
+import { renderGuide } from './guide.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody;
 let open = null;
 let onOpenChange = () => {};
 let shopActions = { isWounded: () => false, onPurchase: () => {} }; // wired by main.js
@@ -507,6 +508,7 @@ function close() {
   ledgerPanel.classList.add('hidden');
   treasuryPanel.classList.add('hidden');
   shopPanel.classList.add('hidden');
+  guidePanel.classList.add('hidden');
   onOpenChange(false);
 }
 
@@ -519,10 +521,12 @@ export function openPanel(id) {
   ledgerPanel.classList.toggle('hidden', id !== 'ledger');
   treasuryPanel.classList.toggle('hidden', id !== 'treasury');
   shopPanel.classList.toggle('hidden', id !== 'shop');
+  guidePanel.classList.toggle('hidden', id !== 'guide');
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
   else if (id === 'treasury') renderTreasury();
   else if (id === 'shop') renderShop();
+  else if (id === 'guide') renderGuide(guideBody);
   else renderTome();
   onOpenChange(true);
 }
@@ -540,11 +544,13 @@ export function initPanels(openChangeCallback, shopHooks) {
   ledgerPanel = document.getElementById('ledger-panel');
   treasuryPanel = document.getElementById('treasury-panel');
   shopPanel = document.getElementById('shop-panel');
+  guidePanel = document.getElementById('guide-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
   ledgerBody = document.getElementById('ledger-body');
   treasuryBody = document.getElementById('treasury-body');
   shopBody = document.getElementById('shop-body');
+  guideBody = document.getElementById('guide-body');
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && open) close();

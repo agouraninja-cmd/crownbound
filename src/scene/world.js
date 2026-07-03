@@ -40,6 +40,7 @@ export function buildWorld(scene, marketToday = false) {
 
   placeAt(buildQuestBoard(), LAYOUT.questBoard, 0.8);
   placeAt(buildTome(), LAYOUT.tome, 0.55);
+  placeAt(buildCharter(), LAYOUT.charter, 0.35);
   placeAt(buildGranary(), LAYOUT.granary, 2.5);
 
   const dummy = buildDummy();
@@ -146,6 +147,7 @@ export function buildWorld(scene, marketToday = false) {
   const interactables = [
     { id: 'board', label: 'the Quest Board', x: LAYOUT.questBoard.x, z: LAYOUT.questBoard.z, radius: 2.7 },
     { id: 'tome', label: 'the Tome', x: LAYOUT.tome.x, z: LAYOUT.tome.z, radius: 2.4 },
+    { id: 'guide', label: 'the Village Charter', x: LAYOUT.charter.x, z: LAYOUT.charter.z, radius: 2.2 },
     // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bed.x, z: hz + H.bed.z, radius: 1.7, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
