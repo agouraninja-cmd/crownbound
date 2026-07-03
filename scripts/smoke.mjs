@@ -136,6 +136,46 @@ try {
     }, stale);
   }
 
+  if (scenario === 'crown') {
+    // a Lord one daily quest from the throne: 69 total levels, str 25 XP
+    // short of its next level (v5 save — the migration must also delete the
+    // old epic deadline)
+    const eve = {
+      saveVersion: 5,
+      createdAt: new Date().toISOString(),
+      lastPlayedAt: new Date().toISOString(),
+      lastQuestDate: dstr(-1),
+      rank: 'Lord',
+      stats: {
+        str: { level: 24, xp: 2375 },
+        agi: { level: 15, xp: 0 },
+        wis: { level: 15, xp: 0 },
+        inf: { level: 15, xp: 0 },
+      },
+      coins: 5000,
+      treasury: { current: 0, goal: 10000 },
+      streak: { current: 300, best: 300 },
+      quests: {
+        daily: { text: '', completed: false, date: dstr(0) },
+        weekly: { text: '', completed: false, weekStart: '2020-01-06' },
+        monthly: { text: '', completed: false, monthStart: '2020-01-01' },
+        epic: { text: 'Become Crowned', progressPct: 95, deadline: '2027-06-08T05:00:00' },
+      },
+      history: [],
+      daysPlayed: 340,
+      stamina: { current: 60, date: dstr(0) },
+      counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
+      sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
+      shop: { owned: [] },
+    };
+    await page.evaluateOnNewDocument((save) => {
+      if (!sessionStorage.getItem('smoke-injected')) {
+        sessionStorage.setItem('smoke-injected', '1');
+        localStorage.setItem('crownbound_save', JSON.stringify(save));
+      }
+    }, eve);
+  }
+
   await page.goto(`http://localhost:${PORT}/?smoke=${scenario}`, {
     waitUntil: 'networkidle2',
     timeout: 40000,
@@ -698,6 +738,61 @@ try {
     console.log('off-day:', JSON.stringify({ cart: offDay.cart, promptHidden: offPrompt }));
     if (offDay.cart !== null) errors.push('market: cart present though market=0');
     if (!offPrompt) errors.push('market: something still prompts at the empty spot');
+  } else if (scenario === 'crown') {
+    // the migration must have stripped the old scheduled deadline
+    const migrated = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return { version: st.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt };
+    });
+    console.log('migrated:', JSON.stringify(migrated));
+    if (migrated.version !== 6) errors.push(`crown: saveVersion ${migrated.version} != 6`);
+    if (migrated.hasDeadline) errors.push('crown: epic deadline survived the migration');
+    if (migrated.at !== null) errors.push('crown: coronationAt set before the crowning');
+
+    // complete the last daily: str 24 -> 25, total levels 70 -> the Coronation
+    await page.evaluate(() => window.__game.openPanel('board'));
+    await page.type('[data-input]', 'The final deed');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    await page.click('[data-pick="str"]');
+    await new Promise((r) => setTimeout(r, 400));
+    const crowned = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return {
+        rank: st.rank,
+        at: st.coronationAt,
+        histType: st.history.at(-1).type,
+        hudRank: document.getElementById('hud-rank').textContent,
+        boardLine: document.getElementById('quest-body').textContent.includes('hath its King'),
+        toasts: document.getElementById('toasts').textContent,
+      };
+    });
+    console.log('crowned:', JSON.stringify(crowned));
+    if (crowned.rank !== 'King') errors.push(`crown: rank ${crowned.rank} != King`);
+    if (!crowned.at) errors.push('crown: coronationAt not recorded');
+    if (crowned.histType !== 'coronation') errors.push(`crown: history type ${crowned.histType} != coronation`);
+    if (crowned.hudRank !== 'King') errors.push(`crown: HUD rank "${crowned.hudRank}"`);
+    if (!crowned.boardLine) errors.push('crown: board does not proclaim the King');
+    if (!crowned.toasts.includes('CORONATION')) errors.push('crown: no coronation toast rang out');
+
+    // once and only once: another quest must not crown him again
+    const again = await page.evaluate(() => {
+      const before = window.__game.getState().coronationAt;
+      window.__game.openPanel('board');
+      return before;
+    });
+    await page.type('.quest-block[data-kind="weekly"] [data-input]', 'One more labor');
+    await page.click('.quest-block[data-kind="weekly"] [data-post]');
+    await page.click('.quest-block[data-kind="weekly"] [data-complete]');
+    await page.click('.quest-block[data-kind="weekly"] [data-pick="wis"]');
+    await new Promise((r) => setTimeout(r, 300));
+    const still = await page.evaluate(() => ({
+      at: window.__game.getState().coronationAt,
+      histType: window.__game.getState().history.at(-1).type,
+    }));
+    console.log('after weekly:', JSON.stringify(still));
+    if (still.at !== again) errors.push('crown: coronationAt changed on a later quest');
+    if (still.histType !== 'weekly') errors.push(`crown: second coronation appended (${still.histType})`);
   }
   await new Promise((r) => setTimeout(r, 1500));
 

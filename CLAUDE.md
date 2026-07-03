@@ -5,15 +5,16 @@ A third-person, low-poly 3D medieval life RPG that is also the owner's personal 
 **Real life levels you up; the game is where you feel it.** The player completes real-world goals
 (lifting, tennis, business, learning, saving), logs them as quests at the in-game Quest Board, and
 the character grows. Sessions are short (10–15 min daily). Honor system — no verification.
-The year-long Epic Quest counts down to the **Coronation: June 8, 2027, 5:00 AM**.
+The Epic Quest is the year's great work, and **the Coronation is earned, not scheduled: it
+happens the moment the character reaches King** (70 total virtue levels).
 
 ## Tech
 - Vite + vanilla JS + Three.js (^0.169). No frameworks. ES modules.
 - All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 5`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 6`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
-  v4→v5 the chapman's shop).
+  v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline).
 - Target 60fps on mid-range laptop: merged static geometry, one shadow-casting directional light, cheap particles.
 
 ## File structure
@@ -56,7 +57,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
     daily:  { text, completed, date },           // resets each local day
     weekly: { text, completed, weekStart },      // resets each Monday (local)
     monthly:{ text, completed, monthStart },     // resets the 1st of each month (local)
-    epic:   { text, progressPct, deadline: "2027-06-08T05:00:00" }
+    epic:   { text, progressPct }                // no deadline — the crown is earned, not dated
   },
   history: [ { date, questText, statTrained, type } ],  // append-only; future Chronicler reads this
   // v1 additions beyond original spec (documented deviations):
@@ -66,13 +67,20 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   sleep: { retiredAt, lastRewardDate, wellRestedDate,   // cot bedtime + Well-Rested boon bookkeeping
            log: [ { bed, wake, verdict } ] },           // every judged night, append-only (kept in full
                                                         //   for the v2 Chronicler; ledger shows last 7)
-  shop: { owned: [] }                                   // ids of one-time chapman purchases; purchases
-}                                                       //   also land in history as type "purchase"
+  shop: { owned: [] },                                  // ids of one-time chapman purchases; purchases
+                                                        //   also land in history as type "purchase"
+  coronationAt                                          // ISO timestamp, set once at rank King (else null)
+}
 ```
 
 ## Core rules (tuned in config.js)
 - Stats start level 1. Next level = 100 × level XP. Rank by total stat levels:
   Peasant (4+) → Squire (12) → Knight (25) → Lord (45) → King (70). v1 renders only Peasant visuals.
+- The Coronation fires in `addXp()` the moment rank first reaches King: `coronationAt` is set,
+  a history entry (type "coronation") is appended, and `emit('coronation')` rings the bells
+  (toasts in main.js). Once only — the timestamp guards re-triggering. Board and Tome show the
+  road to the crown ("N of 70 virtue levels won"), then the crowning date ever after. The full
+  Coronation ceremony (visuals, the event itself) remains v5 scope.
 - Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day, feeds streak.
 - Weekly bounty: +100 XP to chosen stat, +50 coins. Monthly campaign: +300 XP, +150 coins.
   Epic: manual progress %, logged to history.
@@ -156,7 +164,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   upgrades. (The chapman's cart itself arrived early, 2026-07-03 — coins already have their sink.)
 - **v4 — Bonds & Bloodline**: relationships, courtship, marriage, family — gated by sustained streaks.
 - **v5 — The Ascension Arc**: Squire/Knight/Lord chapters, real enemies (wolves, boar, bandits),
-  Wisdom-based alternate solutions, militia, the Coronation event.
+  Wisdom-based alternate solutions, militia, the Coronation ceremony (the trigger already
+  fires at King; v5 builds the event around it).
 
 ## Working agreement
 - Ask before adding any feature not in the spec. Scope discipline is a feature.
@@ -189,6 +198,9 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "The Chapman's Cart" (2026-07-03, v3 pulled forward): the shop. Mule cart by
   the path on market days (Sun/Wed/Fri), nine-item catalogue (gear/home/comforts), coins get
   their sink, saveVersion 5. Chapman is mute scenery until v2.
+- [x] Post-v1 — "The Earned Crown" (2026-07-03): the Coronation date and countdown removed;
+  the Coronation now fires the moment rank reaches King (70 total levels), recorded in
+  `coronationAt` + history, celebrated with bells. saveVersion 6.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -202,6 +214,7 @@ headlessly; everything else covered by the regression suite below.
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
-  mesh shown, rank gate, cudgel damage, loaf heal) + cart screenshot · `aerial`/`front` screenshots.
+  mesh shown, rank gate, cudgel damage, loaf heal) + cart screenshot · `crown` v5→v6 migration
+  + last-level daily completion → King + coronation once-only · `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

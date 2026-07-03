@@ -171,6 +171,14 @@ function syncHud() {
 onChange(syncHud);
 syncHud();
 
+// the moment the last virtue level lands: bells, gold, the crown
+onChange((reason) => {
+  if (reason !== 'coronation') return;
+  sfx.levelUp();
+  toast('The bells ring out across the realm.', 'gold');
+  toast('THE CORONATION — thou art King.', 'gold');
+});
+
 setTimeout(() => {
   for (const m of bootMessages) toast(m.text, m.style);
   if (marketToday) toast('The chapman has come — his cart stands by the path.', 'gold');

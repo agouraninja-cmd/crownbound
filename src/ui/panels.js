@@ -11,13 +11,14 @@ import {
   setTreasury,
   buyItem,
   xpToNext,
+  totalLevels,
   STAT_NAMES,
   exportSave,
   isSaveText,
   importSave,
 } from '../state/state.js';
 import { CONFIG } from '../state/config.js';
-import { countdownTo, todayStr } from '../state/dates.js';
+import { todayStr } from '../state/dates.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
@@ -25,7 +26,6 @@ let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, board
 let open = null;
 let onOpenChange = () => {};
 let shopActions = { isWounded: () => false, onPurchase: () => {} }; // wired by main.js
-let timer = null;
 let statPickFor = null; // 'daily' | 'weekly' | 'monthly'
 let editingEpic = false;
 let pendingImport = null; // { name, text } awaiting the player's confirmation
@@ -42,10 +42,15 @@ const COMPLETE_FNS = { daily: completeDaily, weekly: completeWeekly, monthly: co
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-function countdownText() {
-  const c = countdownTo(getState().quests.epic.deadline);
-  if (c.past) return 'The hour of Coronation has come.';
-  return `${c.days} days, ${c.hours} hours, ${c.minutes} minutes until the Coronation`;
+// The road to the crown: the Coronation is earned at King, not scheduled
+function crownText() {
+  const s = getState();
+  if (s.coronationAt) {
+    const d = new Date(s.coronationAt);
+    return `The realm hath its King — crowned ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}.`;
+  }
+  const need = CONFIG.ranks.find((r) => r.title === 'King').totalLevels;
+  return `The crown is not given — it is earned. ${totalLevels()} of ${need} virtue levels won.`;
 }
 
 // ---------- Quest Board ----------
@@ -138,7 +143,7 @@ function renderBoard() {
     <div class="quest-block">
       <h2>The Epic Quest <span class="sub">the year&#8217;s great work</span></h2>
       ${epicBody}
-      <p class="countdown" style="margin-top:10px"><span data-countdown>${countdownText()}</span></p>
+      <p class="countdown" style="margin-top:10px">${crownText()}</p>
     </div>`;
 
   bindBoard();
@@ -262,7 +267,7 @@ function renderTome() {
       <div class="rank-ladder">${ladder}</div>
     </div>
     <div class="sheet-section">
-      <p class="countdown"><span class="big" data-countdown>${countdownText()}</span></p>
+      <p class="countdown"><span class="big">${crownText()}</span></p>
     </div>
     <div class="sheet-section">
       <h2>Virtues</h2>
@@ -502,8 +507,6 @@ function close() {
   ledgerPanel.classList.add('hidden');
   treasuryPanel.classList.add('hidden');
   shopPanel.classList.add('hidden');
-  if (timer) clearInterval(timer);
-  timer = null;
   onOpenChange(false);
 }
 
@@ -516,17 +519,11 @@ export function openPanel(id) {
   ledgerPanel.classList.toggle('hidden', id !== 'ledger');
   treasuryPanel.classList.toggle('hidden', id !== 'treasury');
   shopPanel.classList.toggle('hidden', id !== 'shop');
-  const bodies = { board: boardBody, tome: tomeBody, ledger: ledgerBody, treasury: treasuryBody, shop: shopBody };
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
   else if (id === 'treasury') renderTreasury();
   else if (id === 'shop') renderShop();
   else renderTome();
-  if (timer) clearInterval(timer);
-  timer = setInterval(() => {
-    const el = bodies[id].querySelector('[data-countdown]');
-    if (el) el.textContent = countdownText();
-  }, 1000);
   onOpenChange(true);
 }
 

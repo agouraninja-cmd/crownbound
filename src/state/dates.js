@@ -25,15 +25,3 @@ export function weekStartStr(d = new Date()) {
 export function monthStartStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
-
-export function countdownTo(isoString) {
-  const ms = new Date(isoString).getTime() - Date.now();
-  if (ms <= 0) return { past: true, days: 0, hours: 0, minutes: 0 };
-  const minutes = Math.floor(ms / 60000);
-  return {
-    past: false,
-    days: Math.floor(minutes / 1440),
-    hours: Math.floor((minutes % 1440) / 60),
-    minutes: minutes % 60,
-  };
-}

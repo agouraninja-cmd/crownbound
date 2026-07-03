@@ -80,7 +80,7 @@ function defaultState(now = new Date()) {
       daily: { text: '', completed: false, date: today },
       weekly: { text: '', completed: false, weekStart: weekStartStr(now) },
       monthly: { text: '', completed: false, monthStart: monthStartStr(now) },
-      epic: { text: '', progressPct: 0, deadline: CONFIG.coronation },
+      epic: { text: '', progressPct: 0 },
     },
     history: [],
     daysPlayed: 1,
@@ -88,6 +88,7 @@ function defaultState(now = new Date()) {
     counters: { date: today, dummyHits: 0, ratsKilled: 0 },
     sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
     shop: { owned: [] }, // ids of one-time purchases from the chapman
+    coronationAt: null, // set the moment the rank reaches King — the Coronation
   };
 }
 
@@ -106,10 +107,15 @@ function migrate(s) {
   if (s.saveVersion === 4) {
     s.saveVersion = 5; // v5: the chapman's shop
   }
+  if (s.saveVersion === 5) {
+    s.saveVersion = 6; // v6: the Coronation is earned at King, not scheduled
+    delete s.quests.epic.deadline;
+  }
   // hand-edited or restored saves may miss fields regardless of version
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   if (!s.sleep.log) s.sleep.log = [];
   if (!s.shop) s.shop = { owned: [] };
+  if (!('coronationAt' in s)) s.coronationAt = null;
   return s;
 }
 
@@ -265,8 +271,20 @@ export function addXp(statKey, amount) {
     levelUps.push(st.level);
   }
   state.rank = rankForTotalLevels(totalLevels());
+  // the crown is earned, not scheduled: reaching King IS the Coronation
+  const crowned = state.rank === 'King' && !state.coronationAt;
+  if (crowned) {
+    state.coronationAt = new Date().toISOString();
+    state.history.push({
+      date: todayStr(),
+      questText: 'The Coronation — crowned sovereign of the realm',
+      statTrained: null,
+      type: 'coronation',
+    });
+  }
   save();
   emit('stats');
+  if (crowned) emit('coronation');
   return levelUps;
 }
 
