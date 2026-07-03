@@ -11,8 +11,9 @@ The year-long Epic Quest counts down to the **Coronation: June 8, 2027, 5:00 AM*
 - Vite + vanilla JS + Three.js (^0.169). No frameworks. ES modules.
 - All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 4`, migration hook in `state.js`
-  (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log).
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 5`, migration hook in `state.js`
+  (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
+  v4→v5 the chapman's shop).
 - Target 60fps on mid-range laptop: merged static geometry, one shadow-casting directional light, cheap particles.
 
 ## File structure
@@ -25,7 +26,8 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/scene/terrain.js  analytic terrain height fn, vertex-colored ground + dirt path
 src/scene/sky.js      gradient sky dome + fog + lighting
 src/scene/scatter.js  merged pine trees + rocks
-src/scene/structures.js  hovel (+interior, sleep ledger board), quest board, tome pedestal, exchequer booth (+clerk), granary, dummy mesh
+src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, exchequer booth (+clerk), granary, dummy mesh
+src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
 src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight
 src/player/playerMesh.js  procedural peasant figure + pose animation
@@ -62,8 +64,10 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   stamina: { current, date },                    // daily pool, persisted within the day
   counters: { date, dummyXp, ratsKilled },       // per-day scratch: dummy diminishing returns, rat respawn
   sleep: { retiredAt, lastRewardDate, wellRestedDate,   // cot bedtime + Well-Rested boon bookkeeping
-           log: [ { bed, wake, verdict } ] }            // every judged night, append-only (kept in full
-}                                                       //   for the v2 Chronicler; ledger shows last 7)
+           log: [ { bed, wake, verdict } ] },           // every judged night, append-only (kept in full
+                                                        //   for the v2 Chronicler; ledger shows last 7)
+  shop: { owned: [] }                                   // ids of one-time chapman purchases; purchases
+}                                                       //   also land in history as type "purchase"
 ```
 
 ## Core rules (tuned in config.js)
@@ -81,6 +85,14 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 - Dummy: tiny STR XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
+- The shop (the chapman's cart): parked by the path on market days only — Sun/Wed/Fri local
+  (`CONFIG.shop.marketWeekdays`; `?market=1|0` URL param forces it for testing). E at the cart
+  opens the shop panel. THE SACRED RULE: coins buy comfort and swagger, never virtue — no XP,
+  no streak repair, no stamina is ever for sale. Catalogue (config `shop.items`): gear
+  (cudgel 300c → damage 2; quarterstaff 1000c → damage 3 + reach, Squire-gated), home upgrades
+  (rug 250c, door paint 300c, glass window 400c, garden 600c — pre-built hidden meshes in the
+  hovel, shown when owned), comforts (loaf 10c full heal, wounded only; rat trophy 60c;
+  lantern 120c). One-time items live in shop.owned; the loaf repeats.
 - The hovel is enterable: E opens/closes the hinged door (closed = solid collider), furnished
   one-room peasant interior, indoor camera pulls in close. E on the cot sleeps: fade out, full heal,
   and the bedtime is recorded. On the next load, if ≥7h passed (≤13h, so it was last night) and it is
@@ -130,11 +142,18 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   (world.exchequer.update) and is a natural v2 NPC candidate. The Tome's Wealth section shows
   coins only. Data model unchanged. (Lived briefly at the hovel's chest before getting its own
   building the same week.)
+- The chapman's cart was pulled forward from v3 at the owner's request (2026-07-03), in mute
+  form: the chapman and mule are scenery (breath/nod/tail sways via world.cart.update) until v2
+  gives them dialogue. Stock rotation from the original pitch is deferred until the catalogue
+  outgrows one cart-load — all nine items show every market day. Market-day status is fixed per
+  load, like rollover. On non-market days the cart, its colliders, and its prompt don't exist;
+  only the wheel-rut dirt patch remains.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
   The Chronicler writes weekly journal entries in medieval prose from the history log.
-- **v3 — Coin & Commerce**: shops, gear, home upgrades, festival mini-games. (Coins finally get a sink.)
+- **v3 — Coin & Commerce**: festival mini-games, rotating cart stock, more gear tiers and home
+  upgrades. (The chapman's cart itself arrived early, 2026-07-03 — coins already have their sink.)
 - **v4 — Bonds & Bloodline**: relationships, courtship, marriage, family — gated by sustained streaks.
 - **v5 — The Ascension Arc**: Squire/Knight/Lord chapters, real enemies (wolves, boar, bandits),
   Wisdom-based alternate solutions, militia, the Coronation event.
@@ -167,6 +186,9 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "The Exchequer" (2026-07-03): the Treasury gets its own building — a
   money-changer's booth by the path (counting table, checkered cloth, scales, breathing clerk,
   coffer, hanging coin sign) replaces the hovel-chest interactable; chest is furniture again.
+- [x] Post-v1 — "The Chapman's Cart" (2026-07-03, v3 pulled forward): the shop. Mule cart by
+  the path on market days (Sun/Wed/Fri), nine-item catalogue (gear/home/comforts), coins get
+  their sink, saveVersion 5. Chapman is mute scenery until v2.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -179,6 +201,7 @@ headlessly; everything else covered by the regression suite below.
   `house` door collider open/close + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
-  `aerial`/`front` screenshots.
+  `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
+  mesh shown, rank gate, cudgel damage, loaf heal) + cart screenshot · `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

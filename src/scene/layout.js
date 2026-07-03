@@ -11,7 +11,9 @@ export const LAYOUT = {
   campfire: { x: -4.6, z: 6.2 },
   questBoard: { x: 4, z: -2, rotY: -Math.PI / 2 },
   tome: { x: -3.2, z: -5.5, rotY: Math.PI / 4 },
+  charter: { x: 1.2, z: 0.4, rotY: -0.9 }, // the Village Charter post, parchment toward the westward path
   exchequer: { x: 6.5, z: 3, rotY: Math.PI + 0.15 }, // money-changer's booth, counter toward the path
+  cart: { x: 3.2, z: 8.5, rotY: Math.PI / 2 + 0.15 }, // the chapman parks here on market days, mule toward the village
   dummy: { x: -8.5, z: 9.5 },
   granary: { x: 11, z: 11, rotY: -Math.PI / 5 },
   // dirt wear circles painted onto the terrain: {x, z, radius}
@@ -21,6 +23,7 @@ export const LAYOUT = {
     { x: -9, z: 2, r: 2.6 }, // under the hovel — the packed-earth floor indoors
     { x: -8.5, z: 9.5, r: 2.2 }, // under the dummy
     { x: 6.2, z: 3, r: 2.6 }, // trampled ground at the exchequer's counter
+    { x: 2.9, z: 8.6, r: 2.6 }, // wheel ruts — the chapman's spot, worn even when he's away
     { x: 11, z: 11, r: 4.2 }, // granary yard
   ],
 };

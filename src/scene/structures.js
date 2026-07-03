@@ -87,6 +87,12 @@ export function buildHovel() {
   doorPivot.add(mesh(box(0.04, 0.12, leafLen), WOOD_PALE, { x: 0.05, y: 0.45, z: leafLen / 2 + 0.02 }));
   g.add(doorPivot);
 
+  // door paint (shop upgrade 'door'): an oxblood panel over the outer face,
+  // riding the pivot so it swings with the leaf
+  const doorPaint = mesh(box(0.03, H.door.h - 0.14, leafLen - 0.04), 0x7a2a20, { x: 0.055, y: (H.door.h - 0.08) / 2 + 0.02, z: leafLen / 2 + 0.02 });
+  doorPaint.visible = false;
+  doorPivot.add(doorPaint);
+
   // tiny dark window
   g.add(mesh(box(0.08, 0.42, 0.42), 0x2c2017, { x: 1.71, y: 1.35, z: 0.74 }));
 
@@ -96,9 +102,44 @@ export function buildHovel() {
   g.add(mesh(cyl(0.37, 0.37, 0.07, 9), WOOD_DARK, { x: 1.1, y: 0.2, z: 1.75 }));
   g.add(mesh(cyl(0.37, 0.37, 0.07, 9), WOOD_DARK, { x: 1.1, y: 0.6, z: 1.75 }));
 
-  furnish(g);
+  // ---- exterior shop upgrades, hidden until bought at the chapman's cart ----
 
-  return { group: g, doorPivot };
+  // 'window': a real glass pane with a cross mullion over the dark opening
+  const glassWindow = new THREE.Group();
+  glassWindow.add(mesh(box(0.03, 0.38, 0.38), 0xaec6cf, { x: 1.76, y: 1.35, z: 0.74, shadow: false }));
+  glassWindow.add(mesh(box(0.02, 0.4, 0.035), WOOD_DARK, { x: 1.78, y: 1.35, z: 0.74 }));
+  glassWindow.add(mesh(box(0.02, 0.035, 0.4), WOOD_DARK, { x: 1.78, y: 1.35, z: 0.74 }));
+  glassWindow.visible = false;
+  g.add(glassWindow);
+
+  // 'lantern': iron candle lantern on a bracket beside the door
+  const lantern = new THREE.Group();
+  lantern.add(mesh(box(0.18, 0.03, 0.03), WOOD_DARK, { x: 1.78, y: 1.9, z: 0.12 }));
+  lantern.add(mesh(box(0.02, 0.1, 0.02), 0x3a3a3f, { x: 1.86, y: 1.84, z: 0.12, shadow: false }));
+  lantern.add(mesh(box(0.11, 0.15, 0.11), 0x3a3a3f, { x: 1.86, y: 1.71, z: 0.12 }));
+  const flame = new THREE.Mesh(
+    new THREE.BoxGeometry(0.055, 0.08, 0.055),
+    new THREE.MeshBasicMaterial({ color: 0xffd66e })
+  );
+  flame.position.set(1.86, 1.71, 0.12);
+  lantern.add(flame);
+  lantern.visible = false;
+  g.add(lantern);
+
+  // 'garden': a tilled plot with cabbages along the +z wall
+  const garden = new THREE.Group();
+  garden.add(mesh(box(1.5, 0.16, 0.85), 0x4a3624, { x: -0.5, y: 0.02, z: 2.05 }));
+  for (const [gx, gz] of [[-1.05, 1.85], [-0.55, 1.88], [-0.05, 1.83], [-1.0, 2.28], [-0.5, 2.3], [0.0, 2.26]]) {
+    garden.add(mesh(new THREE.SphereGeometry(0.095, 6, 5), 0x6f7a3e, { x: gx, y: 0.14, z: gz }));
+  }
+  garden.add(mesh(new THREE.ConeGeometry(0.05, 0.16, 5), 0x557f3d, { x: -0.28, y: 0.18, z: 2.07 }));
+  garden.add(mesh(new THREE.ConeGeometry(0.05, 0.14, 5), 0x557f3d, { x: -0.75, y: 0.17, z: 2.05 }));
+  garden.visible = false;
+  g.add(garden);
+
+  const upgrades = { door: doorPaint, window: glassWindow, lantern, garden, ...furnish(g) };
+
+  return { group: g, doorPivot, upgrades };
 }
 
 const WOOL = 0x6b5a44; // undyed peasant blanket
@@ -107,6 +148,7 @@ const HERB = 0x6f7a3e;
 
 // One-room medieval peasant interior: straw cot, open hearth, trestle table,
 // stool, chest, pot shelf, hanging herbs, firewood. Dirt floor is the terrain.
+// Returns the interior shop upgrades (hidden until bought).
 function furnish(g) {
   const H = HOVEL;
 
@@ -194,6 +236,29 @@ function furnish(g) {
   for (const [wy, wz] of [[0.07, 0.22], [0.07, 0.38], [0.18, 0.3]]) {
     g.add(mesh(cyl(0.06, 0.06, 0.5, 5), WOOD_DARK, { x: 1.3, y: wy, z: wz, rz: Math.PI / 2 }));
   }
+
+  // ---- interior shop upgrades, hidden until bought ----
+
+  // 'rug': madder-red wool between cot and hearth
+  const rug = new THREE.Group();
+  rug.add(mesh(box(1.0, 0.035, 0.7), 0x8a3a2a, { x: -0.45, y: 0.06, z: -0.15 }));
+  rug.add(mesh(box(1.04, 0.03, 0.1), 0x6e2c20, { x: -0.45, y: 0.062, z: 0.17 }));
+  rug.add(mesh(box(1.04, 0.03, 0.1), 0x6e2c20, { x: -0.45, y: 0.062, z: -0.47 }));
+  rug.visible = false;
+  g.add(rug);
+
+  // 'trophy': a mounted rat above the pot shelf, stuffed and staring
+  const trophy = new THREE.Group();
+  trophy.add(mesh(box(0.26, 0.2, 0.03), WOOD_DARK, { x: -0.85, y: 1.68, z: -1.31 }));
+  const ratBody = mesh(new THREE.SphereGeometry(0.07, 6, 5), 0x6e665e, { x: -0.87, y: 1.68, z: -1.27 });
+  ratBody.scale.set(1.4, 1, 1);
+  trophy.add(ratBody);
+  trophy.add(mesh(new THREE.SphereGeometry(0.045, 6, 5), 0x6e665e, { x: -0.75, y: 1.7, z: -1.27 }));
+  trophy.add(mesh(box(0.14, 0.02, 0.02), 0xb08a8a, { x: -1.02, y: 1.66, z: -1.27, rz: 0.4 })); // tail
+  trophy.visible = false;
+  g.add(trophy);
+
+  return { rug, trophy };
 }
 
 export function buildQuestBoard() {
@@ -216,6 +281,32 @@ export function buildQuestBoard() {
   }
   g.add(mesh(cyl(0.03, 0.03, 0.03, 6), 0x8a2418, { x: 0.1, y: 1.18, z: 0.08, rx: Math.PI / 2, shadow: false }));
 
+  return g;
+}
+
+// The Village Charter: a post by the path bearing the rules of the realm —
+// E opens the guide panel. The parchment faces local +z; world.js turns it
+// toward the walker coming up the path.
+export function buildCharter() {
+  const g = new THREE.Group();
+  // post sunk below grade
+  g.add(mesh(cyl(0.07, 0.09, 2.3, 6), WOOD_DARK, { y: 0.75 }));
+  // notice board with a little rain cap
+  g.add(mesh(box(0.92, 1.02, 0.07), WOOD, { y: 1.42 }));
+  g.add(mesh(box(1.04, 0.05, 0.24), THATCH_DARK, { y: 1.98, rx: 0.1 }));
+  // the charter itself, slightly askew, ink lines scratched down the page
+  g.add(mesh(box(0.68, 0.82, 0.02), PARCHMENT, { y: 1.42, z: 0.045, rz: 0.03, shadow: false }));
+  for (let i = 0; i < 6; i++) {
+    g.add(mesh(box(0.46, 0.02, 0.012), 0x3a2c1c, {
+      x: i % 2 ? 0.03 : -0.02,
+      y: 1.72 - i * 0.1,
+      z: 0.062,
+      rz: i % 2 ? -0.04 : 0.03,
+      shadow: false,
+    }));
+  }
+  // the reeve's wax seal beneath the text
+  g.add(mesh(cyl(0.05, 0.05, 0.02, 7), 0x8a2418, { x: 0.17, y: 1.08, z: 0.062, rx: Math.PI / 2, shadow: false }));
   return g;
 }
 

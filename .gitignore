@@ -2,5 +2,6 @@ node_modules/
 dist/
 scripts/smoke.png
 scripts/smoke-sleep.png
+scripts/smoke-market.png
 .DS_Store
 *.local

@@ -67,6 +67,21 @@ export function createPlayer(scene, spawn) {
     trySpend: () => true,
     onAttackSwing: null, // called once at the active frame of a swing
     onActionBlocked: () => {},
+    // gear from the chapman (main.js applies ownership on load + purchase)
+    attackDamage: CONFIG.player.attackDamage,
+    attackReach: CONFIG.player.attackRange,
+    setWeaponTier(t) {
+      // 0 the trusty stick · 1 oaken cudgel · 2 ash quarterstaff
+      const tiers = [
+        { scale: [1, 1, 1], color: 0x7a5a35 },
+        { scale: [1.7, 1.08, 1.7], color: 0x5a4028 },
+        { scale: [1.3, 1.55, 1.3], color: 0x9a7a48 },
+      ];
+      const tier = tiers[t] ?? tiers[0];
+      m.weapon.scale.set(...tier.scale);
+      // fresh material — the cached one is shared with other meshes of its color
+      m.weapon.material = new THREE.MeshLambertMaterial({ color: tier.color, flatShading: true });
+    },
     setEnabled(v) {
       enabled = v;
       if (!v) {

@@ -3,12 +3,13 @@ import { LAYOUT } from './layout.js';
 import { buildTerrain, terrainHeight } from './terrain.js';
 import { buildSky, addLighting } from './sky.js';
 import { buildScatter } from './scatter.js';
-import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, HOVEL } from './structures.js';
+import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, HOVEL } from './structures.js';
+import { buildCart } from './cart.js';
 import { createCampfire } from './campfire.js';
 
 export { terrainHeight };
 
-export function buildWorld(scene) {
+export function buildWorld(scene, marketToday = false) {
   scene.add(buildSky());
   addLighting(scene);
   scene.add(buildTerrain());
@@ -28,6 +29,14 @@ export function buildWorld(scene) {
 
   const hovel = buildHovel();
   placeAt(hovel.group, LAYOUT.hovel); // walls collide per-rect below, not as one circle
+
+  // home upgrades bought from the chapman: meshes pre-built, shown when owned
+  const homeUpgrades = hovel.upgrades;
+  function applyHomeUpgrades(ownedIds) {
+    for (const [id, obj] of Object.entries(homeUpgrades)) {
+      obj.visible = ownedIds.includes(id);
+    }
+  }
 
   placeAt(buildQuestBoard(), LAYOUT.questBoard, 0.8);
   placeAt(buildTome(), LAYOUT.tome, 0.55);
@@ -50,6 +59,27 @@ export function buildWorld(scene) {
       exch.sway.rotation.z = Math.sin(exchT * 0.7) * 0.02;
     },
   };
+
+  // the chapman's cart parks by the path on market days only — no cart, no
+  // collider, no prompt on other days (his wheel ruts stay painted year-round)
+  let cart = null;
+  if (marketToday) {
+    const c = buildCart();
+    placeAt(c.group, LAYOUT.cart, 1.5);
+    const th = LAYOUT.cart.rotY;
+    // the mule stands ahead of the bed; his own collision circle
+    colliders.push({ x: LAYOUT.cart.x + 1.9 * Math.cos(th), z: LAYOUT.cart.z - 1.9 * Math.sin(th), r: 0.9 });
+    let cartT = 0;
+    cart = {
+      update(dt) {
+        cartT += dt;
+        c.sway.rotation.x = Math.sin(cartT * 1.1) * 0.03;
+        c.sway.rotation.z = Math.sin(cartT * 0.6) * 0.02;
+        c.muleHead.rotation.z = -0.1 + Math.sin(cartT * 0.5) * 0.09; // dozy nod
+        c.muleTail.rotation.x = Math.sin(cartT * 2.1) * 0.3; // fly-swatting
+      },
+    };
+  }
 
   // hovel collision: axis-aligned wall/furniture rects (the hovel is unrotated)
   const H = HOVEL;
@@ -129,5 +159,19 @@ export function buildWorld(scene) {
     },
   ];
 
-  return { colliders, interactables, campfire, dummy, door, exchequer, hovelInterior, wakeSpot, bedRest };
+  if (cart) {
+    // the chapman's side of the cart, in world coords (the cart is rotated)
+    const th = LAYOUT.cart.rotY;
+    const lx = -0.3;
+    const lz = -1.05;
+    interactables.push({
+      id: 'shop',
+      label: 'the chapman’s cart',
+      x: LAYOUT.cart.x + lx * Math.cos(th) + lz * Math.sin(th),
+      z: LAYOUT.cart.z - lx * Math.sin(th) + lz * Math.cos(th),
+      radius: 2.4,
+    });
+  }
+
+  return { colliders, interactables, campfire, dummy, door, exchequer, cart, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest };
 }

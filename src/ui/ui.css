@@ -428,3 +428,6 @@ button:disabled {
 .deed-tag { color: var(--ink-faded); font-variant: small-caps; letter-spacing: 0.5px; white-space: nowrap; }
 .deed-tag.tag-gold { color: #8a6d1c; }
 .deed-tag.tag-grim { color: #7a2e1f; }
+
+/* the chapman's price buttons sit at the end of a deed row */
+.deed button { flex-shrink: 0; padding: 3px 12px; font-size: 14px; align-self: center; }

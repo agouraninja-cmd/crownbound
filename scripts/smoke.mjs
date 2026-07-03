@@ -590,6 +590,114 @@ try {
       g.player.pos.z = 1.3;
       g.orbitCam.setView(-0.4, 0.25, 3.5);
     });
+  } else if (scenario === 'market') {
+    // 1) force a market day (any real weekday) and seed a fat purse
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 2000));
+    if (!(await page.evaluate(() => !!window.__game.cart)))
+      errors.push('market: cart absent though market=1');
+    await page.evaluate(() => {
+      const g = window.__game;
+      const copy = JSON.parse(g.exportSave());
+      copy.coins = 2000;
+      return g.importSave(JSON.stringify(copy));
+    });
+    await page.reload({ waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // 2) the prompt offers the cart; E opens the shop
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 1.5; // on the path, the chapman's side
+      g.player.pos.z = 9.0;
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    const prompt = await page.evaluate(
+      () => document.getElementById('interact-prompt').textContent
+    );
+    console.log('prompt:', JSON.stringify(prompt));
+    if (!prompt.includes('chapman')) errors.push(`market: prompt "${prompt}" does not offer the cart`);
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    if (await page.evaluate(() => document.getElementById('shop-panel').classList.contains('hidden')))
+      errors.push('market: E by the cart did not open the shop');
+
+    // 3) buy the rug: coins drop, ownership sticks, the hovel shows it
+    await page.click('[data-buy="rug"]');
+    await new Promise((r) => setTimeout(r, 200));
+    const afterRug = await page.evaluate(() => ({
+      coins: window.__game.getState().coins,
+      owned: window.__game.getState().shop.owned,
+      visible: window.__game.homeUpgrades.rug.visible,
+      buyAgain: !!document.querySelector('[data-buy="rug"]'),
+      histType: window.__game.getState().history.at(-1).type,
+    }));
+    console.log('rug:', JSON.stringify(afterRug));
+    if (afterRug.coins !== 1750) errors.push(`market: coins ${afterRug.coins} != 1750 after the rug`);
+    if (!afterRug.owned.includes('rug')) errors.push('market: rug not owned after purchase');
+    if (!afterRug.visible) errors.push('market: rug bought but not shown in the hovel');
+    if (afterRug.buyAgain) errors.push('market: rug still for sale after purchase');
+    if (afterRug.histType !== 'purchase') errors.push(`market: history type ${afterRug.histType} != purchase`);
+
+    // 4) rank gate: the quarterstaff is not sold to a Peasant
+    const staff = await page.evaluate(() => ({
+      buyable: !!document.querySelector('[data-buy="quarterstaff"]'),
+      gated: document.getElementById('shop-body').textContent.includes('for a Squire'),
+    }));
+    console.log('staff gate:', JSON.stringify(staff));
+    if (staff.buyable) errors.push('market: quarterstaff sold to a Peasant');
+    if (!staff.gated) errors.push('market: quarterstaff gate not shown');
+
+    // 5) the cudgel arms the player
+    await page.click('[data-buy="cudgel"]');
+    await new Promise((r) => setTimeout(r, 200));
+    const armed = await page.evaluate(() => ({
+      coins: window.__game.getState().coins,
+      damage: window.__game.player.attackDamage,
+    }));
+    console.log('cudgel:', JSON.stringify(armed));
+    if (armed.coins !== 1450) errors.push(`market: coins ${armed.coins} != 1450 after the cudgel`);
+    if (armed.damage !== 2) errors.push(`market: attackDamage ${armed.damage} != 2 with the cudgel`);
+
+    // 6) the loaf: refused while hale, mends when wounded
+    const hale = await page.evaluate(() => document.querySelector('[data-buy="loaf"]')?.disabled);
+    if (!hale) errors.push('market: loaf sold at full health');
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+    await page.evaluate(() => window.__game.player.takeDamage(6, 0, 0));
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    await page.click('[data-buy="loaf"]');
+    await new Promise((r) => setTimeout(r, 200));
+    const fed = await page.evaluate(() => ({
+      hp: window.__game.player.hp,
+      coins: window.__game.getState().coins,
+    }));
+    console.log('loaf:', JSON.stringify(fed));
+    if (fed.hp !== 20) errors.push(`market: loaf left hp at ${fed.hp}`);
+    if (fed.coins !== 1440) errors.push(`market: coins ${fed.coins} != 1440 after the loaf`);
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+    // 7) cart portrait, then the empty spot on a non-market day
+    await page.evaluate(() => window.__game.orbitCam.setView(-1.1, 0.3, 5.5));
+    await new Promise((r) => setTimeout(r, 600));
+    await page.screenshot({ path: 'scripts/smoke-market.png' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0`, { waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 2000));
+    const offDay = await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 1.5;
+      g.player.pos.z = 9.0;
+      return { cart: g.cart };
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    const offPrompt = await page.evaluate(() =>
+      document.getElementById('interact-prompt').classList.contains('hidden')
+    );
+    console.log('off-day:', JSON.stringify({ cart: offDay.cart, promptHidden: offPrompt }));
+    if (offDay.cart !== null) errors.push('market: cart present though market=0');
+    if (!offPrompt) errors.push('market: something still prompts at the empty spot');
   }
   await new Promise((r) => setTimeout(r, 1500));
 

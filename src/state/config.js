@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 4, // v2 monthly campaign; v3 sleep tracking; v4 the sleep ledger log
+  saveVersion: 5, // v2 monthly campaign; v3 sleep tracking; v4 the sleep ledger log; v5 the shop
 
   coronation: '2027-06-08T05:00:00',
 
@@ -36,6 +36,35 @@ export const CONFIG = {
     wisXp: 10,
     coins: 10,
     staminaBonus: 10, // extra cap (and pool) for the rest of the day
+  },
+
+  // The Chapman's Cart. The sacred rule: coins buy comfort and swagger,
+  // never virtue — no XP, no streak repair, no stamina is ever for sale.
+  shop: {
+    marketWeekdays: [0, 3, 5], // Sun, Wed, Fri — the chapman's route through the village
+    items: [
+      // wares for the hand (gear; damage/reach read by main.js)
+      { id: 'cudgel', name: 'an oaken cudgel', flavor: 'Twice the argument of a stick.',
+        price: 300, category: 'hand', once: true, damage: 2, tier: 1 },
+      { id: 'quarterstaff', name: 'a quarterstaff', flavor: 'Six feet of persuasion, squire-trained.',
+        price: 1000, category: 'hand', once: true, damage: 3, reach: 0.25, tier: 2, minRank: 'Squire' },
+      // wares for the home (visible hovel upgrades)
+      { id: 'rug', name: 'a wool rug', flavor: 'Dyed madder red. The floor forgives.',
+        price: 250, category: 'home', once: true },
+      { id: 'door', name: 'door paint', flavor: 'A door the color of oxblood says someone lives here on purpose.',
+        price: 300, category: 'home', once: true },
+      { id: 'window', name: 'a glass pane', flavor: 'Real glass, hauled from the city unbroken. Mostly.',
+        price: 400, category: 'home', once: true },
+      { id: 'garden', name: 'a garden plot', flavor: 'Seed, string, and somewhere for the mornings to go.',
+        price: 600, category: 'home', once: true },
+      // small comforts
+      { id: 'loaf', name: 'a hearty loaf', flavor: 'Warm bread mends what the road takes.',
+        price: 10, category: 'comforts', once: false },
+      { id: 'trophy', name: 'a mounted rat', flavor: 'Proof of bounties past, stuffed and staring.',
+        price: 60, category: 'comforts', once: true },
+      { id: 'lantern', name: 'a candle lantern', flavor: 'A little light for the doorpost.',
+        price: 120, category: 'comforts', once: true },
+    ],
   },
 
   player: {

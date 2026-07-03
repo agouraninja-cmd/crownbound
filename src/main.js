@@ -15,6 +15,14 @@ import { CONFIG } from './state/config.js';
 
 const { messages: bootMessages } = loadState();
 
+// Market days bring the chapman's cart. Sessions are short, so the flag is
+// fixed per load like the rollover; ?market=1|0 overrides it (smoke tests).
+const marketParam = new URLSearchParams(location.search).get('market');
+const marketToday =
+  marketParam !== null
+    ? marketParam === '1'
+    : CONFIG.shop.marketWeekdays.includes(new Date().getDay());
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -27,8 +35,28 @@ document.getElementById('app').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
 
-const world = buildWorld(scene);
+const world = buildWorld(scene, marketToday);
 const player = createPlayer(scene, LAYOUT.playerSpawn);
+
+// gear and home comforts bought from the chapman, applied on load + purchase
+function applyPurchases() {
+  const owned = getState().shop.owned;
+  let damage = CONFIG.player.attackDamage;
+  let reach = CONFIG.player.attackRange;
+  let tier = 0;
+  for (const item of CONFIG.shop.items) {
+    if (item.tier && owned.includes(item.id) && item.tier > tier) {
+      tier = item.tier;
+      damage = item.damage;
+      reach = CONFIG.player.attackRange + (item.reach ?? 0);
+    }
+  }
+  player.attackDamage = damage;
+  player.attackReach = reach;
+  player.setWeaponTier(tier);
+  world.applyHomeUpgrades(owned);
+}
+applyPurchases();
 
 // combat actions draw from the daily stamina pool
 player.trySpend = (cost) => spendStamina(cost);
@@ -48,11 +76,11 @@ player.onAttackSwing = () => {
   sfx.swing();
   const P = CONFIG.player;
   const halfArc = (P.attackArcDeg * Math.PI) / 360;
-  rats.tryHit(player.pos.x, player.pos.z, player.facing, P.attackRange, halfArc, P.attackDamage);
+  rats.tryHit(player.pos.x, player.pos.z, player.facing, player.attackReach, halfArc, player.attackDamage);
 
   const ddx = dummy.x - player.pos.x;
   const ddz = dummy.z - player.pos.z;
-  if (Math.hypot(ddx, ddz) < P.attackRange + dummy.radius) {
+  if (Math.hypot(ddx, ddz) < player.attackReach + dummy.radius) {
     if (angleDiff(Math.atan2(ddx, ddz), player.facing) < halfArc) {
       dummy.hit(player.pos.x, player.pos.z);
     }
@@ -111,13 +139,25 @@ const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
 orbitCam.setInterior(world.hovelInterior);
 
 initHud();
-initPanels((opened) => {
-  player.setEnabled(!opened);
-  if (opened) {
-    orbitCam.unlock();
-    showPrompt(null);
+initPanels(
+  (opened) => {
+    player.setEnabled(!opened);
+    if (opened) {
+      orbitCam.unlock();
+      showPrompt(null);
+    }
+  },
+  {
+    isWounded: () => player.hp < player.maxHp - 0.01,
+    onPurchase: (item) => {
+      if (item.id === 'loaf') {
+        player.hp = player.maxHp;
+        player.onHpChange(player.hp, player.maxHp);
+      }
+      applyPurchases();
+    },
   }
-});
+);
 
 function syncHud() {
   const s = getState();
@@ -133,6 +173,7 @@ syncHud();
 
 setTimeout(() => {
   for (const m of bootMessages) toast(m.text, m.style);
+  if (marketToday) toast('The chapman has come — his cart stands by the path.', 'gold');
 }, 700);
 
 function insideHovel() {
@@ -193,7 +234,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, sleepAtCot, evaluateSleep, applySleepReward, wakeSpot: world.wakeSpot };
+  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, wakeSpot: world.wakeSpot };
 }
 
 window.addEventListener('resize', () => {
@@ -225,6 +266,7 @@ function tick() {
   world.campfire.update(dt);
   world.door.update(dt);
   world.exchequer.update(dt);
+  world.cart?.update(dt);
   orbitCam.update(dt, player.pos);
 
   renderer.render(scene, camera);

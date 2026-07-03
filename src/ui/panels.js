@@ -9,6 +9,7 @@ import {
   setEpicText,
   setEpicProgress,
   setTreasury,
+  buyItem,
   xpToNext,
   STAT_NAMES,
   exportSave,
@@ -20,9 +21,10 @@ import { countdownTo, todayStr } from '../state/dates.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, boardBody, tomeBody, ledgerBody, treasuryBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody;
 let open = null;
 let onOpenChange = () => {};
+let shopActions = { isWounded: () => false, onPurchase: () => {} }; // wired by main.js
 let timer = null;
 let statPickFor = null; // 'daily' | 'weekly' | 'monthly'
 let editingEpic = false;
@@ -430,6 +432,62 @@ function renderTreasury() {
   }
 }
 
+// ---------- The Chapman's Cart (market days only) ----------
+
+const SHOP_SECTIONS = [
+  ['hand', 'Wares for the Hand'],
+  ['home', 'Wares for the Home'],
+  ['comforts', 'Small Comforts'],
+];
+
+function renderShop() {
+  const s = getState();
+  const rankIdx = (title) => CONFIG.ranks.findIndex((r) => r.title === title);
+
+  const sections = SHOP_SECTIONS.map(([cat, title]) => {
+    const rows = CONFIG.shop.items
+      .filter((i) => i.category === cat)
+      .map((item) => {
+        const owned = item.once && s.shop.owned.includes(item.id);
+        const locked = item.minRank && rankIdx(s.rank) < rankIdx(item.minRank);
+        const hale = item.id === 'loaf' && !shopActions.isWounded();
+        let action;
+        if (owned) action = `<span class="deed-tag tag-gold">owned</span>`;
+        else if (locked) action = `<span class="deed-tag tag-grim">for a ${item.minRank}</span>`;
+        else
+          action = `<button data-buy="${item.id}" ${s.coins < item.price || hale ? 'disabled' : ''}
+            title="${hale ? 'Thou art hale — bread keeps.' : ''}">${item.price}c</button>`;
+        return `<div class="deed">
+          <span class="deed-text"><b>${item.name}</b> — <span class="muted">${item.flavor}</span></span>
+          ${action}
+        </div>`;
+      })
+      .join('');
+    return `<div class="sheet-section"><h2>${title}</h2>${rows}</div>`;
+  }).join('');
+
+  shopBody.innerHTML = `
+    <div class="sheet-section">
+      <div class="kv"><span>Thy purse</span><span class="v">${s.coins} coins</span></div>
+      <p class="muted">The chapman deals in comfort and swagger. Virtue is not for sale, at any price.</p>
+    </div>
+    ${sections}`;
+
+  for (const btn of shopBody.querySelectorAll('[data-buy]')) {
+    btn.addEventListener('click', () => {
+      const res = buyItem(btn.dataset.buy);
+      if (res.ok) {
+        toast(`${res.item.name} — bought and paid for.`, 'gold');
+        sfx.questDone();
+        shopActions.onPurchase(res.item);
+      } else if (res.why === 'coins') {
+        toast('Thy purse is too light for that.', 'grim');
+      }
+      renderShop();
+    });
+  }
+}
+
 // ---------- open/close ----------
 
 function close() {
@@ -443,6 +501,7 @@ function close() {
   tomePanel.classList.add('hidden');
   ledgerPanel.classList.add('hidden');
   treasuryPanel.classList.add('hidden');
+  shopPanel.classList.add('hidden');
   if (timer) clearInterval(timer);
   timer = null;
   onOpenChange(false);
@@ -456,10 +515,12 @@ export function openPanel(id) {
   tomePanel.classList.toggle('hidden', id !== 'tome');
   ledgerPanel.classList.toggle('hidden', id !== 'ledger');
   treasuryPanel.classList.toggle('hidden', id !== 'treasury');
-  const bodies = { board: boardBody, tome: tomeBody, ledger: ledgerBody, treasury: treasuryBody };
+  shopPanel.classList.toggle('hidden', id !== 'shop');
+  const bodies = { board: boardBody, tome: tomeBody, ledger: ledgerBody, treasury: treasuryBody, shop: shopBody };
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
   else if (id === 'treasury') renderTreasury();
+  else if (id === 'shop') renderShop();
   else renderTome();
   if (timer) clearInterval(timer);
   timer = setInterval(() => {
@@ -473,17 +534,20 @@ export function isPanelOpen() {
   return open !== null;
 }
 
-export function initPanels(openChangeCallback) {
+export function initPanels(openChangeCallback, shopHooks) {
   onOpenChange = openChangeCallback;
+  if (shopHooks) shopActions = { ...shopActions, ...shopHooks };
   overlay = document.getElementById('panel-overlay');
   boardPanel = document.getElementById('quest-panel');
   tomePanel = document.getElementById('tome-panel');
   ledgerPanel = document.getElementById('ledger-panel');
   treasuryPanel = document.getElementById('treasury-panel');
+  shopPanel = document.getElementById('shop-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
   ledgerBody = document.getElementById('ledger-body');
   treasuryBody = document.getElementById('treasury-body');
+  shopBody = document.getElementById('shop-body');
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && open) close();

@@ -87,6 +87,7 @@ function defaultState(now = new Date()) {
     stamina: { current: CONFIG.stamina.baseCap, date: today },
     counters: { date: today, dummyHits: 0, ratsKilled: 0 },
     sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
+    shop: { owned: [] }, // ids of one-time purchases from the chapman
   };
 }
 
@@ -102,9 +103,13 @@ function migrate(s) {
   if (s.saveVersion === 3) {
     s.saveVersion = 4; // v4: the sleep ledger log
   }
+  if (s.saveVersion === 4) {
+    s.saveVersion = 5; // v5: the chapman's shop
+  }
   // hand-edited or restored saves may miss fields regardless of version
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   if (!s.sleep.log) s.sleep.log = [];
+  if (!s.shop) s.shop = { owned: [] };
   return s;
 }
 
@@ -388,6 +393,38 @@ export function setEpicProgress(pct) {
   });
   save();
   emit('quests');
+}
+
+// ---------- the shop (the chapman's cart) ----------
+
+function rankIndex(title) {
+  return CONFIG.ranks.findIndex((r) => r.title === title);
+}
+
+export function ownsItem(id) {
+  return state.shop.owned.includes(id);
+}
+
+// Why a purchase was refused, or { ok: true, item } on success. Purchases land
+// in history (type 'purchase') so the future Chronicler can gossip about them.
+export function buyItem(id) {
+  const item = CONFIG.shop.items.find((i) => i.id === id);
+  if (!item) return { ok: false, why: 'unknown' };
+  if (item.once && ownsItem(id)) return { ok: false, why: 'owned' };
+  if (item.minRank && rankIndex(state.rank) < rankIndex(item.minRank)) return { ok: false, why: 'rank' };
+  if (state.coins < item.price) return { ok: false, why: 'coins' };
+  state.coins -= item.price;
+  if (item.once) state.shop.owned.push(id);
+  state.history.push({
+    date: todayStr(),
+    questText: `Bought ${item.name} from the chapman`,
+    statTrained: null,
+    type: 'purchase',
+  });
+  save();
+  emit('coins');
+  emit('shop');
+  return { ok: true, item };
 }
 
 // ---------- treasury ----------
