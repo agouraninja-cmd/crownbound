@@ -452,6 +452,45 @@ export function buildGranary() {
   return g;
 }
 
+// The miller: the man who has been paying the rat bounty since M6 finally
+// gets to stand in his own yard. Flour-dusted, arms folded, watching the
+// grain. Mute until v2; E gets you a word about the day's tally (main.js).
+// Faces local +x; world.js turns him toward the village. Returns { group, sway }.
+export function buildMiller() {
+  const g = new THREE.Group();
+  const DUSTED = 0xbfb5a2; // wool gone grey-white with flour
+  const APRON = 0xd8cfae;
+  const SKIN = 0xcfa46f;
+  const CAP = 0x6b5a44;
+
+  // stocky tunic, rope belt, floured apron down the front
+  g.add(mesh(cyl(0.19, 0.25, 0.95, 7), DUSTED, { y: 0.32 }));
+  g.add(mesh(cyl(0.2, 0.2, 0.06, 7), LEATHER, { y: 0.6 }));
+  g.add(mesh(box(0.06, 0.52, 0.3), APRON, { x: 0.18, y: 0.38 }));
+
+  // chest, head, flat cap — the breathing part
+  const sway = new THREE.Group();
+  sway.position.set(0, 0.78, 0);
+  sway.add(mesh(cyl(0.17, 0.19, 0.34, 7), DUSTED, { y: 0.12 }));
+  sway.add(mesh(new THREE.SphereGeometry(0.135, 7, 6), SKIN, { y: 0.43 }));
+  sway.add(mesh(cyl(0.15, 0.165, 0.08, 7), CAP, { y: 0.53 }));
+  // arms folded across the apron — a man supervising his grain
+  sway.add(mesh(box(0.07, 0.36, 0.07), DUSTED, { x: 0.16, y: 0.14, z: -0.08, rx: 1.25, rz: -0.35 }));
+  sway.add(mesh(box(0.07, 0.36, 0.07), DUSTED, { x: 0.16, y: 0.1, z: 0.08, rx: -1.25, rz: -0.35 }));
+  g.add(sway);
+
+  // a full flour sack at his feet and a hay-fork planted at his side
+  const sack = mesh(new THREE.SphereGeometry(0.24, 7, 5), 0xd5c9a8, { x: 0.38, y: 0.2, z: -0.38 });
+  sack.scale.set(1, 1.1, 1);
+  g.add(sack);
+  g.add(mesh(box(0.04, 1.55, 0.04), WOOD_DARK, { x: -0.28, y: 0.74, z: 0.32, rz: 0.12 }));
+  for (const tine of [-0.06, 0, 0.06]) {
+    g.add(mesh(box(0.025, 0.22, 0.025), WOOD_DARK, { x: -0.46 + tine * 0.3, y: 1.55, z: 0.32 + tine, rz: 0.12 }));
+  }
+
+  return { group: g, sway };
+}
+
 // Returns { group, pivot } — pivot is the part that wobbles when struck.
 export function buildDummy() {
   const g = new THREE.Group();

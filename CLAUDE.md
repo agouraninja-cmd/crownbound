@@ -27,7 +27,7 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/scene/terrain.js  analytic terrain height fn, vertex-colored ground + dirt path
 src/scene/sky.js      gradient sky dome + fog + lighting
 src/scene/scatter.js  merged pine trees + rocks
-src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, dummy mesh
+src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
 src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight
@@ -162,6 +162,11 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   outgrows one cart-load — all nine items show every market day. Market-day status is fixed per
   load, like rollover. On non-market days the cart, its colliders, and its prompt don't exist;
   only the wheel-rut dirt patch remains.
+- The miller stands in his granary yard at (9.0, 9.3) — the rat bounty's flavor text made flesh.
+  Third mute villager (breathing sway via world.miller.update), v2 NPC candidate alongside the
+  clerk and chapman. E opens no panel: it toasts a one-line tally of today's ratsKilled
+  (`millerGreeting()` in main.js). He stands just outside the granary's collision circle so the
+  player can reach him.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -209,6 +214,8 @@ headlessly; everything else covered by the regression suite below.
   `coronationAt` + history, celebrated with bells. saveVersion 6.
 - [x] Post-v1 — "The Village Charter" (2026-07-03): in-game rule sheet — a parchment-on-post
   by the path (E → scrollable guide panel); numbers render live from config.js. No save change.
+- [x] Post-v1 — "The Miller" (2026-07-03): the bounty-payer made flesh — flour-dusted figure
+  in the granary yard, breathing sway, E toasts today's rat tally. No save change.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -216,7 +223,8 @@ headlessly; everything else covered by the regression suite below.
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
-  `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/death (respawn at the cot) ·
+  `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/miller-tally greeting/death
+  (respawn at the cot) ·
   `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +

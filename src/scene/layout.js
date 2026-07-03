@@ -16,6 +16,7 @@ export const LAYOUT = {
   cart: { x: 3.2, z: 8.5, rotY: Math.PI / 2 + 0.15 }, // the chapman parks here on market days, mule toward the village
   dummy: { x: -8.5, z: 9.5 },
   granary: { x: 11, z: 11, rotY: -Math.PI / 5 },
+  miller: { x: 9.0, z: 9.3, rotY: 2.44 }, // minding his granary, facing the village
   // dirt wear circles painted onto the terrain: {x, z, radius}
   dirtPatches: [
     { x: -4.6, z: 6.2, r: 2.6 }, // around campfire

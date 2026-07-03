@@ -225,6 +225,18 @@ function promptText() {
   return `Press <b>E</b> — ${label}`;
 }
 
+// the miller has no panel — just a word on the day's tally for the rat-catcher
+function millerGreeting() {
+  const n = getState().counters.ratsKilled;
+  if (n === 0) {
+    toast('Rats in my grain again, friend. Two coins a tail — the offer stands.', '');
+  } else if (n < CONFIG.rats.count) {
+    toast(`${n === 1 ? 'One tail' : `${n} tails`} this day. The grain breathes easier.`, 'gold');
+  } else {
+    toast('The granary is quiet at last. Till the morrow, anyway.', 'gold');
+  }
+}
+
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyE' || !player.isEnabled() || isPanelOpen()) return;
   const a = nearestAction();
@@ -234,6 +246,8 @@ window.addEventListener('keydown', (e) => {
     sfx.creak();
   } else if (a.id === 'bed') {
     sleepAtCot();
+  } else if (a.id === 'miller') {
+    millerGreeting();
   } else {
     orbitCam.unlock();
     openPanel(a.id);
@@ -274,6 +288,7 @@ function tick() {
   world.campfire.update(dt);
   world.door.update(dt);
   world.exchequer.update(dt);
+  world.miller.update(dt);
   world.cart?.update(dt);
   orbitCam.update(dt, player.pos);
 

@@ -423,7 +423,30 @@ try {
     if (afterRats.aliveRats !== 3 - afterRats.killed)
       errors.push(`combat: alive ${afterRats.aliveRats} + killed ${afterRats.killed} != 3`);
 
-    // 3) death: take a mortal blow, wake at the hovel with full hp
+    // 3) the miller acknowledges the day's tally (wording varies with kills)
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 8.2;
+      g.player.pos.z = 8.6;
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    const millerPrompt = await page.evaluate(
+      () => document.getElementById('interact-prompt').textContent
+    );
+    console.log('miller prompt:', JSON.stringify(millerPrompt));
+    if (!millerPrompt.includes('miller'))
+      errors.push(`combat: prompt "${millerPrompt}" does not offer the miller`);
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    const greeting = await page.evaluate(() => document.getElementById('toasts').textContent);
+    console.log('miller greeting:', JSON.stringify(greeting));
+    if (!/grain breathes easier|quiet at last/.test(greeting))
+      errors.push('combat: the miller did not acknowledge the tally');
+    await page.evaluate(() => window.__game.orbitCam.setView(-0.8, 0.28, 4));
+    await new Promise((r) => setTimeout(r, 600));
+    await page.screenshot({ path: 'scripts/smoke-miller.png' });
+
+    // 4) death: take a mortal blow, wake at the hovel with full hp
     await page.evaluate(() => window.__game.player.takeDamage(99, 11, 11));
     await new Promise((r) => setTimeout(r, 1800));
     const wake = await page.evaluate(() => ({

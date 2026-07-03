@@ -3,7 +3,7 @@ import { LAYOUT } from './layout.js';
 import { buildTerrain, terrainHeight } from './terrain.js';
 import { buildSky, addLighting } from './sky.js';
 import { buildScatter } from './scatter.js';
-import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, HOVEL } from './structures.js';
+import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, buildMiller, HOVEL } from './structures.js';
 import { buildCart } from './cart.js';
 import { createCampfire } from './campfire.js';
 
@@ -58,6 +58,18 @@ export function buildWorld(scene, marketToday = false) {
       exchT += dt;
       exch.sway.rotation.x = Math.sin(exchT * 1.3) * 0.028;
       exch.sway.rotation.z = Math.sin(exchT * 0.7) * 0.02;
+    },
+  };
+
+  // the miller minds his granary — the rat bounty finally has a face
+  const mill = buildMiller();
+  placeAt(mill.group, LAYOUT.miller, 0.4);
+  let millerT = 0;
+  const miller = {
+    update(dt) {
+      millerT += dt;
+      mill.sway.rotation.x = Math.sin(millerT * 1.2) * 0.025;
+      mill.sway.rotation.z = Math.sin(millerT * 0.65) * 0.022;
     },
   };
 
@@ -148,6 +160,7 @@ export function buildWorld(scene, marketToday = false) {
     { id: 'board', label: 'the Quest Board', x: LAYOUT.questBoard.x, z: LAYOUT.questBoard.z, radius: 2.7 },
     { id: 'tome', label: 'the Tome', x: LAYOUT.tome.x, z: LAYOUT.tome.z, radius: 2.4 },
     { id: 'guide', label: 'the Village Charter', x: LAYOUT.charter.x, z: LAYOUT.charter.z, radius: 2.2 },
+    { id: 'miller', label: 'the miller', x: LAYOUT.miller.x, z: LAYOUT.miller.z, radius: 2.0 },
     // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bed.x, z: hz + H.bed.z, radius: 1.7, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
@@ -175,5 +188,5 @@ export function buildWorld(scene, marketToday = false) {
     });
   }
 
-  return { colliders, interactables, campfire, dummy, door, exchequer, cart, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest };
+  return { colliders, interactables, campfire, dummy, door, exchequer, cart, miller, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest };
 }
