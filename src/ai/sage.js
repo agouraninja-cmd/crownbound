@@ -26,10 +26,13 @@ export function setSageKey(key) {
   else localStorage.removeItem(KEY_STORAGE);
 }
 
-// One of 'str'|'agi'|'wis'|'inf', or null when the sage cannot say.
+// { virtue: 'str'|'agi'|'wis'|'inf'|null, keyTrouble: boolean }.
+// virtue null = the picker takes over; keyTrouble true = the key itself was
+// refused (invalid, or an API account without credits) so the player should
+// be told to fix the key, not blame the weather.
 export async function judgeDeed(text) {
   const key = localStorage.getItem(KEY_STORAGE);
-  if (!key) return null;
+  if (!key) return { virtue: null, keyTrouble: false };
   try {
     const client = new Anthropic({
       apiKey: key,
@@ -45,8 +48,13 @@ export async function judgeDeed(text) {
     });
     const block = response.content?.[0];
     const verdict = block?.type === 'text' ? block.text.trim().toLowerCase() : '';
-    return VIRTUES.includes(verdict) ? verdict : null;
-  } catch {
-    return null;
+    return { virtue: VIRTUES.includes(verdict) ? verdict : null, keyTrouble: false };
+  } catch (err) {
+    console.warn('[sage] judgment failed:', err); // full detail for the console
+    const keyTrouble =
+      err instanceof Anthropic.AuthenticationError ||
+      err instanceof Anthropic.PermissionDeniedError ||
+      (err instanceof Anthropic.BadRequestError && /credit|billing/i.test(err.message));
+    return { virtue: null, keyTrouble };
   }
 }

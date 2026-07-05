@@ -7,6 +7,7 @@ import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
+import { judgeDeed } from './ai/sage.js';
 import { toast } from './ui/toasts.js';
 import { initAudio, sfx } from './ui/audio.js';
 import { createDummy } from './combat/dummy.js';
@@ -267,7 +268,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, exchequer: world.exchequer, miller: world.miller, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, exchequer: world.exchequer, miller: world.miller, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {

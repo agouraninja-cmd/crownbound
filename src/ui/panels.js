@@ -202,17 +202,22 @@ function bindBoard() {
       judgingFor = kind;
       const seq = ++judgeSeq;
       renderBoard();
-      judgeDeed(getState().quests[kind].text).then((stat) => {
+      judgeDeed(getState().quests[kind].text).then(({ virtue, keyTrouble }) => {
         if (seq !== judgeSeq || judgingFor !== kind) return; // cancelled, closed, or superseded
         judgingFor = null;
-        if (stat) {
-          const res = COMPLETE_FNS[kind](stat);
+        if (virtue) {
+          const res = COMPLETE_FNS[kind](virtue);
           if (res) {
-            toast(`The sage judges this deed ${STAT_NAMES[stat]}.`, '');
-            rewardToast(STAT_NAMES[stat], res);
+            toast(`The sage judges this deed ${STAT_NAMES[virtue]}.`, '');
+            rewardToast(STAT_NAMES[virtue], res);
           }
         } else {
-          toast('The sage is silent. Choose thyself.', 'grim');
+          toast(
+            keyTrouble
+              ? 'The sage rejects thy key — see him in the Tome.'
+              : 'The sage is silent. Choose thyself.',
+            'grim'
+          );
           statPickFor = kind;
         }
         renderBoard();
