@@ -30,6 +30,7 @@ src/scene/sky.js      gradient sky dome + fog + lighting
 src/scene/scatter.js  merged pine trees + rocks
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
+src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod
 src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight
 src/player/playerMesh.js  procedural peasant figure + pose animation
@@ -174,7 +175,15 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   clerk and chapman. E opens no panel: it toasts a one-line tally of today's ratsKilled
   (`millerGreeting()` in main.js). He stands just outside the granary's collision circle so the
   player can reach him.
-- The Reckoning (2026-07-03): the Treasury is a monthly personal financial statement — a
+- The Breath of Life (2026-07-04): all three villagers run on `makeAlive()` (src/scene/alive.js) —
+  layered breathing (amplitude ~3× the old sway, phase/tempo seeded from position so the village
+  never breathes in unison), a head that turns to watch the player within 4 units (clamped ±0.7 rad,
+  eased, drifts back to the work), random arm fidgets every 6–14s (gesture `apply(k)` fns with
+  `apply(0)` = exact rest pose), and a once-per-load greet: head nod + a toast wired in main.js
+  (`onGreet` — the clerk's line changes when a reckoning is owed). Each head is its own pivot
+  group and gained a nose (plus cap brim / hood lip) because a bare sphere-and-cylinder head
+  turns invisibly. update(dt, playerPos) — main.js passes player.pos. All group rotations on
+  existing meshes; gesture sfx deliberately omitted (reusing reward chimes would read as income).
   virtual summarized spreadsheet with NO game value (no XP, no coins, ever; quests reward the
   deed of saving, the roll only records the fact). Four entered lines per month (earned, spent,
   laid in the hoard, hoard counted true — the last reconciles `current`); kept and keep-rate are
@@ -237,6 +246,9 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "The Reckoning" (2026-07-03): the Treasury becomes a monthly financial
   statement — pledge, four-line monthly rolls with verdicts, cumulative named summits with a
   conquered-goals list, all in the Treasury panel (no world changes). saveVersion 7.
+- [x] Post-v1 — "The Breath of Life" (2026-07-04): the three villagers stop being statues —
+  visible layered breathing, head-tracking of the player, idle arm fidgets, and a first-approach
+  nod + greeting toast (clerk's line is reckoning-aware). No save change.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -256,6 +268,8 @@ headlessly; everything else covered by the regression suite below.
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
   `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat) + conquest & next
   summit + double-file guard + unreckoned backfill (panel screenshot → scripts/smoke-reckoning.png) ·
+  `alive` villager breathing spread + head-track/greet for all three (off-axis stand, or the
+  turn is ~0) + head returns at distance + fidget fires (screenshot → scripts/smoke-alive.png) ·
   `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

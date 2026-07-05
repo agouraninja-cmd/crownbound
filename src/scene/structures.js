@@ -387,16 +387,23 @@ export function buildExchequer() {
   g.add(mesh(box(0.22, 0.02, 0.3), PAGE, { x: 0.66, y: 1.0, z: 0.82, rz: 0.09 }));
   g.add(mesh(box(0.22, 0.02, 0.3), PAGE, { x: 0.84, y: 1.0, z: 0.82, rz: -0.09 }));
 
-  // the clerk: robe and belt stand still; chest, head, coif and arms breathe
+  // the clerk: robe and belt stand still; chest, head, coif and arms breathe.
+  // The head is its own pivot so alive.js can turn it — the nose is what
+  // makes the turn readable on a low-poly sphere.
   g.add(mesh(cyl(0.17, 0.24, 0.95, 7), ROBE, { x: 0.05, y: 0.32 }));
   g.add(mesh(cyl(0.185, 0.185, 0.06, 7), LEATHER, { x: 0.05, y: 0.66 }));
   const sway = new THREE.Group();
   sway.position.set(0.05, 0.78, 0);
   sway.add(mesh(cyl(0.15, 0.175, 0.34, 7), ROBE, { y: 0.12 }));
-  sway.add(mesh(new THREE.SphereGeometry(0.13, 7, 6), SKIN, { y: 0.42 }));
-  sway.add(mesh(cyl(0.14, 0.15, 0.11, 7), CLOTH_PALE, { y: 0.49 })); // linen coif
-  sway.add(mesh(box(0.06, 0.36, 0.06), ROBE, { x: 0.2, y: 0.1, z: -0.13, rz: -1.15 }));
-  sway.add(mesh(box(0.06, 0.36, 0.06), ROBE, { x: 0.2, y: 0.1, z: 0.13, rz: -1.15 }));
+  const head = new THREE.Group();
+  head.position.set(0, 0.42, 0);
+  head.add(mesh(new THREE.SphereGeometry(0.13, 7, 6), SKIN, {}));
+  head.add(mesh(cyl(0.14, 0.15, 0.11, 7), CLOTH_PALE, { y: 0.07 })); // linen coif
+  head.add(mesh(box(0.05, 0.04, 0.05), SKIN, { x: 0.125, shadow: false })); // nose, toward the counter
+  sway.add(head);
+  const armR = mesh(box(0.06, 0.36, 0.06), ROBE, { x: 0.2, y: 0.1, z: -0.13, rz: -1.15 });
+  const armL = mesh(box(0.06, 0.36, 0.06), ROBE, { x: 0.2, y: 0.1, z: 0.13, rz: -1.15 });
+  sway.add(armR, armL);
   g.add(sway);
 
   // iron-banded coffer at his heel
@@ -410,7 +417,7 @@ export function buildExchequer() {
   g.add(mesh(box(0.04, 0.36, 0.5), WOOD_DARK, { x: 1.02, y: 1.72, z: -0.95 }));
   g.add(mesh(cyl(0.11, 0.11, 0.05, 9), COIN, { x: 1.05, y: 1.72, z: -0.95, rz: Math.PI / 2, shadow: false }));
 
-  return { group: g, sway };
+  return { group: g, sway, head, armR, armL };
 }
 
 export function buildGranary() {
@@ -455,7 +462,8 @@ export function buildGranary() {
 // The miller: the man who has been paying the rat bounty since M6 finally
 // gets to stand in his own yard. Flour-dusted, arms folded, watching the
 // grain. Mute until v2; E gets you a word about the day's tally (main.js).
-// Faces local +x; world.js turns him toward the village. Returns { group, sway }.
+// Faces local +x; world.js turns him toward the village.
+// Returns { group, sway, head, armR, armL } — the parts alive.js animates.
 export function buildMiller() {
   const g = new THREE.Group();
   const DUSTED = 0xbfb5a2; // wool gone grey-white with flour
@@ -468,15 +476,22 @@ export function buildMiller() {
   g.add(mesh(cyl(0.2, 0.2, 0.06, 7), LEATHER, { y: 0.6 }));
   g.add(mesh(box(0.06, 0.52, 0.3), APRON, { x: 0.18, y: 0.38 }));
 
-  // chest, head, flat cap — the breathing part
+  // chest, head, flat cap — the breathing part; the head is its own pivot
+  // (nose + cap brim make the turn readable)
   const sway = new THREE.Group();
   sway.position.set(0, 0.78, 0);
   sway.add(mesh(cyl(0.17, 0.19, 0.34, 7), DUSTED, { y: 0.12 }));
-  sway.add(mesh(new THREE.SphereGeometry(0.135, 7, 6), SKIN, { y: 0.43 }));
-  sway.add(mesh(cyl(0.15, 0.165, 0.08, 7), CAP, { y: 0.53 }));
+  const head = new THREE.Group();
+  head.position.set(0, 0.43, 0);
+  head.add(mesh(new THREE.SphereGeometry(0.135, 7, 6), SKIN, {}));
+  head.add(mesh(cyl(0.15, 0.165, 0.08, 7), CAP, { y: 0.1 }));
+  head.add(mesh(box(0.14, 0.03, 0.12), CAP, { x: 0.13, y: 0.07, shadow: false })); // cap brim over the eyes
+  head.add(mesh(box(0.05, 0.04, 0.05), SKIN, { x: 0.13, shadow: false })); // nose
+  sway.add(head);
   // arms folded across the apron — a man supervising his grain
-  sway.add(mesh(box(0.07, 0.36, 0.07), DUSTED, { x: 0.16, y: 0.14, z: -0.08, rx: 1.25, rz: -0.35 }));
-  sway.add(mesh(box(0.07, 0.36, 0.07), DUSTED, { x: 0.16, y: 0.1, z: 0.08, rx: -1.25, rz: -0.35 }));
+  const armR = mesh(box(0.07, 0.36, 0.07), DUSTED, { x: 0.16, y: 0.14, z: -0.08, rx: 1.25, rz: -0.35 });
+  const armL = mesh(box(0.07, 0.36, 0.07), DUSTED, { x: 0.16, y: 0.1, z: 0.08, rx: -1.25, rz: -0.35 });
+  sway.add(armR, armL);
   g.add(sway);
 
   // a full flour sack at his feet and a hay-fork planted at his side
@@ -488,7 +503,7 @@ export function buildMiller() {
     g.add(mesh(box(0.025, 0.22, 0.025), WOOD_DARK, { x: -0.46 + tine * 0.3, y: 1.55, z: 0.32 + tine, rz: 0.12 }));
   }
 
-  return { group: g, sway };
+  return { group: g, sway, head, armR, armL };
 }
 
 // Returns { group, pivot } — pivot is the part that wobbles when struck.

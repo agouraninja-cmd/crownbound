@@ -5,6 +5,7 @@ import { buildSky, addLighting } from './sky.js';
 import { buildScatter } from './scatter.js';
 import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, buildMiller, HOVEL } from './structures.js';
 import { buildCart } from './cart.js';
+import { makeAlive } from './alive.js';
 import { createCampfire } from './campfire.js';
 
 export { terrainHeight };
@@ -49,29 +50,42 @@ export function buildWorld(scene, marketToday = false) {
   const campfire = createCampfire();
   placeAt(campfire.group, LAYOUT.campfire, 0.7);
 
-  // the Exchequer booth; the clerk breathes so he doesn't read as furniture
+  // the Exchequer booth; the clerk breathes, watches the path, and fidgets
+  // (alive.js drives it — update(dt, playerPos) from main.js)
   const exch = buildExchequer();
   placeAt(exch.group, LAYOUT.exchequer, 1.35);
-  let exchT = 0;
-  const exchequer = {
-    update(dt) {
-      exchT += dt;
-      exch.sway.rotation.x = Math.sin(exchT * 1.3) * 0.028;
-      exch.sway.rotation.z = Math.sin(exchT * 0.7) * 0.02;
-    },
-  };
+  const exchequer = makeAlive({
+    x: LAYOUT.exchequer.x,
+    z: LAYOUT.exchequer.z,
+    yaw: LAYOUT.exchequer.rotY,
+    forward: Math.PI / 2, // he faces the counter on local +x
+    sway: exch.sway,
+    head: exch.head,
+    gestures: [
+      // counting the cloth: the right hand pats out coins in little rows
+      { dur: 1.8, apply: (k) => { exch.armR.rotation.z = -1.15 + Math.sin(k * Math.PI * 4) * 0.12 * Math.sin(k * Math.PI); } },
+      // reaching across to square the ledger
+      { dur: 1.5, apply: (k) => { exch.armL.rotation.z = -1.15 + Math.sin(k * Math.PI) * 0.4; } },
+    ],
+  });
 
   // the miller minds his granary — the rat bounty finally has a face
   const mill = buildMiller();
   placeAt(mill.group, LAYOUT.miller, 0.4);
-  let millerT = 0;
-  const miller = {
-    update(dt) {
-      millerT += dt;
-      mill.sway.rotation.x = Math.sin(millerT * 1.2) * 0.025;
-      mill.sway.rotation.z = Math.sin(millerT * 0.65) * 0.022;
-    },
-  };
+  const miller = makeAlive({
+    x: LAYOUT.miller.x,
+    z: LAYOUT.miller.z,
+    yaw: LAYOUT.miller.rotY,
+    forward: Math.PI / 2, // he faces local +x
+    sway: mill.sway,
+    head: mill.head,
+    gestures: [
+      // wiping the flour from his brow
+      { dur: 1.6, apply: (k) => { mill.armR.rotation.z = -0.35 - Math.sin(k * Math.PI) * 0.85; } },
+      // unfolding an arm to rest on his hip
+      { dur: 1.9, apply: (k) => { mill.armL.rotation.x = -1.25 + Math.sin(k * Math.PI) * 0.75; } },
+    ],
+  });
 
   // the chapman's cart parks by the path on market days only — no cart, no
   // collider, no prompt on other days (his wheel ruts stay painted year-round)
@@ -82,14 +96,29 @@ export function buildWorld(scene, marketToday = false) {
     const th = LAYOUT.cart.rotY;
     // the mule stands ahead of the bed; his own collision circle
     colliders.push({ x: LAYOUT.cart.x + 1.9 * Math.cos(th), z: LAYOUT.cart.z - 1.9 * Math.sin(th), r: 0.9 });
-    let cartT = 0;
+    // the chapman's own world position (he stands off the cart's centre)
+    const chapman = makeAlive({
+      x: LAYOUT.cart.x + -0.3 * Math.cos(th) + -1.05 * Math.sin(th),
+      z: LAYOUT.cart.z - -0.3 * Math.sin(th) + -1.05 * Math.cos(th),
+      yaw: th,
+      forward: Math.PI, // he faces the path on local -z
+      sway: c.sway,
+      head: c.head,
+      gestures: [
+        // nudging a ware straight on the cart bed
+        { dur: 1.5, apply: (k) => { c.armCart.rotation.z = -1.0 + Math.sin(k * Math.PI) * 0.45; } },
+        // resettling his weight on the staff
+        { dur: 1.7, apply: (k) => { c.armStaff.rotation.z = 0.5 + Math.sin(k * Math.PI) * 0.35; } },
+      ],
+    });
+    let cartT = (LAYOUT.cart.x * 5.1) % Math.PI;
     cart = {
-      update(dt) {
+      chapman,
+      update(dt, playerPos) {
         cartT += dt;
-        c.sway.rotation.x = Math.sin(cartT * 1.1) * 0.03;
-        c.sway.rotation.z = Math.sin(cartT * 0.6) * 0.02;
         c.muleHead.rotation.z = -0.1 + Math.sin(cartT * 0.5) * 0.09; // dozy nod
         c.muleTail.rotation.x = Math.sin(cartT * 2.1) * 0.3; // fly-swatting
+        chapman.update(dt, playerPos);
       },
     };
   }

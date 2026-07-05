@@ -868,6 +868,80 @@ try {
     if (!panel.conqueredHeader) errors.push('reckoning: conquered summit not shown');
     await page.screenshot({ path: 'scripts/smoke-reckoning.png' });
     await page.keyboard.press('Escape');
+  } else if (scenario === 'alive') {
+    // the villagers breathe, watch, nod, and fidget — force a market day so
+    // the chapman is present too
+    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1`, { waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // 1) breathing is visible: the clerk's sway lean actually moves
+    const sways = [];
+    for (let i = 0; i < 3; i++) {
+      sways.push(await page.evaluate(() => window.__game.exchequer.swayX()));
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    const spread = Math.max(...sways) - Math.min(...sways);
+    console.log('sway samples:', JSON.stringify(sways.map((v) => v.toFixed(3))));
+    if (spread < 0.008) errors.push(`alive: clerk barely breathes (spread ${spread.toFixed(4)})`);
+
+    // helper: teleport near a villager and poll until he notices
+    const approach = async (x, z, who) => {
+      await page.evaluate(({ x, z }) => {
+        window.__game.player.pos.x = x;
+        window.__game.player.pos.z = z;
+      }, { x, z });
+      for (let i = 0; i < 30; i++) {
+        const greeted = await page.evaluate((w) => {
+          const g = window.__game;
+          const npc = w === 'chapman' ? g.cart?.chapman : g[w];
+          return npc ? npc.greetedYet() : null;
+        }, who);
+        if (greeted) return true;
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      return false;
+    };
+
+    // 2) the clerk notices you: head turns, greet fires once, a word appears.
+    // Stand off to his side — at the counter you are dead ahead and the
+    // correct turn is nearly zero.
+    if (!(await approach(5.5, 5.0, 'exchequer'))) errors.push('alive: clerk never greeted');
+    await new Promise((r) => setTimeout(r, 900)); // let the head-turn ease in
+    const clerk = await page.evaluate(() => ({
+      headYaw: window.__game.exchequer.headYaw(),
+      toast: document.getElementById('toasts').textContent,
+    }));
+    console.log('clerk:', JSON.stringify({ headYaw: clerk.headYaw.toFixed(3), toast: clerk.toast }));
+    if (Math.abs(clerk.headYaw) < 0.25) errors.push(`alive: clerk head never turned (${clerk.headYaw.toFixed(3)})`);
+    if (!clerk.toast.includes('clerk')) errors.push(`alive: no clerk greeting toast ("${clerk.toast}")`);
+    // hold the pose for the screenshot — camera off to the side so the
+    // player doesn't hide the clerk
+    await page.evaluate(() => window.__game.orbitCam.setView(-1.35, 0.22, 3.6));
+    await new Promise((r) => setTimeout(r, 1200));
+    await page.screenshot({ path: 'scripts/smoke-alive.png' });
+
+    // 3) the miller and the chapman notice you too
+    if (!(await approach(7.6, 8.6, 'miller'))) errors.push('alive: miller never greeted');
+    if (!(await approach(2.2, 7.6, 'chapman'))) errors.push('alive: chapman never greeted');
+
+    // 4) walk away: the clerk's head drifts back to his work
+    await page.evaluate(() => {
+      window.__game.player.pos.x = -5;
+      window.__game.player.pos.z = 4;
+    });
+    await new Promise((r) => setTimeout(r, 3000));
+    const rested = await page.evaluate(() => window.__game.exchequer.headYaw());
+    console.log('head at rest:', rested.toFixed(3));
+    if (Math.abs(rested) > 0.1) errors.push(`alive: clerk head stuck turned (${rested.toFixed(3)})`);
+
+    // 5) fidgets happen on their own
+    let fidgets = 0;
+    for (let i = 0; i < 40 && fidgets < 1; i++) {
+      fidgets = await page.evaluate(() => window.__game.exchequer.gesturesPlayed());
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    console.log('clerk fidgets:', fidgets);
+    if (fidgets < 1) errors.push('alive: the clerk never fidgeted');
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
     await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });

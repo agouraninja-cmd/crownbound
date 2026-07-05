@@ -21,7 +21,7 @@ const cyl = (rt, rb, h, seg = 7) => new THREE.CylinderGeometry(rt, rb, h, seg);
 // mule in the shafts, the chapman himself on the path side. Only parked in
 // the world on market days (world.js decides). Local +x is where the mule
 // points; the chapman stands on the local -z side.
-// Returns { group, sway, muleHead, muleTail } — the animated parts.
+// Returns { group, sway, head, armStaff, armCart, muleHead, muleTail } — the animated parts.
 export function buildCart() {
   const g = new THREE.Group();
 
@@ -78,7 +78,8 @@ export function buildCart() {
   g.add(muleTail);
 
   // the chapman on the path side — hood up, staff leaned on the sideboard.
-  // Mute for now; v2 gives him words. Robe stands still, the rest breathes.
+  // Mute for now; v2 gives him words. Robe stands still, the rest breathes;
+  // the head is its own pivot (nose + hood lip make the turn readable).
   const cx = -0.3;
   const cz = -1.05;
   g.add(mesh(cyl(0.17, 0.24, 0.95, 7), TUNIC, { x: cx, y: 0.32, z: cz }));
@@ -86,12 +87,18 @@ export function buildCart() {
   const sway = new THREE.Group();
   sway.position.set(cx, 0.78, cz);
   sway.add(mesh(cyl(0.15, 0.175, 0.34, 7), TUNIC, { y: 0.12 }));
-  sway.add(mesh(new THREE.SphereGeometry(0.13, 7, 6), SKIN, { y: 0.42 }));
-  sway.add(mesh(new THREE.ConeGeometry(0.17, 0.3, 7), HOOD, { y: 0.52 })); // road hood
-  sway.add(mesh(box(0.06, 0.36, 0.06), TUNIC, { x: -0.05, y: 0.1, z: -0.16, rz: 0.5 }));
-  sway.add(mesh(box(0.06, 0.36, 0.06), TUNIC, { x: 0.05, y: 0.1, z: 0.14, rz: -1.0 })); // arm on the cart
+  const head = new THREE.Group();
+  head.position.set(0, 0.42, 0);
+  head.add(mesh(new THREE.SphereGeometry(0.13, 7, 6), SKIN, {}));
+  head.add(mesh(new THREE.ConeGeometry(0.17, 0.3, 7), HOOD, { y: 0.1 })); // road hood
+  head.add(mesh(box(0.12, 0.05, 0.04), HOOD, { y: 0.04, z: -0.15, shadow: false })); // hood lip, toward the path
+  head.add(mesh(box(0.05, 0.04, 0.05), SKIN, { y: -0.01, z: -0.125, shadow: false })); // nose
+  sway.add(head);
+  const armStaff = mesh(box(0.06, 0.36, 0.06), TUNIC, { x: -0.05, y: 0.1, z: -0.16, rz: 0.5 });
+  const armCart = mesh(box(0.06, 0.36, 0.06), TUNIC, { x: 0.05, y: 0.1, z: 0.14, rz: -1.0 }); // arm on the cart
+  sway.add(armStaff, armCart);
   g.add(sway);
   g.add(mesh(box(0.05, 1.5, 0.05), WOOD_DARK, { x: cx - 0.45, y: 0.72, z: cz + 0.1, rz: 0.18 })); // staff
 
-  return { group: g, sway, muleHead, muleTail };
+  return { group: g, sway, head, armStaff, armCart, muleHead, muleTail };
 }

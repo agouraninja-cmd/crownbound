@@ -225,6 +225,17 @@ function promptText() {
   return `Press <b>E</b> — ${label}`;
 }
 
+// the villagers mark your coming — once per visit, a nod and a quiet word
+world.exchequer.onGreet = () =>
+  toast(
+    reckoningDue()
+      ? 'The clerk looks up. The month’s reckoning is owed.'
+      : 'The clerk inclines his head.',
+    ''
+  );
+world.miller.onGreet = () => toast('The miller raises a floury hand.', '');
+if (world.cart) world.cart.chapman.onGreet = () => toast('The chapman looks up from his wares.', '');
+
 // the miller has no panel — just a word on the day's tally for the rat-catcher
 function millerGreeting() {
   const n = getState().counters.ratsKilled;
@@ -256,7 +267,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, exchequer: world.exchequer, miller: world.miller, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -287,9 +298,9 @@ function tick() {
 
   world.campfire.update(dt);
   world.door.update(dt);
-  world.exchequer.update(dt);
-  world.miller.update(dt);
-  world.cart?.update(dt);
+  world.exchequer.update(dt, player.pos);
+  world.miller.update(dt, player.pos);
+  world.cart?.update(dt, player.pos);
   orbitCam.update(dt, player.pos);
 
   renderer.render(scene, camera);
