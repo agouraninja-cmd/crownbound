@@ -13,15 +13,87 @@ function wrapAngle(a) {
 
 const HEAD_TURN_MAX = 0.7; // ~40° — interested, never owl-necked
 
-// x, z      the villager's world position
+// A slow scripted amble between fixed waypoints — no pathfinding, so the
+// waypoints must be pre-cleared of colliders. He stops while the player is
+// near (company on the rounds) and, while idling, settles into each
+// waypoint's own working stance.
+//
+// group     the villager's whole THREE.Group (moved and turned bodily)
+// forward   the figure's facing inside its group (atan2(x,z) convention)
+// terrainY  terrainHeight fn — his feet follow the ground
+// waypoints [{ x, z, face }] — face = world bodyYaw to settle into while idle
+// onMove    called with (x, z) each frame so collider/prompt can follow him
+export function makeStroll({ group, forward, terrainY, waypoints, speed = 0.55, notice = 4, onMove }) {
+  let wi = 0;
+  const pos = { x: waypoints[0].x, z: waypoints[0].z };
+  let bodyYaw = waypoints[0].face;
+  let idle = true;
+  let wait = 4 + Math.random() * 6;
+  let walkT = 0;
+  let waddle = 0; // eases in while the feet move, out while they don't
+
+  function easeYaw(target, dt, rate) {
+    bodyYaw += wrapAngle(target - bodyYaw) * (1 - Math.exp(-dt * rate));
+  }
+
+  return {
+    pose: () => ({ x: pos.x, z: pos.z, bodyYaw }),
+    idle: () => idle,
+    update(dt, p) {
+      const playerNear = p && Math.hypot(p.x - pos.x, p.z - pos.z) < notice;
+      let stepping = false;
+      if (idle) {
+        easeYaw(waypoints[wi].face, dt, 3);
+        if (!playerNear) {
+          wait -= dt;
+          if (wait <= 0) {
+            wi = (wi + 1) % waypoints.length;
+            idle = false;
+          }
+        }
+      } else {
+        const w = waypoints[wi];
+        const dx = w.x - pos.x;
+        const dz = w.z - pos.z;
+        const d = Math.hypot(dx, dz);
+        easeYaw(Math.atan2(dx, dz), dt, 4);
+        if (d < 0.08) {
+          idle = true;
+          wait = 6 + Math.random() * 8;
+        } else if (!playerNear) {
+          const step = Math.min(d, speed * dt);
+          pos.x += (dx / d) * step;
+          pos.z += (dz / d) * step;
+          walkT += dt;
+          stepping = true;
+        }
+      }
+      // plant him: feet on the terrain, body turned to the walk, and a
+      // small waddle-and-bob while the feet are (notionally) moving
+      waddle += ((stepping ? 1 : 0) - waddle) * (1 - Math.exp(-dt * 6));
+      group.position.set(
+        pos.x,
+        terrainY(pos.x, pos.z) + Math.abs(Math.sin(walkT * 5.5)) * 0.03 * waddle,
+        pos.z
+      );
+      group.rotation.y = bodyYaw - forward;
+      group.rotation.z = Math.sin(walkT * 5.5) * 0.045 * waddle;
+      onMove?.(pos.x, pos.z);
+    },
+  };
+}
+
+// x, z      the villager's world position (his seed and his home if strolling)
 // yaw       the parent group's world rotation.y
 // forward   the figure's facing inside that group (atan2(x,z) convention)
 // sway      chest/head/arms group — breathes
 // head      head group inside sway — turns and nods (needs a nose to read!)
 // gestures  [{ dur, apply(k) }] with apply(0) = rest pose; picked at random
 // notice    how near the player must be to be watched and greeted
-export function makeAlive({ x, z, yaw, forward, sway, head, gestures = [], notice = 4 }) {
-  const bodyYaw = yaw + forward;
+// stroll    optional makeStroll controller — drives his position and body yaw
+export function makeAlive({ x, z, yaw, forward, sway, head, gestures = [], notice = 4, stroll = null }) {
+  const staticPose = { x, z, bodyYaw: yaw + forward };
+  const pose = () => (stroll ? stroll.pose() : staticPose);
   // the nod tips the head along its facing, whatever way the figure points
   const nodX = Math.cos(forward);
   const nodZ = -Math.sin(forward);
@@ -42,6 +114,8 @@ export function makeAlive({ x, z, yaw, forward, sway, head, gestures = [], notic
 
     update(dt, p) {
       t += dt;
+      stroll?.update(dt, p);
+      const at = pose();
 
       // breathing: lean, sideways drift, and a small rise-and-fall — layered
       // frequencies so it reads as a body, not a metronome
@@ -50,10 +124,10 @@ export function makeAlive({ x, z, yaw, forward, sway, head, gestures = [], notic
       sway.position.y = baseSwayY + Math.sin(t * tempo) * 0.012;
 
       // the head: watch the player when near, drift back to the work when not
-      const dist = p ? Math.hypot(p.x - x, p.z - z) : Infinity;
+      const dist = p ? Math.hypot(p.x - at.x, p.z - at.z) : Infinity;
       let target = 0;
       if (dist < notice) {
-        target = wrapAngle(Math.atan2(p.x - x, p.z - z) - bodyYaw);
+        target = wrapAngle(Math.atan2(p.x - at.x, p.z - at.z) - at.bodyYaw);
         target = Math.max(-HEAD_TURN_MAX, Math.min(HEAD_TURN_MAX, target));
         if (!greeted) {
           greeted = true;
@@ -85,7 +159,8 @@ export function makeAlive({ x, z, yaw, forward, sway, head, gestures = [], notic
           gest = null;
           nextGest = 6 + Math.random() * 8;
         }
-      } else if (gestures.length) {
+      } else if (gestures.length && (!stroll || stroll.idle())) {
+        // no fidgeting mid-stride — hands are for walking
         nextGest -= dt;
         if (nextGest <= 0) {
           gest = { g: gestures[Math.floor(Math.random() * gestures.length)], t: 0 };
@@ -95,6 +170,7 @@ export function makeAlive({ x, z, yaw, forward, sway, head, gestures = [], notic
     },
 
     // windows for the smoke suite
+    at: () => ({ x: pose().x, z: pose().z }),
     headYaw: () => head.rotation.y,
     greetedYet: () => greeted,
     gesturesPlayed: () => played,

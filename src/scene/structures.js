@@ -462,8 +462,9 @@ export function buildGranary() {
 // The miller: the man who has been paying the rat bounty since M6 finally
 // gets to stand in his own yard. Flour-dusted, arms folded, watching the
 // grain. Mute until v2; E gets you a word about the day's tally (main.js).
-// Faces local +x; world.js turns him toward the village.
-// Returns { group, sway, head, armR, armL } — the parts alive.js animates.
+// Faces local +x; world.js turns him toward the village and walks him on
+// his rounds (alive.js makeStroll). Returns { group, props, sway, head,
+// armR, armL } — props (sack + fork) stay planted at his home spot.
 export function buildMiller() {
   const g = new THREE.Group();
   const DUSTED = 0xbfb5a2; // wool gone grey-white with flour
@@ -494,16 +495,18 @@ export function buildMiller() {
   sway.add(armR, armL);
   g.add(sway);
 
-  // a full flour sack at his feet and a hay-fork planted at his side
+  // a full flour sack and a hay-fork planted at his home spot — in their own
+  // group so they stay put while he walks his rounds
+  const props = new THREE.Group();
   const sack = mesh(new THREE.SphereGeometry(0.24, 7, 5), 0xd5c9a8, { x: 0.38, y: 0.2, z: -0.38 });
   sack.scale.set(1, 1.1, 1);
-  g.add(sack);
-  g.add(mesh(box(0.04, 1.55, 0.04), WOOD_DARK, { x: -0.28, y: 0.74, z: 0.32, rz: 0.12 }));
+  props.add(sack);
+  props.add(mesh(box(0.04, 1.55, 0.04), WOOD_DARK, { x: -0.28, y: 0.74, z: 0.32, rz: 0.12 }));
   for (const tine of [-0.06, 0, 0.06]) {
-    g.add(mesh(box(0.025, 0.22, 0.025), WOOD_DARK, { x: -0.46 + tine * 0.3, y: 1.55, z: 0.32 + tine, rz: 0.12 }));
+    props.add(mesh(box(0.025, 0.22, 0.025), WOOD_DARK, { x: -0.46 + tine * 0.3, y: 1.55, z: 0.32 + tine, rz: 0.12 }));
   }
 
-  return { group: g, sway, head, armR, armL };
+  return { group: g, props, sway, head, armR, armL };
 }
 
 // Returns { group, pivot } — pivot is the part that wobbles when struck.

@@ -5,7 +5,7 @@ import { buildSky, addLighting } from './sky.js';
 import { buildScatter } from './scatter.js';
 import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, buildMiller, HOVEL } from './structures.js';
 import { buildCart } from './cart.js';
-import { makeAlive } from './alive.js';
+import { makeAlive, makeStroll } from './alive.js';
 import { createCampfire } from './campfire.js';
 
 export { terrainHeight };
@@ -69,14 +69,39 @@ export function buildWorld(scene, marketToday = false) {
     ],
   });
 
-  // the miller minds his granary — the rat bounty finally has a face
+  // the miller minds his granary — the rat bounty finally has a face, and
+  // rounds to walk: post → west corner → south corner, pausing to work at
+  // each. His collider and his E-prompt follow him (see millerSpot below);
+  // the sack and fork stay planted at his post.
   const mill = buildMiller();
-  placeAt(mill.group, LAYOUT.miller, 0.4);
+  placeAt(mill.group, LAYOUT.miller); // the stroll drives position from here on
+  placeAt(mill.props, LAYOUT.miller);
+  const millerCollider = { x: LAYOUT.miller.x, z: LAYOUT.miller.z, r: 0.4 };
+  colliders.push(millerCollider);
+  const millerSpot = { id: 'miller', label: 'the miller', x: LAYOUT.miller.x, z: LAYOUT.miller.z, radius: 2.0 };
+  const rounds = makeStroll({
+    group: mill.group,
+    forward: Math.PI / 2, // he faces local +x
+    terrainY: terrainHeight,
+    // all three points sit in the yard's dirt, clear of the granary's circle
+    waypoints: [
+      { x: LAYOUT.miller.x, z: LAYOUT.miller.z, face: LAYOUT.miller.rotY + Math.PI / 2 }, // his post, eyeing the village
+      { x: 8.0, z: 11.0, face: Math.PI / 2 }, // west corner, facing his grain
+      { x: 10.2, z: 8.4, face: 0.3 }, // south corner, likewise
+    ],
+    onMove: (x, z) => {
+      millerCollider.x = x;
+      millerCollider.z = z;
+      millerSpot.x = x;
+      millerSpot.z = z;
+    },
+  });
   const miller = makeAlive({
     x: LAYOUT.miller.x,
     z: LAYOUT.miller.z,
     yaw: LAYOUT.miller.rotY,
-    forward: Math.PI / 2, // he faces local +x
+    forward: Math.PI / 2,
+    stroll: rounds,
     sway: mill.sway,
     head: mill.head,
     gestures: [

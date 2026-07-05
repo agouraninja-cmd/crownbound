@@ -463,11 +463,13 @@ try {
     if (afterRats.aliveRats !== 3 - afterRats.killed)
       errors.push(`combat: alive ${afterRats.aliveRats} + killed ${afterRats.killed} != 3`);
 
-    // 3) the miller acknowledges the day's tally (wording varies with kills)
+    // 3) the miller acknowledges the day's tally (wording varies with kills).
+    // He walks his rounds now, so stand next to wherever he actually is.
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = 8.2;
-      g.player.pos.z = 8.6;
+      const at = g.miller.at();
+      g.player.pos.x = at.x - 0.8;
+      g.player.pos.z = at.z - 0.6;
     });
     await new Promise((r) => setTimeout(r, 400));
     const millerPrompt = await page.evaluate(
@@ -486,7 +488,28 @@ try {
     await new Promise((r) => setTimeout(r, 600));
     await page.screenshot({ path: 'scripts/smoke-miller.png' });
 
-    // 4) death: take a mortal blow, wake at the hovel with full hp
+    // 4) overlapping hit-flashes must not stick — two bites inside the 90ms
+    // window once turned the player permanently red (the second flash saved
+    // the red material as the "original")
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -5; // out of the rats' leash so nothing re-flashes
+      g.player.pos.z = 4;
+      g.player.takeDamage(1, -4, 4);
+      setTimeout(() => g.player.takeDamage(1, -6, 4), 40);
+    });
+    await new Promise((r) => setTimeout(r, 600));
+    const redBits = await page.evaluate(() => {
+      let red = 0;
+      window.__game.player.mesh.group.traverse((o) => {
+        if (o.isMesh && o.material.color && o.material.color.getHex() === 0xff5039) red++;
+      });
+      return red;
+    });
+    console.log('red meshes after overlapping hits:', redBits);
+    if (redBits > 0) errors.push(`combat: player stuck red (${redBits} meshes) after overlapping hits`);
+
+    // 5) death: take a mortal blow, wake at the hovel with full hp
     await page.evaluate(() => window.__game.player.takeDamage(99, 11, 11));
     await new Promise((r) => setTimeout(r, 1800));
     const wake = await page.evaluate(() => ({
@@ -942,6 +965,35 @@ try {
     }
     console.log('clerk fidgets:', fidgets);
     if (fidgets < 1) errors.push('alive: the clerk never fidgeted');
+
+    // 6) left alone, the miller walks his rounds — and his E-prompt follows
+    const start = await page.evaluate(() => window.__game.miller.at());
+    let moved = 0;
+    for (let i = 0; i < 100 && moved < 0.8; i++) {
+      await new Promise((r) => setTimeout(r, 400));
+      moved = await page.evaluate(
+        (s) => {
+          const at = window.__game.miller.at();
+          return Math.hypot(at.x - s.x, at.z - s.z);
+        },
+        start
+      );
+    }
+    console.log('miller moved:', moved.toFixed(2));
+    if (moved < 0.8) errors.push('alive: the miller never walked his rounds');
+    await page.evaluate(() => {
+      const g = window.__game;
+      const at = g.miller.at();
+      g.player.pos.x = at.x - 0.8;
+      g.player.pos.z = at.z - 0.6;
+    });
+    await new Promise((r) => setTimeout(r, 500));
+    const followPrompt = await page.evaluate(
+      () => document.getElementById('interact-prompt').textContent
+    );
+    console.log('follow prompt:', JSON.stringify(followPrompt));
+    if (!followPrompt.includes('miller'))
+      errors.push(`alive: prompt "${followPrompt}" did not follow the walking miller`);
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
     await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });

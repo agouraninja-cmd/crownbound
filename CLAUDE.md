@@ -30,7 +30,7 @@ src/scene/sky.js      gradient sky dome + fog + lighting
 src/scene/scatter.js  merged pine trees + rocks
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
-src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod
+src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
 src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight
 src/player/playerMesh.js  procedural peasant figure + pose animation
@@ -170,11 +170,15 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   outgrows one cart-load — all nine items show every market day. Market-day status is fixed per
   load, like rollover. On non-market days the cart, its colliders, and its prompt don't exist;
   only the wheel-rut dirt patch remains.
-- The miller stands in his granary yard at (9.0, 9.3) — the rat bounty's flavor text made flesh.
-  Third mute villager (breathing sway via world.miller.update), v2 NPC candidate alongside the
-  clerk and chapman. E opens no panel: it toasts a one-line tally of today's ratsKilled
-  (`millerGreeting()` in main.js). He stands just outside the granary's collision circle so the
-  player can reach him.
+- The miller lives in his granary yard, home post (9.0, 9.3) — the rat bounty's flavor text made
+  flesh. Third mute villager, v2 NPC candidate alongside the clerk and chapman. E opens no panel:
+  it toasts a one-line tally of today's ratsKilled (`millerGreeting()` in main.js).
+- The miller walks his rounds (makeStroll in alive.js): post → yard's west corner → south corner,
+  fixed waypoints pre-cleared of colliders (scatter is seeded RNG, so cleared once = cleared
+  forever), pausing 6–14s to work at each. He stops walking while the player is within notice
+  range (company on the rounds), his collision circle and E-prompt follow him (mutated live via
+  onMove), and his sack + fork stay planted at the post (separate `props` group). Smoke tests
+  that need him must stand relative to `miller.at()`, not his layout spot.
 - The Breath of Life (2026-07-04): all three villagers run on `makeAlive()` (src/scene/alive.js) —
   layered breathing (amplitude ~3× the old sway, phase/tempo seeded from position so the village
   never breathes in unison), a head that turns to watch the player within 4 units (clamped ±0.7 rad,
@@ -249,6 +253,9 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "The Breath of Life" (2026-07-04): the three villagers stop being statues —
   visible layered breathing, head-tracking of the player, idle arm fidgets, and a first-approach
   nod + greeting toast (clerk's line is reckoning-aware). No save change.
+- [x] Post-v1 — "The Miller's Rounds" (2026-07-04): the first villager who walks — a slow
+  three-point amble around the granary yard with a waddle-and-bob gait, pausing to work at each
+  corner and stopping when the player comes near; prompt and collider follow him. No save change.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -269,7 +276,8 @@ headlessly; everything else covered by the regression suite below.
   `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat) + conquest & next
   summit + double-file guard + unreckoned backfill (panel screenshot → scripts/smoke-reckoning.png) ·
   `alive` villager breathing spread + head-track/greet for all three (off-axis stand, or the
-  turn is ~0) + head returns at distance + fidget fires (screenshot → scripts/smoke-alive.png) ·
+  turn is ~0) + head returns at distance + fidget fires + miller walks his rounds & his prompt
+  follows (screenshot → scripts/smoke-alive.png) ·
   `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
