@@ -32,9 +32,23 @@ export function mesh(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, 
 }
 
 const FLASH_MAT = new THREE.MeshBasicMaterial({ color: 0xff5039 });
+const flashing = new WeakMap(); // group -> { timeout, restore }
 
-// hit feedback: briefly swap every material in the group for hot red
+// Hit feedback: briefly swap every material in the group for hot red.
+// Re-entrant: a hit landing while a flash is live only extends the timer —
+// capturing materials mid-flash would save the red as the "original" and
+// restore it forever (two rats biting within 90ms turned the player
+// permanently red).
 export function flash(group, ms = 90) {
+  const live = flashing.get(group);
+  if (live) {
+    clearTimeout(live.timeout);
+    live.timeout = setTimeout(() => {
+      for (const [o, m] of live.restore) o.material = m;
+      flashing.delete(group);
+    }, ms);
+    return;
+  }
   const restore = [];
   group.traverse((o) => {
     if (o.isMesh) {
@@ -42,9 +56,11 @@ export function flash(group, ms = 90) {
       o.material = FLASH_MAT;
     }
   });
-  setTimeout(() => {
+  const timeout = setTimeout(() => {
     for (const [o, m] of restore) o.material = m;
+    flashing.delete(group);
   }, ms);
+  flashing.set(group, { timeout, restore });
 }
 
 // paint a solid vertex color onto a geometry (for merged static scenery)
