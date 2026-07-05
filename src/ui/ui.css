@@ -278,7 +278,7 @@ body {
   opacity: 0.85;
 }
 
-input[type='text'], input[type='number'], textarea {
+input[type='text'], input[type='number'], input[type='password'], textarea {
   font-family: inherit;
   font-size: 16px;
   color: var(--ink);

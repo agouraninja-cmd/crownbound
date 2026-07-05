@@ -10,6 +10,7 @@
     "smoke": "vite build && node scripts/smoke.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "three": "^0.169.0"
   },
   "devDependencies": {

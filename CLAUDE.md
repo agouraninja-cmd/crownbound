@@ -10,6 +10,8 @@ happens the moment the character reaches King** (70 total virtue levels).
 
 ## Tech
 - Vite + vanilla JS + Three.js (^0.169). No frameworks. ES modules.
+- @anthropic-ai/sdk (browser-direct, `dangerouslyAllowBrowser`) — the Sage only, so far;
+  v2's villagers will reuse this plumbing. Model + tuning in CONFIG.sage.
 - All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
 - Persistence: localStorage key `crownbound_save`, `saveVersion: 7`, migration hook in `state.js`
@@ -38,6 +40,7 @@ src/player/player.js  movement/sprint/jump/crouch/dodge/attack state machine, HP
 src/player/camera.js  pointer-lock third-person orbit camera
 src/combat/dummy.js   training dummy wobble + diminishing STR XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
+src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
@@ -179,6 +182,15 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   range (company on the rounds), his collision circle and E-prompt follow him (mutated live via
   onMove), and his sack + fork stay planted at the post (separate `props` group). Smoke tests
   that need him must stand relative to `miller.at()`, not his layout spot.
+- The Sage (2026-07-04): AI names the virtue of a completed deed, replacing the manual
+  four-button pick when appointed. His verdict is FINAL (auto-completes the quest with a toast);
+  the manual picker is every failure's fallback — no key, network trouble, a timeout
+  (CONFIG.sage.timeoutMs), refusal, or an off-list answer all resolve to the picker, so the game
+  never blocks on the network. A "Choose thyself" button cancels a pending judgment (stale verdicts are orphaned
+  by a sequence guard, incl. on panel close). The key is granted/dismissed in the Tome, stored in
+  its own localStorage slot OUTSIDE the save — a Scribe export can never leak it. First Anthropic
+  API integration (v2 groundwork pulled forward); browser-direct SDK, no server. The sage smoke
+  scenario stubs window.fetch with canned Claude responses — wiring tested without tokens.
 - The Breath of Life (2026-07-04): all three villagers run on `makeAlive()` (src/scene/alive.js) —
   layered breathing (amplitude ~3× the old sway, phase/tempo seeded from position so the village
   never breathes in unison), a head that turns to watch the player within 4 units (clamped ±0.7 rad,
@@ -202,6 +214,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
   The Chronicler writes weekly journal entries in medieval prose from the history log.
+  (The API plumbing — SDK, key management, fallback pattern — arrived early with the Sage, 2026-07-04.)
 - **v3 — Coin & Commerce**: festival mini-games, rotating cart stock, more gear tiers and home
   upgrades. (The chapman's cart itself arrived early, 2026-07-03 — coins already have their sink.)
 - **v4 — Bonds & Bloodline**: relationships, courtship, marriage, family — gated by sustained streaks.
@@ -256,6 +269,10 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "The Miller's Rounds" (2026-07-04): the first villager who walks — a slow
   three-point amble around the granary yard with a waddle-and-bob gait, pausing to work at each
   corner and stopping when the player comes near; prompt and collider follow him. No save change.
+- [x] Post-v1 — "The Sage" (2026-07-04): AI names the virtue of each completed deed (Anthropic
+  API, browser-direct; key appointed in the Tome, kept outside the save). Verdict is final;
+  the manual picker is every failure's fallback. First API integration — v2 groundwork.
+  No save change.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -278,6 +295,8 @@ headlessly; everything else covered by the regression suite below.
   `alive` villager breathing spread + head-track/greet for all three (off-axis stand, or the
   turn is ~0) + head returns at distance + fidget fires + miller walks his rounds & his prompt
   follows (screenshot → scripts/smoke-alive.png) ·
+  `sage` fetch-stubbed verdict auto-completes the daily + nonsense verdict falls back to the
+  picker + Tome dismissal clears the key & restores manual (screenshot → scripts/smoke-sage.png) ·
   `aerial`/`front` screenshots.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

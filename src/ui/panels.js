@@ -24,6 +24,7 @@ import {
 import { CONFIG } from '../state/config.js';
 import { todayStr } from '../state/dates.js';
 import { renderGuide } from './guide.js';
+import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
@@ -32,6 +33,8 @@ let open = null;
 let onOpenChange = () => {};
 let shopActions = { isWounded: () => false, onPurchase: () => {} }; // wired by main.js
 let statPickFor = null; // 'daily' | 'weekly' | 'monthly'
+let judgingFor = null; // quest kind awaiting the sage's verdict
+let judgeSeq = 0; // bumped to orphan any in-flight verdict (cancel, close, dismiss)
 let editingEpic = false;
 let pendingImport = null; // { name, text } awaiting the player's confirmation
 
@@ -71,6 +74,15 @@ function questSlot({ kind, q, sub, placeholder }) {
             placeholder="Write it in your own words..." />
           <button class="primary" data-post>Post</button>
         </div>
+      </div>`;
+  }
+  if (!q.completed && judgingFor === kind) {
+    return `
+      <div class="quest-block" data-kind="${kind}">
+        <h2>${QUEST_TITLES[kind]} <span class="sub">${sub}</span></h2>
+        <div class="quest-text">“${esc(q.text)}”</div>
+        <p class="muted">The sage reads thy deed…</p>
+        <div class="row right"><button data-sage-cancel>Choose thyself</button></div>
       </div>`;
   }
   if (!q.completed && statPickFor === kind) {
@@ -181,6 +193,34 @@ function bindBoard() {
       });
     }
     block.querySelector('[data-complete]')?.addEventListener('click', () => {
+      if (!sageEnabled()) {
+        statPickFor = kind;
+        renderBoard();
+        return;
+      }
+      // the sage's verdict is final; the picker is every failure's fallback
+      judgingFor = kind;
+      const seq = ++judgeSeq;
+      renderBoard();
+      judgeDeed(getState().quests[kind].text).then((stat) => {
+        if (seq !== judgeSeq || judgingFor !== kind) return; // cancelled, closed, or superseded
+        judgingFor = null;
+        if (stat) {
+          const res = COMPLETE_FNS[kind](stat);
+          if (res) {
+            toast(`The sage judges this deed ${STAT_NAMES[stat]}.`, '');
+            rewardToast(STAT_NAMES[stat], res);
+          }
+        } else {
+          toast('The sage is silent. Choose thyself.', 'grim');
+          statPickFor = kind;
+        }
+        renderBoard();
+      });
+    });
+    block.querySelector('[data-sage-cancel]')?.addEventListener('click', () => {
+      judgeSeq += 1; // orphan the in-flight verdict
+      judgingFor = null;
       statPickFor = kind;
       renderBoard();
     });
@@ -306,6 +346,21 @@ function renderTome() {
               <input type="file" accept=".json,application/json" data-import-file class="hidden" />
             </div>`
       }
+    </div>
+    <div class="sheet-section">
+      <h2>The Sage</h2>
+      ${
+        sageEnabled()
+          ? `<p class="muted">The sage is in thy service — he names the virtue of each completed
+              deed himself. The manual choice returns whenever he falters.</p>
+            <div class="row right"><button data-sage-clear>Dismiss the sage</button></div>`
+          : `<p class="muted">Grant the sage a key (console.anthropic.com) and he will name the
+              virtue of each completed deed. The key stays in this browser, outside thy save.</p>
+            <div class="row">
+              <input type="password" class="grow" data-sage-key placeholder="sk-ant-..." />
+              <button data-sage-set>Appoint</button>
+            </div>`
+      }
     </div>`;
 
   tomeBody.querySelector('[data-export]')?.addEventListener('click', () => {
@@ -344,6 +399,19 @@ function renderTome() {
   });
   tomeBody.querySelector('[data-import-cancel]')?.addEventListener('click', () => {
     pendingImport = null;
+    renderTome();
+  });
+
+  tomeBody.querySelector('[data-sage-set]')?.addEventListener('click', () => {
+    const k = tomeBody.querySelector('[data-sage-key]').value.trim();
+    if (!k) return;
+    setSageKey(k);
+    toast('The sage enters thy service.', 'gold');
+    renderTome();
+  });
+  tomeBody.querySelector('[data-sage-clear]')?.addEventListener('click', () => {
+    setSageKey(null);
+    toast('The sage departs the village.', '');
     renderTome();
   });
 
@@ -646,6 +714,8 @@ function close() {
   if (!open) return;
   open = null;
   statPickFor = null;
+  judgeSeq += 1; // a verdict landing after close is discarded, not applied unseen
+  judgingFor = null;
   editingEpic = false;
   pendingImport = null;
   overlay.classList.add('hidden');

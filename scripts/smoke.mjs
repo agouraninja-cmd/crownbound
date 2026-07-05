@@ -216,6 +216,39 @@ try {
     }, ledger);
   }
 
+  if (scenario === 'sage') {
+    // appoint the sage and stub the Anthropic API at the fetch layer: the
+    // verdict comes from the quest text, so the wiring is tested end-to-end
+    // without network or tokens ('tennis' → agi; 'garble' → nonsense)
+    await page.evaluateOnNewDocument(() => {
+      localStorage.setItem('crownbound_sage_key', 'sk-ant-smoke-test');
+      const realFetch = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url = typeof input === 'string' ? input : input.url;
+        if (!url.includes('api.anthropic.com')) return realFetch(input, init);
+        const bodyText = init?.body ?? (typeof input !== 'string' ? await input.clone().text() : '');
+        const req = JSON.parse(bodyText);
+        const deed = String(req.messages?.[0]?.content ?? '');
+        let verdict = 'wis';
+        if (deed.includes('tennis')) verdict = 'agi';
+        if (deed.includes('garble')) verdict = 'the moon knows no virtue';
+        return new Response(
+          JSON.stringify({
+            id: 'msg_smoke',
+            type: 'message',
+            role: 'assistant',
+            model: req.model,
+            content: [{ type: 'text', text: verdict }],
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      };
+    });
+  }
+
   await page.goto(`http://localhost:${PORT}/?smoke=${scenario}`, {
     waitUntil: 'networkidle2',
     timeout: 40000,
@@ -994,6 +1027,66 @@ try {
     console.log('follow prompt:', JSON.stringify(followPrompt));
     if (!followPrompt.includes('miller'))
       errors.push(`alive: prompt "${followPrompt}" did not follow the walking miller`);
+  } else if (scenario === 'sage') {
+    // 1) the sage judges the daily: no picker, the reward lands on his verdict
+    await page.evaluate(() => window.__game.openPanel('board'));
+    await page.type('[data-input]', 'Play tennis for an hour');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    let daily = null;
+    for (let i = 0; i < 20 && !daily?.done; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      daily = await page.evaluate(() => {
+        const st = window.__game.getState();
+        return {
+          done: st.quests.daily.completed,
+          agiXp: st.stats.agi.xp,
+          picker: !!document.querySelector('[data-pick]'),
+          toast: document.getElementById('toasts').textContent,
+        };
+      });
+    }
+    console.log('sage daily:', JSON.stringify(daily));
+    if (!daily.done) errors.push('sage: daily never completed');
+    if (daily.agiXp !== 25) errors.push(`sage: agi xp ${daily.agiXp} != 25 (verdict not honored)`);
+    if (daily.picker) errors.push('sage: picker shown despite a verdict');
+    if (!daily.toast.includes('sage')) errors.push(`sage: no verdict toast ("${daily.toast}")`);
+
+    // 2) an off-list answer falls back to the manual picker
+    await page.type('[data-input]', 'A deed of pure garble');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    let fallback = null;
+    for (let i = 0; i < 20 && !fallback?.picker; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      fallback = await page.evaluate(() => ({
+        picker: !!document.querySelector('[data-pick]'),
+        toast: document.getElementById('toasts').textContent,
+      }));
+    }
+    console.log('sage fallback:', JSON.stringify(fallback));
+    if (!fallback.picker) errors.push('sage: no picker after a nonsense verdict');
+    await page.click('[data-pick="str"]');
+    const weeklyDone = await page.evaluate(() => window.__game.getState().quests.weekly.completed);
+    if (!weeklyDone) errors.push('sage: manual fallback did not complete the weekly');
+    await page.screenshot({ path: 'scripts/smoke-sage.png' });
+
+    // 3) dismissed at the Tome, the key is gone and the picker returns at once
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 200));
+    await page.evaluate(() => window.__game.openPanel('tome'));
+    await page.click('[data-sage-clear]');
+    const keyGone = await page.evaluate(() => localStorage.getItem('crownbound_sage_key'));
+    if (keyGone !== null) errors.push('sage: key survived dismissal');
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 200));
+    await page.evaluate(() => window.__game.openPanel('board'));
+    await page.type('[data-input]', 'March a mile in the rain');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    await new Promise((r) => setTimeout(r, 300));
+    const manual = await page.evaluate(() => !!document.querySelector('[data-pick]'));
+    if (!manual) errors.push('sage: picker absent after dismissal');
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
     await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });
