@@ -22,6 +22,7 @@ import {
   importSave,
 } from '../state/state.js';
 import { CONFIG } from '../state/config.js';
+import { mouseFeelId, setMouseFeel } from '../state/prefs.js';
 import { todayStr } from '../state/dates.js';
 import { renderGuide } from './guide.js';
 import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
@@ -353,6 +354,18 @@ function renderTome() {
       }
     </div>
     <div class="sheet-section">
+      <h2>The Reins</h2>
+      <p class="muted">How sharply the camera answers thy mouse. Kept to this browser, outside thy save.</p>
+      <div class="stat-pick">
+        ${CONFIG.mouse.feels
+          .map(
+            (f) =>
+              `<button data-feel="${f.id}"${f.id === mouseFeelId() ? ' class="chosen"' : ''}>${f.name}</button>`
+          )
+          .join('')}
+      </div>
+    </div>
+    <div class="sheet-section">
       <h2>The Sage</h2>
       ${
         sageEnabled()
@@ -406,6 +419,15 @@ function renderTome() {
     pendingImport = null;
     renderTome();
   });
+
+  for (const btn of tomeBody.querySelectorAll('[data-feel]')) {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.feel === mouseFeelId()) return;
+      setMouseFeel(btn.dataset.feel);
+      toast(`The reins are set ${btn.textContent.toLowerCase()}.`, '');
+      renderTome();
+    });
+  }
 
   tomeBody.querySelector('[data-sage-set]')?.addEventListener('click', () => {
     const k = tomeBody.querySelector('[data-sage-key]').value.trim();

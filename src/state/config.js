@@ -74,6 +74,18 @@ export const CONFIG = {
     timeoutMs: 8000, // past this the manual picker takes over
   },
 
+  // Mouse feel: camera radians per counted mouse pixel. The chosen feel is a
+  // device preference picked in the Tome, kept OUTSIDE the save (prefs.js) —
+  // a chronicle carried to another machine shouldn't drag this mouse along.
+  mouse: {
+    defaultFeel: 'steady',
+    feels: [
+      { id: 'gentle', name: 'Gentle', sens: 0.0015 },
+      { id: 'steady', name: 'Steady', sens: 0.0024 },
+      { id: 'swift', name: 'Swift', sens: 0.0038 },
+    ],
+  },
+
   player: {
     maxHp: 20,
     regenPerSecond: 0.35, // out-of-combat trickle

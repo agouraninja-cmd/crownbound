@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { terrainHeight } from '../scene/terrain.js';
+import { mouseSens } from '../state/prefs.js';
 
 const PITCH_MIN = -0.08;
 const PITCH_MAX = 1.2;
@@ -37,8 +38,9 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
   document.addEventListener('mousemove', (e) => {
     if (document.pointerLockElement !== canvas) return;
     everLocked = true;
-    yaw -= e.movementX * 0.0024;
-    pitch += e.movementY * 0.0024;
+    const sens = mouseSens(); // live — a Tome change takes hold mid-stride
+    yaw -= e.movementX * sens;
+    pitch += e.movementY * sens;
     pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, pitch));
   });
 

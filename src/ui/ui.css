@@ -329,6 +329,13 @@ button:disabled {
 .stat-pick { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .stat-pick button { flex: 1; min-width: 90px; }
 
+/* the currently held choice in a pick row (mouse feel etc.) */
+.stat-pick button.chosen {
+  border-color: var(--gold);
+  background: rgba(201, 162, 39, 0.22);
+  font-weight: bold;
+}
+
 .muted { color: var(--ink-faded); font-style: italic; font-size: 14px; }
 
 /* ---------- Character sheet ---------- */

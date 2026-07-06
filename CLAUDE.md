@@ -27,6 +27,7 @@ src/main.js           boot: state load, world build, systems, game loop
 src/state/config.js   all tuning constants (XP curve, ranks, rewards, stamina, combat, campfire tiers)
 src/state/dates.js    local-date helpers (YYYY-MM-DD, Monday week start)
 src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutations, pub/sub events
+src/state/prefs.js    device preferences (mouse feel), own localStorage slot outside the save
 src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
 vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
 src/scene/terrain.js  analytic terrain height fn, vertex-colored ground + dirt path
@@ -284,6 +285,16 @@ headlessly; everything else covered by the regression suite below.
   --port 5173 --strictPort — the owner lost progress to Vite silently bumping to 5174
   (localStorage is per-origin, so a new port is a blank save). saves/ is gitignored.
   No save change.
+
+- [x] Post-v1 — "The Steady Hand" (2026-07-06): the "swimmy" camera fixed — pointer lock asks
+  for raw input (unadjustedMovement, plain-lock fallback) and the orbit answers the mouse
+  rigidly: a smoothed pivot chases the player (wheel zoom eases via its own smoothDist), but
+  yaw/pitch place the camera directly each frame. setView snaps the zoom for smoke shots.
+  No save change.
+- [x] Post-v1 — "The Reins" (2026-07-06): mouse sensitivity became three feels
+  (gentle/steady/swift, CONFIG.mouse) picked in the Tome; the choice lives in
+  src/state/prefs.js — a device preference in its own localStorage slot OUTSIDE the save
+  (sage-key pattern), read live so a Tome change takes hold at once. No save change.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
