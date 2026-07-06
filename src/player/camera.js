@@ -10,7 +10,12 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
   let dist = 6;
   let everLocked = false;
 
-  const current = new THREE.Vector3(0, 4, 8);
+  // The camera orbits a smoothed pivot, not the player directly: walking
+  // stays soft, but yaw/pitch place the camera rigidly each frame — easing
+  // mouse rotation after the fact is exactly what reads as "swimmy."
+  const pivot = new THREE.Vector3();
+  let pivotSnapped = false;
+  let smoothDist = dist;
   const desired = new THREE.Vector3();
   const lookTarget = new THREE.Vector3();
   let shakeAmt = 0;
@@ -23,7 +28,9 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
 
   canvas.addEventListener('click', () => {
     if (!isUiOpen() && document.pointerLockElement !== canvas) {
-      canvas.requestPointerLock();
+      // raw 1:1 mouse input — the OS acceleration curve makes aiming swimmy
+      const p = canvas.requestPointerLock({ unadjustedMovement: true });
+      if (p && p.catch) p.catch(() => canvas.requestPointerLock());
     }
   });
 
@@ -52,12 +59,20 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       target.z < interior.maxZ;
     indoor01 += ((inside ? 1 : 0) - indoor01) * (1 - Math.exp(-dt * 6));
 
-    const d = dist + (Math.min(dist, INDOOR_DIST) - dist) * indoor01;
+    if (!pivotSnapped) {
+      pivot.copy(target);
+      pivotSnapped = true;
+    } else {
+      pivot.lerp(target, 1 - Math.exp(-dt * 9));
+    }
+    smoothDist += (dist - smoothDist) * (1 - Math.exp(-dt * 9)); // wheel zoom eases, rotation doesn't
+
+    const d = smoothDist + (Math.min(smoothDist, INDOOR_DIST) - smoothDist) * indoor01;
     const cp = Math.cos(pitch);
     desired.set(
-      target.x + Math.sin(yaw) * cp * d,
-      target.y + 1.4 + Math.sin(pitch) * d,
-      target.z + Math.cos(yaw) * cp * d
+      pivot.x + Math.sin(yaw) * cp * d,
+      pivot.y + 1.4 + Math.sin(pitch) * d,
+      pivot.z + Math.cos(yaw) * cp * d
     );
     const floor = terrainHeight(desired.x, desired.z) + 0.35;
     if (desired.y < floor) desired.y = floor;
@@ -72,9 +87,7 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       desired.z += (cz - desired.z) * indoor01;
     }
 
-    const k = 1 - Math.exp(-dt * 9);
-    current.lerp(desired, k);
-    camera.position.copy(current);
+    camera.position.copy(desired);
 
     if (shakeAmt > 0.002) {
       camera.position.x += (Math.random() - 0.5) * shakeAmt;
@@ -82,7 +95,7 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       shakeAmt *= Math.exp(-dt * 7);
     }
 
-    lookTarget.set(target.x, target.y + 1.25, target.z);
+    lookTarget.set(pivot.x, pivot.y + 1.25, pivot.z);
     camera.lookAt(lookTarget);
   }
 
@@ -96,6 +109,7 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       yaw = newYaw;
       pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, newPitch));
       dist = Math.min(14, Math.max(3, newDist));
+      smoothDist = dist; // smoke screenshots want the view now, not eased
       everLocked = true; // stop the showcase orbit
     },
     isLocked: () => document.pointerLockElement === canvas,
