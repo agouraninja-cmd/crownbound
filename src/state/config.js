@@ -69,7 +69,7 @@ export const CONFIG = {
   // Anthropic API — his key is granted in the Tome and lives OUTSIDE the save).
   // Every failure path falls back to the manual virtue picker.
   sage: {
-    model: 'claude-opus-4-8', // any Claude model id works; claude-haiku-4-5 is the thrifty choice
+    model: 'claude-haiku-4-5-20251001', // any Claude model id works; haiku is the thrifty choice — a one-word verdict needs no Opus
     maxTokens: 16,
     timeoutMs: 8000, // past this the manual picker takes over
   },

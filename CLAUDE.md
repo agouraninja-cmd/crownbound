@@ -27,6 +27,8 @@ src/main.js           boot: state load, world build, systems, game loop
 src/state/config.js   all tuning constants (XP curve, ranks, rewards, stamina, combat, campfire tiers)
 src/state/dates.js    local-date helpers (YYYY-MM-DD, Monday week start)
 src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutations, pub/sub events
+src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
+vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
 src/scene/terrain.js  analytic terrain height fn, vertex-colored ground + dirt path
 src/scene/sky.js      gradient sky dome + fog + lighting
 src/scene/scatter.js  merged pine trees + rocks
@@ -272,6 +274,15 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "The Sage" (2026-07-04): AI names the virtue of each completed deed (Anthropic
   API, browser-direct; key appointed in the Tome, kept outside the save). Verdict is final;
   the manual picker is every failure's fallback. First API integration — v2 groundwork.
+  No save change. (2026-07-06: model retuned to claude-haiku-4-5-20251001 — a one-word verdict
+  needs no Opus, and Haiku stays well inside the 8s timeout.)
+- [x] Post-v1 — "The Scribe's Mirror" (2026-07-06): dev-only auto-backup to one file. Every
+  state change is pushed (debounced 1s + pagehide beacon) to a vite dev-server endpoint
+  (/__save, vite.config.js plugin) that keeps saves/crownbound-save.json current; a browser
+  that boots with NO save adopts the file and reloads through the normal vet path (Scribe
+  pattern). Inert in builds, so the smoke suite never sees it. Dev script pinned to
+  --port 5173 --strictPort — the owner lost progress to Vite silently bumping to 5174
+  (localStorage is per-origin, so a new port is a blank save). saves/ is gitignored.
   No save change.
 
 ### Session notes

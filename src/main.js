@@ -7,6 +7,7 @@ import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
+import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
 import { toast } from './ui/toasts.js';
 import { initAudio, sfx } from './ui/audio.js';
@@ -15,6 +16,7 @@ import { createRats } from './combat/rats.js';
 import { CONFIG } from './state/config.js';
 
 const { messages: bootMessages } = loadState();
+initMirror(); // dev-only: shadow the save to saves/crownbound-save.json (adopts it on an empty boot)
 
 // Market days bring the chapman's cart. Sessions are short, so the flag is
 // fixed per load like the rollover; ?market=1|0 overrides it (smoke tests).

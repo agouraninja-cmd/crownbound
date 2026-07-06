@@ -1,5 +1,6 @@
 node_modules/
 dist/
+saves/
 scripts/smoke.png
 scripts/smoke-sleep.png
 scripts/smoke-market.png
