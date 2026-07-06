@@ -319,6 +319,12 @@ headlessly; everything else covered by the regression suite below.
   dark scene, nib-tip hotspot) on body and buttons alike; text inputs keep their I-beam
   (UA default outranks inheritance) and pointer lock hides the cursor as ever. No save change.
 
+- [x] Post-v1 — "The Vital Signs" (2026-07-06): HUD hierarchy — the HP bar throbs (border
+  glow pulse) at ≤30% and not at 0 (respawn refills); the stamina bar's gold grays out when
+  too spent to swing (< attackCost, config-read); the streak flame row pops (scale + gold
+  flash) when the streak grows, never on a load's first paint. All three sit in the existing
+  prefers-reduced-motion block. No save change.
+
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
