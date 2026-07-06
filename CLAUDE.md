@@ -300,6 +300,13 @@ headlessly; everything else covered by the regression suite below.
   (scale 0.98, 8px rise) on the panel and a dim-in on the overlay, CSS-only, replaying on each
   unhide; close stays instant; prefers-reduced-motion disables both. No save change.
 
+- [x] Post-v1 — "The Willing Reins" (2026-07-06): the mouse connects itself — any movement key
+  (WASD/arrows/Space/C/Shift, deliberately not E or Esc, which drive panels) requests pointer
+  lock exactly like a canvas click, so play never demands a deliberate click: W after boot or
+  after closing a panel takes the reins at once. A page can never seize the mouse with no
+  gesture at all — browser rule, no way around it. Lock-denied rejections are swallowed
+  (automated contexts). No save change.
+
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes

@@ -27,12 +27,29 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
   let indoor01 = 0;
   const INDOOR_DIST = 1.8;
 
-  canvas.addEventListener('click', () => {
-    if (!isUiOpen() && document.pointerLockElement !== canvas) {
-      // raw 1:1 mouse input — the OS acceleration curve makes aiming swimmy
-      const p = canvas.requestPointerLock({ unadjustedMovement: true });
-      if (p && p.catch) p.catch(() => canvas.requestPointerLock());
+  function tryLock() {
+    if (isUiOpen() || document.pointerLockElement === canvas) return;
+    // raw 1:1 mouse input — the OS acceleration curve makes aiming swimmy
+    const p = canvas.requestPointerLock({ unadjustedMovement: true });
+    if (p && p.catch) {
+      p.catch(() => {
+        // no raw input here; take the ordinary lock. If even that is denied
+        // (no user gesture yet, some automated contexts), stay quiet — an
+        // unhandled rejection reads as a console error.
+        const q = canvas.requestPointerLock();
+        if (q && q.catch) q.catch(() => {});
+      });
     }
+  }
+
+  canvas.addEventListener('click', tryLock);
+
+  // the mouse connects itself: any movement key counts as taking the reins,
+  // so play never demands a deliberate click — not E or Esc, which drive
+  // panels and must not race the lock
+  const LOCK_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'ShiftLeft', 'ShiftRight'];
+  window.addEventListener('keydown', (e) => {
+    if (LOCK_KEYS.includes(e.code)) tryLock();
   });
 
   document.addEventListener('mousemove', (e) => {
