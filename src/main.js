@@ -232,6 +232,10 @@ function promptText(a) {
 const PROMPT_RAISE = 2.0;
 const promptV = new THREE.Vector3();
 function promptScreenPos(a) {
+  // the render hasn't refreshed the camera's matrices yet this frame;
+  // projecting through last frame's leaves the tag swimming while the
+  // camera moves (updateMatrixWorld also refreshes matrixWorldInverse)
+  camera.updateMatrixWorld();
   promptV.set(a.x, terrainHeight(a.x, a.z) + PROMPT_RAISE, a.z).project(camera);
   if (promptV.z > 1) return null;
   const px = (promptV.x * 0.5 + 0.5) * window.innerWidth;
