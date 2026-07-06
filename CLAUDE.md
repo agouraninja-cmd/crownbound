@@ -307,6 +307,13 @@ headlessly; everything else covered by the regression suite below.
   gesture at all — browser rule, no way around it. Lock-denied rejections are swallowed
   (automated contexts). No save change.
 
+- [x] Post-v1 — "The Hanging Tag" (2026-07-06): the E-prompt anchors to its object — main.js
+  projects a point 2.0 above the target's terrain through the camera each frame (after the
+  orbit settles, so no one-frame trail) and hud.placePrompt sets the transform; the tag grew a
+  little down-pointing tail. Behind-the-camera hides it; near-edge positions clamp into view,
+  so an off-screen target pins the tag at the viewport edge toward it. The miller's tag follows
+  him for free (his interactable spot is mutated live). No save change.
+
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes

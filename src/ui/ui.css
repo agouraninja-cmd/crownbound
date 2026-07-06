@@ -134,11 +134,15 @@ body {
   background: radial-gradient(ellipse at 50% 85%, #6b5a48 0%, #4a3d30 60%, #332a20 90%);
 }
 
+/* anchored over its object in the world; main.js projects and places it
+   every frame via transform (translate(-50%,-100%) + screen px) */
 #interact-prompt {
   position: absolute;
-  bottom: 96px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  top: 0;
+  transform: translate(-1000px, -1000px); /* parked off-screen until placed */
+  will-change: transform;
+  white-space: nowrap;
   background: linear-gradient(var(--parchment), var(--parchment-dark));
   border: 2px solid var(--ink);
   border-radius: 4px;
@@ -148,6 +152,20 @@ body {
 }
 
 #interact-prompt b { color: var(--wax); }
+
+/* the little tail pointing down at the thing itself */
+#interact-prompt::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 10px;
+  height: 10px;
+  background: var(--parchment-dark);
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  transform: translateX(-50%) rotate(45deg);
+}
 
 /* ---------- Toasts ---------- */
 

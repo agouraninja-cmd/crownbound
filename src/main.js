@@ -4,7 +4,8 @@ import { buildWorld } from './scene/world.js';
 import { LAYOUT } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
-import { initHud, showPrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
+import { initHud, showPrompt, placePrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
+import { terrainHeight } from './scene/terrain.js';
 import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
@@ -217,15 +218,29 @@ function nearestAction() {
   const it = nearestInteractable();
   const dDoor = doorDist();
   const itD = it ? Math.hypot(player.pos.x - it.x, player.pos.z - it.z) : Infinity;
-  if (dDoor < world.door.radius && dDoor < itD) return { id: 'door' };
+  if (dDoor < world.door.radius && dDoor < itD) return { id: 'door', x: world.door.x, z: world.door.z };
   return it;
 }
 
-function promptText() {
-  const a = nearestAction();
-  if (!a) return null;
+function promptText(a) {
   const label = a.id === 'door' ? (world.door.isOpen ? 'close the door' : 'open the door') : a.label;
   return `Press <b>E</b> — ${label}`;
+}
+
+// where the prompt tag hangs on screen: a spot above the object, projected
+// through the camera each frame; behind-the-camera projections hide the tag
+const PROMPT_RAISE = 2.0;
+const promptV = new THREE.Vector3();
+function promptScreenPos(a) {
+  promptV.set(a.x, terrainHeight(a.x, a.z) + PROMPT_RAISE, a.z).project(camera);
+  if (promptV.z > 1) return null;
+  const px = (promptV.x * 0.5 + 0.5) * window.innerWidth;
+  const py = (-promptV.y * 0.5 + 0.5) * window.innerHeight;
+  // clamped so a close approach can't shove the tag out of the viewport
+  return [
+    Math.min(Math.max(px, 90), window.innerWidth - 90),
+    Math.min(Math.max(py, 50), window.innerHeight - 130),
+  ];
 }
 
 // the villagers mark your coming — once per visit, a nod and a quiet word
@@ -281,6 +296,7 @@ window.addEventListener('resize', () => {
 
 const clock = new THREE.Clock();
 let frames = 0;
+let promptFor = null; // the action the visible prompt is anchored to
 
 function tick() {
   frames++;
@@ -296,7 +312,8 @@ function tick() {
     player.update(dt, orbitCam.getYaw(), world.colliders);
     rats.update(dt, player, (dmg, x, z) => player.takeDamage(dmg, x, z));
     dummy.update(dt);
-    showPrompt(player.isEnabled() ? promptText() : null); // none while asleep/dead
+    promptFor = player.isEnabled() ? nearestAction() : null; // none while asleep/dead
+    showPrompt(promptFor ? promptText(promptFor) : null);
   }
 
   world.campfire.update(dt);
@@ -305,6 +322,8 @@ function tick() {
   world.miller.update(dt, player.pos);
   world.cart?.update(dt, player.pos);
   orbitCam.update(dt, player.pos);
+  // placed after the camera settles so the tag never trails a frame behind
+  if (promptFor) placePrompt(promptScreenPos(promptFor));
 
   renderer.render(scene, camera);
   requestAnimationFrame(tick);

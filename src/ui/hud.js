@@ -53,3 +53,14 @@ export function showPrompt(html) {
     prompt.classList.add('hidden');
   }
 }
+
+// screen placement, set every frame while visible; null = anchor is behind
+// the camera, so the tag ducks out of sight without losing its content
+export function placePrompt(pos) {
+  if (!pos) {
+    prompt.style.visibility = 'hidden';
+    return;
+  }
+  prompt.style.visibility = '';
+  prompt.style.transform = `translate(-50%, -100%) translate(${Math.round(pos[0])}px, ${Math.round(pos[1])}px)`;
+}
