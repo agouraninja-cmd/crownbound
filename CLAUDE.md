@@ -296,6 +296,10 @@ headlessly; everything else covered by the regression suite below.
   src/state/prefs.js — a device preference in its own localStorage slot OUTSIDE the save
   (sage-key pattern), read live so a Tome change takes hold at once. No save change.
 
+- [x] Post-v1 — "The Laid Parchment" (2026-07-06): panels ease in — a 160ms fade + settle
+  (scale 0.98, 8px rise) on the panel and a dim-in on the overlay, CSS-only, replaying on each
+  unhide; close stays instant; prefers-reduced-motion disables both. No save change.
+
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
