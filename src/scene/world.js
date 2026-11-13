@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { LAYOUT } from './layout.js';
 import { buildTerrain, terrainHeight } from './terrain.js';
-import { buildSky, addLighting } from './sky.js';
+import { buildSky, buildClouds, addLighting } from './sky.js';
 import { buildScatter } from './scatter.js';
+import { buildFlora } from './flora.js';
+import { windTime } from './wind.js';
+import { buildAmbient } from './ambient.js';
 import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, buildMiller, HOVEL } from './structures.js';
 import { buildCart } from './cart.js';
 import { makeAlive, makeStroll } from './alive.js';
@@ -11,12 +14,16 @@ import { createCampfire } from './campfire.js';
 export { terrainHeight };
 
 export function buildWorld(scene, marketToday = false) {
-  scene.add(buildSky());
-  addLighting(scene);
+  const sky = buildSky();
+  const clouds = buildClouds();
+  scene.add(sky, clouds);
+  const light = addLighting(scene);
   scene.add(buildTerrain());
 
   const scatter = buildScatter();
-  scene.add(scatter.mesh);
+  scene.add(...scatter.meshes);
+  const flora = buildFlora(scatter);
+  scene.add(flora);
 
   const colliders = [...scatter.colliders];
 
@@ -164,7 +171,9 @@ export function buildWorld(scene, marketToday = false) {
     rect(H.bed.x - 0.45, H.bed.x + 0.45, H.bed.z - 0.75, H.bed.z + 0.75), // cot
     rect(H.chest.x0, H.chest.x1, H.chest.z0, H.chest.z1), // chest
     { x: hx + H.hearth.x, z: hz + H.hearth.z, r: H.hearth.r }, // hearth
-    { x: hx + H.table.x, z: hz + H.table.z, r: H.table.r } // table
+    { x: hx + H.table.x, z: hz + H.table.z, r: H.table.r }, // table
+    { x: hx + H.barrel.x, z: hz + H.barrel.z, r: H.barrel.r }, // the water butt outside
+    rect(H.woodpile.x0, H.woodpile.x1, H.woodpile.z0, H.woodpile.z1) // the woodpile outside
   );
 
   // the door leaf: closed bars the gap, open swings clear of it
@@ -242,5 +251,33 @@ export function buildWorld(scene, marketToday = false) {
     });
   }
 
-  return { colliders, interactables, campfire, dummy, door, exchequer, cart, miller, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest };
+  // ambient life: smoke from the hovel's roof, motes, birds, butterflies
+  const ambient = buildAmbient({
+    smokeAt: { x: hx + H.smoke.x, y: terrainHeight(hx, hz) + H.smoke.y, z: hz + H.smoke.z },
+    flowerSpots: flora.userData.patches,
+  });
+  scene.add(ambient.group);
+
+  // Scenery that keeps moving whether or not a panel is open (main.js calls
+  // this every slice of the loop): the hearth, the wind, the drifting clouds,
+  // the sky riding with the camera, the shadow box centred on the player.
+  let hearthT = 0;
+  function update(dt, playerPos, camera) {
+    // the hearth indoors: a small unsteady flame and the glow it throws
+    hearthT += dt;
+    const flick = 1 + Math.sin(hearthT * 11.3) * 0.08 + Math.sin(hearthT * 27.1) * 0.05;
+    const fire = hovel.hearth;
+    fire.flames.scale.set(flick, 1 + (flick - 1) * 2.5, flick);
+    fire.flames.rotation.y += dt * 1.1;
+    fire.glow.intensity = 2.2 * (1 + (flick - 1) * 1.4);
+    fire.halo.material.opacity = 0.4 * flick;
+
+    windTime.value += dt;
+    clouds.rotation.y += dt * 0.0035;
+    sky.position.copy(camera.position);
+    light.followShadow(playerPos);
+    ambient.update(dt, camera);
+  }
+
+  return { colliders, interactables, campfire, dummy, door, exchequer, cart, miller, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, update };
 }

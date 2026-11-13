@@ -28,6 +28,15 @@ body {
 
 #app canvas { display: block; }
 
+/* a soft darkening toward the corners: draws the eye in, costs the GPU nothing */
+#vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(ellipse at 50% 46%, rgba(0, 0, 0, 0) 56%, rgba(38, 22, 8, 0.24) 100%);
+}
+
 .hidden { display: none !important; }
 
 #fade {

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../state/config.js';
 import { LAYOUT } from '../scene/layout.js';
 import { terrainHeight } from '../scene/terrain.js';
-import { mesh, flash } from '../scene/meshUtils.js';
+import { mesh, flash, bake } from '../scene/meshUtils.js';
 import { getState, recordRatKill } from '../state/state.js';
 import { toast } from '../ui/toasts.js';
 import { sfx } from '../ui/audio.js';
@@ -11,19 +11,29 @@ const R = CONFIG.rats;
 const FUR = 0x6e655c;
 const FUR_DARK = 0x57504a;
 
+const PINK = 0xb98a78;
+
+// a hunched, low-slung rat, nose toward +z: one draw call once baked
 function buildRatMesh() {
   const g = new THREE.Group();
-  const body = mesh(new THREE.BoxGeometry(0.3, 0.2, 0.48), FUR, { y: 0.13 });
-  const head = mesh(new THREE.BoxGeometry(0.2, 0.16, 0.2), FUR, { y: 0.16, z: 0.3 });
-  const nose = mesh(new THREE.ConeGeometry(0.07, 0.16, 5), 0xb98a78, {
-    y: 0.14, z: 0.45, rx: Math.PI / 2,
-  });
-  const earL = mesh(new THREE.BoxGeometry(0.07, 0.09, 0.03), FUR_DARK, { x: -0.07, y: 0.27, z: 0.28 });
-  const earR = mesh(new THREE.BoxGeometry(0.07, 0.09, 0.03), FUR_DARK, { x: 0.07, y: 0.27, z: 0.28 });
-  const tail = mesh(new THREE.BoxGeometry(0.04, 0.04, 0.42), 0xb98a78, { y: 0.12, z: -0.42 });
-  tail.rotation.x = -0.25;
-  g.add(body, head, nose, earL, earR, tail);
-  return g;
+  const body = mesh(new THREE.SphereGeometry(0.15, 7, 5), FUR, { y: 0.14 });
+  body.scale.set(1, 0.82, 1.65);
+  const haunch = mesh(new THREE.SphereGeometry(0.13, 6, 5), FUR_DARK, { y: 0.15, z: -0.12 });
+  haunch.scale.set(1.08, 0.9, 1);
+  const head = mesh(new THREE.SphereGeometry(0.1, 6, 5), FUR, { y: 0.15, z: 0.28 });
+  head.scale.set(1, 0.9, 1.2);
+  g.add(body, haunch, head);
+  g.add(mesh(new THREE.ConeGeometry(0.065, 0.17, 5), PINK, { y: 0.135, z: 0.43, rx: Math.PI / 2 })); // snout
+  for (const s of [-1, 1]) {
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.015, 6), PINK, { x: s * 0.075, y: 0.25, z: 0.25, rx: Math.PI / 2, rz: s * 0.4 })); // ear
+    g.add(mesh(new THREE.BoxGeometry(0.02, 0.025, 0.02), 0x120c08, { x: s * 0.06, y: 0.185, z: 0.36, shadow: false })); // eye
+    g.add(mesh(new THREE.BoxGeometry(0.04, 0.03, 0.07), PINK, { x: s * 0.1, y: 0.015, z: 0.17 })); // forepaw
+    g.add(mesh(new THREE.BoxGeometry(0.045, 0.03, 0.09), PINK, { x: s * 0.11, y: 0.015, z: -0.14 })); // hind paw
+  }
+  const tail = mesh(new THREE.CylinderGeometry(0.012, 0.028, 0.46, 5), PINK, { y: 0.1, z: -0.48 });
+  tail.rotation.x = Math.PI / 2 - 0.22; // trailing, tip lifted off the ground
+  g.add(tail);
+  return bake(g);
 }
 
 export function createRats(scene) {

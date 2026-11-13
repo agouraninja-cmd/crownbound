@@ -12,13 +12,16 @@ happens the moment the character reaches King** (70 total virtue levels).
 - Vite + vanilla JS + Three.js (^0.169). No frameworks. ES modules.
 - @anthropic-ai/sdk (browser-direct, `dangerouslyAllowBrowser`) — the Sage only, so far;
   v2's villagers will reuse this plumbing. Model + tuning in CONFIG.sage.
-- All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
+- All art is procedural low-poly geometry, flat-shaded, warm earth tones under a painterly sky.
+  No model files and no image files — the one texture is a soft round dot drawn on a canvas at
+  load (sprites.js).
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
 - Persistence: localStorage key `crownbound_save`, `saveVersion: 8`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
   v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle).
-- Target 60fps on mid-range laptop: merged static geometry, one shadow-casting directional light, cheap particles.
+- Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
+  one shadow-casting directional light, cheap particles, no post-processing.
 
 ## File structure
 ```
@@ -30,15 +33,23 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/state/prefs.js    device preferences (mouse feel), own localStorage slot outside the save
 src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
 vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
-src/scene/terrain.js  analytic terrain height fn, vertex-colored ground + dirt path
-src/scene/sky.js      gradient sky dome + fog + lighting
-src/scene/scatter.js  merged pine trees + rocks
+src/scene/layout.js   where everything stands: LAYOUT positions, the path's centreline, dirt patches
+src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() static batching, tint/sway/batch helpers, hit flash
+src/scene/kit.js      the building kit: palette, thatch roofs, boarding, stone footings, villager heads/arms/robes
+src/scene/terrain.js  analytic terrain height fn (gameplay) + the drawn land: faceted vertex-colored ground, dirt path, outer hills, far mountains
+src/scene/sky.js      sky dome + sun + low-poly clouds, fog, lighting, the shadow box that follows the player
+src/scene/scatter.js  merged woodland: pines/oaks/birches, boulders, pebbles, and the backdrop forest beyond the walkable world
+src/scene/flora.js    grass tufts, meadow grass, wildflowers, ferns, bushes — no colliders, all wind-swayed
+src/scene/wind.js     the shared wind clock + the vertex-shader patch that sways foliage and grass
+src/scene/ambient.js  ambient life: hovel smoke, motes in the light, birds, butterflies
+src/scene/particles.js  soft-puff particle pool (one Points draw call per pool): smoke
+src/scene/sprites.js  the canvas-drawn soft dot texture + additive glow billboards
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
 src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
-src/scene/campfire.js campfire mesh + flame/particles, scales with streak tier
-src/scene/world.js    assembles scene, exposes interactables + terrainHeight
-src/player/playerMesh.js  procedural peasant figure + pose animation
+src/scene/campfire.js campfire mesh, tongues of flame, sparks, smoke; scales with streak tier
+src/scene/world.js    assembles scene, exposes interactables + terrainHeight; update() drives the ambient scenery
+src/player/playerMesh.js  procedural peasant figure: a jointed rig (reshape freely, the pivots are fixed points of player.js)
 src/player/player.js  movement/sprint/jump/crouch/dodge/attack state machine, HP, stamina spend
 src/player/camera.js  pointer-lock third-person orbit camera
 src/combat/dummy.js   training dummy wobble + diminishing STR XP
@@ -215,6 +226,48 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   are backfilled as `unreckoned` rolls at the next filing, sleep-ledger style. One roll per
   month, ever (`reckoningDue` guards). Pure fns `judgeReckoning`/`reckoningDue` exported for the
   smoke suite. Panel shows last 6 rolls; the full log is kept for the v2 Chronicler.
+- The Renovation (2026-11-13): the whole 3D look rebuilt inside the same art rules. What a
+  future session must know:
+  - Static batching. Every prop is still assembled from mesh() pieces; the builder then calls
+    `bake(group)` (meshUtils), which folds each Group's plain meshes into ONE vertex-coloured
+    mesh (two if some skip shadows). Child Groups bake separately and keep their transforms —
+    so anything the game moves, hides or re-materials must be its own Group or be made with
+    `keep: true` (the weapon, the door paint). Invisible meshes and non-Lambert materials are
+    left alone. Village views fell from ~285 draw calls to ~100 while showing far more.
+  - The legacy scatter stream. The original 42 trees + 16 rocks come from `legacyLayout()` in
+    scatter.js, which draws from rng(1337) in exactly the old order (it even burns the values
+    the old trees used). Their 57 colliders were checked identical to before the renovation.
+    New trees (4 hand-set, 46 in the outer ring) use their own streams and are appended after.
+    Never reorder or add a draw inside legacyLayout — the miller's rounds depend on it.
+  - Flora never collides. Grass, flowers, ferns and bushes are collider-less by design;
+    keepClear() in flora.js lists the ground they must leave bare — add new structures there.
+    Two colliders did arrive, for new props that would otherwise be walked through: the
+    hovel's water butt and woodpile (HOVEL.barrel / HOVEL.woodpile).
+  - The drawn land vs the walked land. terrainHeight() is unchanged and still the only height
+    gameplay uses. landHeight() adds hills and far mountains beyond radius 92 (the player is
+    held to 78); surfaceHeight() reads the actual coarse facet out there, so far trees sit on
+    the ground. The mesh is jittered one-unit cells to ±86, then growing cells out to ~±476.
+  - Grass is MERGED per 36-unit ground square, not instanced: InstancedMesh was the slowest
+    thing in SwiftShader (the headless tests) and no faster on a real GPU. Blades are lit with
+    a constant up-normal on both faces (wind.js `upNormals`), so they shade like the ground.
+  - The sky rides the camera with depth off, so camera.far (1000) only has to reach the
+    mountains. Fog is a pale blue haze (HAZE in sky.js), 45→560; the far hills are just fogged
+    terrain. Clouds are a hand-shaded unlit mesh turning slowly about the valley.
+  - Tone mapping is Neutral (was ACES): the palette's hues survive as painted. Light is a cool
+    sky / warm ground hemisphere plus the one shadow-casting sun; the shadow box (±40) follows
+    the player in whole-texel steps (`followShadow`), so shadows exist wherever he walks and
+    don't shimmer.
+  - The game loop sub-steps: a slow frame is simulated as several ≤50ms slices (cap 0.5s), so
+    the sim keeps real time at any frame rate. That is what keeps the smoke suite's fixed
+    waits honest now that software-rendered headless Chrome runs ~9fps (it was ~24).
+  - Pixel governor (main.js `governPixels`): under ~45fps for two straight seconds → the pixel
+    ratio steps down, never below 1 and never back up. A safety net for weak hi-DPI machines.
+  - Glow without post-processing: additive billboards (sprites.glowSprite) at the fire, hearth,
+    lantern and sun, and a CSS #vignette over the canvas. No EffectComposer — it would cost
+    MSAA and frame time for little.
+  - Measured on this machine's Intel integrated GPU (headless hardware-accelerated Chrome,
+    whole frame, each frame forced to finish): old 7.6ms → new 8.6ms at 1080p, 10.8 → 12.0ms
+    at 2880×1620 — 60fps needs under 16.6. ~250–280k triangles, 40–106 draw calls.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -355,7 +408,26 @@ headlessly; everything else covered by the regression suite below.
   its OWN blank save (localStorage is per-origin) and no save mirror — carry progress across
   with the Tome's Scribe export/restore. No save change.
 
+- [x] Post-v1 — "The Renovation" (2026-11-13): the graphics rebuilt top to bottom under the same
+  art rules (procedural, low-poly, flat-shaded, no model files). Sky: gradient dome with a sun,
+  drifting low-poly clouds, distance fading into blue haze. Land: jittered faceted ground with
+  noise-driven colour, rising into wooded hills and far mountains. Woodland: pines, oaks and
+  birches (some autumn-turned) that sway in the wind, mossy boulders, a backdrop forest; grass
+  tufts, meadow grass, wildflowers, ferns, bushes. Buildings: a timber-framed daub hovel under
+  layered thatch, a boarded granary, detailed booth / boards / lectern / cart, each baked to a
+  few draw calls. Characters: a new jointed hero (hair, face, woad cowl, belt, boots),
+  villagers with faces and hands, rounder rats. Life: tongues of flame, sparks, woodsmoke,
+  hearth smoke from the roof, motes, birds, butterflies. No gameplay, rule or save change;
+  the original 57 scatter colliders are unchanged (+50 new tree colliders: 46 in the outer ring,
+  4 hand-set at the village edge; +2 beside the hovel). All 18 smoke scenarios pass. Details:
+  "The Renovation" under Noted decisions.
+
 ### Session notes
+- Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
+  sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
+  at frame 12 as well as frame 90. For a real-GPU look, build and open the `crownbound-preview`
+  launch config in the Browser pane (it is its own origin: a blank save, no mirror, so it
+  cannot touch the real save) — but timings from a hidden pane are worthless.
 - Deploying (manual — the gh token has no `workflow` scope, so there is no Actions workflow):
   `npm run build`, copy dist/ to a temp folder, add an empty `.nojekyll`, `git init -b gh-pages`
   there, commit, and force-push that folder to the repo's `gh-pages` branch. Pages rebuilds in

@@ -33,12 +33,12 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
+renderer.toneMapping = THREE.NeutralToneMapping; // keeps the palette's hues as painted
+renderer.toneMappingExposure = 1.0;
 document.getElementById('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 const world = buildWorld(scene, marketToday);
 const player = createPlayer(scene, LAYOUT.playerSpawn);
@@ -300,7 +300,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, exchequer: world.exchequer, miller: world.miller, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, exchequer: world.exchequer, miller: world.miller, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -313,16 +313,12 @@ const clock = new THREE.Clock();
 let frames = 0;
 let promptFor = null; // the action the visible prompt is anchored to
 
-function tick() {
-  frames++;
-  if (frames === 90) {
-    window.__smoke = {
-      calls: renderer.info.render.calls,
-      triangles: renderer.info.render.triangles,
-    };
-  }
-  const dt = Math.min(clock.getDelta(), 0.05);
+const STEP = 0.05; // the longest slice any system is asked to simulate at once
+const MAX_CATCHUP = 0.5; // a tab stalled longer than this simply loses the time
 
+// One slice of the world's clock: the sim (paused under a panel), then the
+// ambient scenery and the camera, which never pause.
+function step(dt) {
   if (!isUiOpen()) {
     player.update(dt, orbitCam.getYaw(), world.colliders);
     rats.update(dt, player, (dmg, x, z) => player.takeDamage(dmg, x, z));
@@ -337,6 +333,47 @@ function tick() {
   world.miller.update(dt, player.pos);
   world.cart?.update(dt, player.pos);
   orbitCam.update(dt, player.pos);
+  world.update(dt, player.pos, camera);
+}
+
+// Shed pixels before frames: a machine that holds under ~45fps for two
+// straight seconds is asked to draw at a lower pixel ratio (never below 1).
+// Stalls, a hidden tab and the first seconds of shader warm-up don't count.
+let pixelRatio = Math.min(window.devicePixelRatio, 2);
+let slowFor = 0;
+function governPixels(frameDt) {
+  if (document.hidden || frameDt > 0.25 || clock.elapsedTime < 4) {
+    slowFor = 0;
+    return;
+  }
+  slowFor = frameDt > 1 / 45 ? slowFor + frameDt : Math.max(0, slowFor - frameDt * 2);
+  if (slowFor > 2 && pixelRatio > 1) {
+    pixelRatio = Math.max(1, pixelRatio - 0.25);
+    renderer.setPixelRatio(pixelRatio);
+    slowFor = 0;
+  }
+}
+
+function tick() {
+  frames++;
+  if (frames === 12 || frames === 90) {
+    window.__smoke = {
+      calls: renderer.info.render.calls,
+      triangles: renderer.info.render.triangles,
+    };
+  }
+  const frameDt = clock.getDelta();
+  governPixels(frameDt);
+
+  // A slow frame is simulated as several short slices, not one clamped one —
+  // the world keeps real time instead of sinking into slow motion.
+  let left = Math.min(frameDt, MAX_CATCHUP);
+  do {
+    const dt = Math.min(left, STEP);
+    step(dt);
+    left -= dt;
+  } while (left > 1e-4);
+
   // placed after the camera settles so the tag never trails a frame behind
   if (promptFor) placePrompt(promptScreenPos(promptFor));
 
