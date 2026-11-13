@@ -348,7 +348,18 @@ headlessly; everything else covered by the regression suite below.
   `state.chronicle` + `addChronicleEntry` (emits 'chronicle'), CONFIG.chronicler, saveVersion 8.
   Tested with a stubbed API only — no entry has yet been written by the real model.
 
+- [x] Post-v1 — "The Open Road" (2026-11-13): deployed. Public repo
+  github.com/agouraninja-cmd/crownbound; the game is served by GitHub Pages at
+  https://agouraninja-cmd.github.io/crownbound/ from the `gh-pages` branch (built files only).
+  vite `base: './'` so the build runs under the /crownbound/ sub-path. The hosted origin has
+  its OWN blank save (localStorage is per-origin) and no save mirror — carry progress across
+  with the Tome's Scribe export/restore. No save change.
+
 ### Session notes
+- Deploying (manual — the gh token has no `workflow` scope, so there is no Actions workflow):
+  `npm run build`, copy dist/ to a temp folder, add an empty `.nojekyll`, `git init -b gh-pages`
+  there, commit, and force-push that folder to the repo's `gh-pages` branch. Pages rebuilds in
+  about a minute. Pushing `main` alone does NOT update the live site.
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
