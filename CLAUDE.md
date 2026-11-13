@@ -14,10 +14,10 @@ happens the moment the character reaches King** (70 total virtue levels).
   v2's villagers will reuse this plumbing. Model + tuning in CONFIG.sage.
 - All art is procedural low-poly primitives, flat-shaded, warm earth tones, painterly sky. No model files.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 7`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 8`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
-  v6→v7 the monthly reckoning — grows the treasury).
+  v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle).
 - Target 60fps on mid-range laptop: merged static geometry, one shadow-casting directional light, cheap particles.
 
 ## File structure
@@ -44,6 +44,7 @@ src/player/camera.js  pointer-lock third-person orbit camera
 src/combat/dummy.js   training dummy wobble + diminishing STR XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
 src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
+src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep log, under the sage's key (not yet wired into main.js)
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
@@ -74,7 +75,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
     monthly:{ text, completed, monthStart },     // resets the 1st of each month (local)
     epic:   { text, progressPct }                // no deadline — the crown is earned, not dated
   },
-  history: [ { date, questText, statTrained, type } ],  // append-only; future Chronicler reads this
+  history: [ { date, questText, statTrained, type } ],  // append-only; the Chronicler reads this
+  chronicle: [ { week, text, writtenAt } ],      // the Chronicler's weekly entries, append-only, oldest first
   // v1 additions beyond original spec (documented deviations):
   daysPlayed,                                    // incremented on first login of each local day
   stamina: { current, date },                    // daily pool, persisted within the day
