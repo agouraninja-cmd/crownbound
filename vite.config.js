@@ -60,5 +60,8 @@ function saveMirror() {
 }
 
 export default defineConfig({
+  // relative asset paths: the build works at a domain root (vite preview) and
+  // under a sub-path alike (GitHub Pages serves it from /crownbound/)
+  base: './',
   plugins: [saveMirror()],
 });
