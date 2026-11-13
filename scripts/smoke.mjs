@@ -782,6 +782,27 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
+    // 6b) the chest by the cot: stand at its open corner, E lifts the lid,
+    //     E again lowers it (scenery only — no state is touched)
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -9.4; // local (-0.4, -0.5): between chest and cot
+      g.player.pos.z = 1.5;
+      g.orbitCam.setView(0, 0.6, 2); // looking past him at the chest
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    const chestPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    console.log('chest prompt:', JSON.stringify(chestPrompt));
+    if (!chestPrompt.includes('open the chest')) errors.push(`house: chest prompt "${chestPrompt}"`);
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 1200)); // let the lid swing
+    const lidUp = await page.evaluate(() => window.__game.chest.isOpen);
+    await page.screenshot({ path: 'scripts/smoke-chest.png' });
+    if (!lidUp) errors.push('house: E at the chest did not open it');
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 200));
+    if (await page.evaluate(() => window.__game.chest.isOpen)) errors.push('house: second E did not close the chest');
+
     // 7) interior screenshot: indoors camera should pull in under the rafters
     await page.evaluate(() => {
       const g = window.__game;
