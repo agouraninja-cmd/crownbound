@@ -10,6 +10,11 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
   let pitch = 0.38;
   let dist = 6;
   let everLocked = false;
+  let lockDenied = false; // the host refused pointer lock — drag-to-look instead
+  let dragging = false;
+  let dragDist = 0;
+  let onTap = null;
+  const TAP_SLOP = 5; // px of travel under which a press counts as a click
 
   // The camera orbits a smoothed pivot, not the player directly: walking
   // stays soft, but yaw/pitch place the camera rigidly each frame — easing
@@ -37,12 +42,29 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
         // (no user gesture yet, some automated contexts), stay quiet — an
         // unhandled rejection reads as a console error.
         const q = canvas.requestPointerLock();
-        if (q && q.catch) q.catch(() => {});
+        if (q && q.catch) q.catch(() => { lockDenied = true; });
       });
     }
   }
 
   canvas.addEventListener('click', tryLock);
+  document.addEventListener('pointerlockchange', () => {
+    if (document.pointerLockElement === canvas) lockDenied = false;
+  });
+
+  // Some hosts refuse pointer lock outright (embedded browser panes). There the
+  // mouse falls back to hold-and-drag: left button held on the scene turns the
+  // view, and a click that never dragged is handed to onTap (the attack).
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || isUiOpen() || document.pointerLockElement === canvas) return;
+    dragging = true;
+    dragDist = 0;
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (e.button !== 0 || !dragging) return;
+    dragging = false;
+    if (lockDenied && dragDist < TAP_SLOP && !isUiOpen() && onTap) onTap();
+  });
 
   // the mouse connects itself: any movement key counts as taking the reins,
   // so play never demands a deliberate click — not E or Esc, which drive
@@ -53,7 +75,10 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
   });
 
   document.addEventListener('mousemove', (e) => {
-    if (document.pointerLockElement !== canvas) return;
+    if (document.pointerLockElement !== canvas) {
+      if (!dragging) return;
+      dragDist += Math.abs(e.movementX) + Math.abs(e.movementY);
+    }
     everLocked = true;
     const sens = mouseSens(); // live — a Tome change takes hold mid-stride
     yaw -= e.movementX * sens;
@@ -130,6 +155,9 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       dist = Math.min(14, Math.max(3, newDist));
       smoothDist = dist; // smoke screenshots want the view now, not eased
       everLocked = true; // stop the showcase orbit
+    },
+    setOnTap(fn) {
+      onTap = fn;
     },
     isLocked: () => document.pointerLockElement === canvas,
     unlock: () => {

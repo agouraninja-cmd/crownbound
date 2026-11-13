@@ -141,6 +141,10 @@ function sleepAtCot() {
 const isUiOpen = isPanelOpen;
 const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
 orbitCam.setInterior(world.hovelInterior);
+// where pointer lock is refused, a plain click on the scene is the swing
+orbitCam.setOnTap(() => {
+  if (player.isEnabled()) player.attack();
+});
 
 initHud();
 initPanels(
