@@ -327,6 +327,26 @@ headlessly; everything else covered by the regression suite below.
   flash) when the streak grows, never on a load's first paint. All three sit in the existing
   prefers-reduced-motion block. No save change.
 
+- [x] Post-v1 — "The Loose Reins" (2026-11-13): mouse-look where pointer lock is refused.
+  Embedded browser panes (the Claude desktop app's pane) reject requestPointerLock with
+  WrongDocumentError, so the view never turned there. camera.js now falls back to hold-and-drag:
+  left button held on the scene turns the view, and — only once a lock request has actually
+  been denied (`lockDenied`, cleared if a lock is ever granted) — a press that travelled under
+  5px is handed to `setOnTap` (main.js wires it to player.attack, gated on player.isEnabled).
+  Browsers that grant the lock behave as before. Verified by hand in the pane (drag turns,
+  click swings); the smoke suite did not run that day — headless Edge would not launch.
+  Also added .claude/launch.json (dev server on 5173). No save change.
+
+- [ ] v2 — "The Chronicler" (IN PROGRESS, groundwork committed 2026-11-13, untested): weekly
+  medieval-prose journal entries from the deed history + sleep log, under the sage's key
+  (`sageKey()` exported from sage.js; no key, no chronicler). Done so far: src/ai/chronicler.js
+  (`weeksOwed`, `weekMaterial`, `keepChronicle` — silent weeks marked for free, at most ONE
+  written entry per load, stops at the first failure so entries land in week order),
+  CONFIG.chronicler, `state.chronicle` + `addChronicleEntry` (emits 'chronicle'), the v7→v8
+  migration, and the Tome's "Weekly Chronicle" section + styling. NOT done: nothing calls
+  `keepChronicle()` yet (main.js never imports it, so no entry is ever written), there is no
+  smoke scenario, and the smoke suite has not been run against saveVersion 8.
+
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
