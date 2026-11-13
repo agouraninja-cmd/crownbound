@@ -1013,8 +1013,10 @@ try {
     await new Promise((r) => setTimeout(r, 2000));
 
     // 1) breathing is visible: the clerk's sway lean actually moves
+    // sampled across ~2s: a 0.8s window that lands on the crest of a breath
+    // sees under 0.008 of travel and fails a villager who is breathing fine
     const sways = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 6; i++) {
       sways.push(await page.evaluate(() => window.__game.exchequer.swayX()));
       await new Promise((r) => setTimeout(r, 400));
     }
