@@ -290,6 +290,9 @@ window.addEventListener('keydown', (e) => {
     sfx.creak();
   } else if (a.id === 'bed') {
     sleepAtCot();
+  } else if (a.id === 'chest') {
+    sfx.creak();
+    if (world.chest.toggle()) toast('The lid creaks up: a spare tunic, a whetstone, a thin purse. A peasant’s whole estate.', '');
   } else if (a.id === 'miller') {
     millerGreeting();
   } else {
@@ -300,7 +303,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, cart: world.cart, exchequer: world.exchequer, miller: world.miller, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -329,6 +332,7 @@ function step(dt) {
 
   world.campfire.update(dt);
   world.door.update(dt);
+  world.chest.update(dt);
   world.exchequer.update(dt, player.pos);
   world.miller.update(dt, player.pos);
   world.cart?.update(dt, player.pos);

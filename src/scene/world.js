@@ -201,6 +201,25 @@ export function buildWorld(scene, marketToday = false) {
     },
   };
 
+  // the chest by the cot: E lifts the lid and lowers it again. Pure scenery —
+  // it holds no items and changes no state; the lid isn't saved either.
+  let chestOpen = false;
+  let chestAnim = 0; // eased 0 shut → 1 open
+  const chest = {
+    get isOpen() {
+      return chestOpen;
+    },
+    toggle() {
+      chestOpen = !chestOpen;
+      return chestOpen;
+    },
+    update(dt) {
+      const target = chestOpen ? 1 : 0;
+      chestAnim += (target - chestAnim) * (1 - Math.exp(-dt * 6));
+      hovel.chestLid.rotation.x = chestAnim * H.chest.openAngle;
+    },
+  };
+
   // the indoor camera zone + where you stand up from the cot
   const hovelInterior = {
     minX: hx - inX,
@@ -227,6 +246,18 @@ export function buildWorld(scene, marketToday = false) {
     // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bed.x, z: hz + H.bed.z, radius: 1.7, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
+    {
+      id: 'chest',
+      get label() {
+        return chestOpen ? 'close the chest' : 'open the chest';
+      },
+      x: hx + (H.chest.x0 + H.chest.x1) / 2,
+      z: hz + (H.chest.z0 + H.chest.z1) / 2,
+      // the cot crowds the chest's front, so you stand at its corner (~0.75
+      // off centre) — which is also where you wake, so waking offers the lid
+      radius: 1.1,
+      insideOnly: true,
+    },
     {
       id: 'treasury',
       label: 'the Exchequer’s table',
@@ -279,5 +310,5 @@ export function buildWorld(scene, marketToday = false) {
     ambient.update(dt, camera);
   }
 
-  return { colliders, interactables, campfire, dummy, door, exchequer, cart, miller, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, update };
+  return { colliders, interactables, campfire, dummy, door, chest, exchequer, cart, miller, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, update };
 }

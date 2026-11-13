@@ -24,7 +24,7 @@ export const HOVEL = {
   bed: { x: -1.05, z: 0.55, topY: 0.46 }, // cot centre + mattress top — interactable & lie-down spot
   wake: { x: -0.3, z: -0.6 }, // open floor where you stand after sleep/death
   hearth: { x: 0.3, z: 0.45, r: 0.55 },
-  chest: { x0: -1.28, x1: -0.62, z0: -1.21, z1: -0.79 },
+  chest: { x0: -1.28, x1: -0.62, z0: -1.21, z1: -0.79, lidHinge: 0.23, openAngle: -1.7 }, // lid swings up off its back edge
   table: { x: 1.0, z: 0.95, r: 0.5 },
   ledger: { x: 0.85, z: -1.1 }, // where you stand to read the sleep ledger
   ceilY: 1.85, // indoor camera stays under this
@@ -235,7 +235,7 @@ export function buildHovel() {
   const upgrades = { door: doorPaint, window: glassWindow, lantern, garden, ...inside.upgrades };
 
   bake(g);
-  return { group: g, doorPivot, upgrades, hearth: inside.hearth };
+  return { group: g, doorPivot, chestLid: inside.chestLid, upgrades, hearth: inside.hearth };
 }
 
 // One-room medieval peasant interior: straw cot, open hearth with a pot over
@@ -319,14 +319,26 @@ function furnish(g, rng) {
   add(cyl(0.16, 0.16, 0.06, 7), WOOD_PALE, { x: 0.45, y: 0.38, z: 1.05 });
   add(cyl(0.05, 0.07, 0.36, 6), WOOD_DARK, { x: 0.45, y: 0.18, z: 1.05 });
 
-  // chest in the -z corner
+  // chest in the -z corner, front (hasp) facing +z. The body is open-topped
+  // in look: a dark well with a peasant's few goods in it, hidden until the
+  // lid — its own pivot Group, hinged along the back edge — swings up.
   const cx = (H.chest.x0 + H.chest.x1) / 2;
   const cz = (H.chest.z0 + H.chest.z1) / 2;
   add(box(0.66, 0.34, 0.42), WOOD, { x: cx, y: 0.17, z: cz });
-  add(box(0.7, 0.1, 0.46), WOOD_DARK, { x: cx, y: 0.39, z: cz });
-  add(box(0.08, 0.5, 0.48), IRON, { x: cx - 0.2, y: 0.2, z: cz }); // iron bands
-  add(box(0.08, 0.5, 0.48), IRON, { x: cx + 0.2, y: 0.2, z: cz });
-  add(box(0.07, 0.09, 0.03), 0xb08d4f, { x: cx, y: 0.3, z: cz + 0.225, shadow: false }); // hasp
+  add(box(0.58, 0.01, 0.34), 0x2a2018, { x: cx, y: 0.345, z: cz, shadow: false }); // the dark inside
+  add(box(0.08, 0.36, 0.48), IRON, { x: cx - 0.2, y: 0.15, z: cz }); // iron bands
+  add(box(0.08, 0.36, 0.48), IRON, { x: cx + 0.2, y: 0.15, z: cz });
+  add(box(0.3, 0.05, 0.22), 0x7a6a50, { x: cx - 0.1, y: 0.36, z: cz, ry: 0.08, shadow: false }); // a folded spare tunic
+  add(box(0.28, 0.03, 0.2), tone(0x7a6a50, 1.15), { x: cx - 0.11, y: 0.395, z: cz + 0.01, ry: 0.05, shadow: false });
+  add(new THREE.SphereGeometry(0.06, 6, 5), LEATHER, { x: cx + 0.16, y: 0.38, z: cz - 0.05, shadow: false }); // a coin pouch
+  add(box(0.12, 0.025, 0.04), STONE_DARK, { x: cx + 0.15, y: 0.36, z: cz + 0.1, ry: -0.5, shadow: false }); // a whetstone
+  const chestLid = new THREE.Group();
+  chestLid.position.set(cx, 0.34, cz - H.chest.lidHinge);
+  chestLid.add(mesh(box(0.7, 0.1, 0.46), WOOD_DARK, { y: 0.05, z: 0.23 }));
+  chestLid.add(mesh(box(0.08, 0.12, 0.48), IRON, { x: -0.2, y: 0.05, z: 0.23 })); // the bands over the lid
+  chestLid.add(mesh(box(0.08, 0.12, 0.48), IRON, { x: 0.2, y: 0.05, z: 0.23 }));
+  chestLid.add(mesh(box(0.07, 0.09, 0.03), 0xb08d4f, { y: -0.03, z: 0.465, shadow: false })); // hasp
+  g.add(chestLid);
 
   // the sleep ledger: a plank and parchment by the shelf, tally scratched in ink
   add(box(0.55, 0.62, 0.04), WOOD_DARK, { x: H.ledger.x, y: 1.25, z: -1.31 });
@@ -402,7 +414,7 @@ function furnish(g, rng) {
   trophy.visible = false;
   g.add(trophy);
 
-  return { upgrades: { rug, trophy }, hearth: { flames, glow, halo } };
+  return { upgrades: { rug, trophy }, hearth: { flames, glow, halo }, chestLid };
 }
 
 export function buildQuestBoard() {

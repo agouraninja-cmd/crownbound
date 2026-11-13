@@ -422,6 +422,13 @@ headlessly; everything else covered by the regression suite below.
   4 hand-set at the village edge; +2 beside the hovel). All 18 smoke scenarios pass. Details:
   "The Renovation" under Noted decisions.
 
+- [x] Post-v1 — "The Lid" (2026-11-13): the chest beside the cot opens. E (inside only)
+  swings its lid up off the back edge on its own pivot Group (`hovel.chestLid`, eased like the
+  door) to show a peasant's goods — a folded tunic, a coin pouch, a whetstone — with a flavor
+  toast; E again lowers it. Pure scenery: it holds no items, touches no state, and the lid
+  isn't saved (each load starts shut). The cot crowds its front, so you stand at its corner,
+  which is also the wake spot — waking offers the lid first. No save change.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -440,7 +447,7 @@ headlessly; everything else covered by the regression suite below.
   `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/miller-tally greeting/death
   (respawn at the cot) ·
   `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
-  `house` door collider open/close + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
+  `house` door collider open/close + chest lid open/close (→ scripts/smoke-chest.png) + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
