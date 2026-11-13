@@ -21,6 +21,11 @@ export function sageEnabled() {
   return !!localStorage.getItem(KEY_STORAGE);
 }
 
+// the chronicler writes under the same key (see src/ai/chronicler.js)
+export function sageKey() {
+  return localStorage.getItem(KEY_STORAGE);
+}
+
 export function setSageKey(key) {
   if (key) localStorage.setItem(KEY_STORAGE, key);
   else localStorage.removeItem(KEY_STORAGE);

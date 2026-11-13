@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 7, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning
+  saveVersion: 8, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle
 
   xpPerLevel: 100, // next level costs 100 × current level
 
@@ -72,6 +72,15 @@ export const CONFIG = {
     model: 'claude-haiku-4-5-20251001', // any Claude model id works; haiku is the thrifty choice — a one-word verdict needs no Opus
     maxTokens: 16,
     timeoutMs: 8000, // past this the manual picker takes over
+  },
+
+  // The Chronicler: one short weekly entry of medieval prose from the ledgers
+  // (src/ai/chronicler.js). He serves under the sage's key and writes quietly
+  // after boot — prose gets more room and more patience than a verdict.
+  chronicler: {
+    model: 'claude-haiku-4-5-20251001',
+    maxTokens: 400,
+    timeoutMs: 30000, // off the critical path; a later load is the retry
   },
 
   // Mouse feel: camera radians per counted mouse pixel. The chosen feel is a

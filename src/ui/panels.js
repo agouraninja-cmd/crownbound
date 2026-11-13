@@ -292,6 +292,18 @@ function deedRows(history) {
     .join('');
 }
 
+function journalEntries(chronicle) {
+  return [...chronicle]
+    .reverse()
+    .map(
+      (e) => `<div class="journal-entry">
+        <div class="journal-week">Week of ${deedDate(e.week)}</div>
+        <p class="journal-prose">${esc(e.text)}</p>
+      </div>`
+    )
+    .join('');
+}
+
 function renderTome() {
   const s = getState();
 
@@ -335,6 +347,18 @@ function renderTome() {
       <div class="kv"><span>Days walked this land</span><span class="v">${s.daysPlayed}</span></div>
       <div class="kv"><span>Deeds recorded</span><span class="v">${s.history.length}</span></div>
       <div class="deed-list">${deedRows(s.history)}</div>
+    </div>
+    <div class="sheet-section">
+      <h2>The Weekly Chronicle</h2>
+      ${
+        s.chronicle.length
+          ? `<div class="deed-list journal">${journalEntries(s.chronicle)}</div>`
+          : `<p class="muted">${
+              sageEnabled()
+                ? 'The chronicler has yet to take up his pen. He writes of each week once it has ended.'
+                : 'Appoint the sage (below) and the chronicler will write of thy weeks in his own hand.'
+            }</p>`
+      }
     </div>
     <div class="sheet-section">
       <h2>The Scribe</h2>

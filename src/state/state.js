@@ -84,6 +84,7 @@ function defaultState(now = new Date()) {
       epic: { text: '', progressPct: 0 },
     },
     history: [],
+    chronicle: [], // the Chronicler's weekly entries { week, text, writtenAt }, append-only
     daysPlayed: 1,
     stamina: { current: CONFIG.stamina.baseCap, date: today },
     counters: { date: today, dummyHits: 0, ratsKilled: 0 },
@@ -115,9 +116,13 @@ function migrate(s) {
   if (s.saveVersion === 6) {
     s.saveVersion = 7; // v7: the monthly reckoning at the Exchequer
   }
+  if (s.saveVersion === 7) {
+    s.saveVersion = 8; // v8: the Chronicler's weekly chronicle
+  }
   // hand-edited or restored saves may miss fields regardless of version
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   if (!s.sleep.log) s.sleep.log = [];
+  if (!s.chronicle) s.chronicle = [];
   if (!s.shop) s.shop = { owned: [] };
   if (!('coronationAt' in s)) s.coronationAt = null;
   if (!('name' in s.treasury)) s.treasury.name = '';
@@ -548,6 +553,16 @@ export function setSummit(name, goal) {
   state.treasury.goal = Math.max(1, Math.round(goal));
   save();
   emit('treasury');
+}
+
+// ---------- the chronicle (the Chronicler's weekly entries) ----------
+
+// Entries arrive oldest-first (chronicler.js works through owed weeks in
+// order), so a plain push keeps the journal chronological.
+export function addChronicleEntry(week, text) {
+  state.chronicle.push({ week, text, writtenAt: new Date().toISOString() });
+  save();
+  emit('chronicle');
 }
 
 // ---------- combat-day counters (dummy XP cap, rat respawns) ----------
