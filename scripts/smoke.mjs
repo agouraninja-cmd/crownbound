@@ -11,7 +11,9 @@ const BROWSERS = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
 ];
-const executablePath = BROWSERS.find(existsSync);
+// SMOKE_BROWSER=<path> picks the browser by hand — headless Edge can quit at
+// once (exit code 0) on a machine where Edge is already open
+const executablePath = process.env.SMOKE_BROWSER || BROWSERS.find(existsSync);
 if (!executablePath) {
   console.error('No Edge/Chrome found for smoke test');
   process.exit(2);
@@ -247,6 +249,84 @@ try {
         );
       };
     });
+  }
+
+  if (scenario === 'chronicle') {
+    // a v7 save begun three weeks back: deeds in the first and last finished
+    // weeks, nothing in the middle one. The Anthropic API is stubbed at the
+    // fetch layer and FAILS on the first load, so the scenario covers the
+    // failure law, one-written-entry-per-load, and the free silent week.
+    const old = {
+      saveVersion: 7,
+      createdAt: new Date(Date.now() - 21 * 86400000).toISOString(),
+      lastPlayedAt: new Date().toISOString(),
+      lastQuestDate: null,
+      rank: 'Peasant',
+      stats: {
+        str: { level: 1, xp: 0 },
+        agi: { level: 1, xp: 0 },
+        wis: { level: 1, xp: 0 },
+        inf: { level: 1, xp: 0 },
+      },
+      coins: 0,
+      treasury: { name: '', current: 0, goal: 0, pledge: 0, rolls: [], conquered: [] },
+      streak: { current: 0, best: 0 },
+      quests: {
+        daily: { text: '', completed: false, date: dstr(0) },
+        weekly: { text: '', completed: false, weekStart: '2020-01-06' },
+        monthly: { text: '', completed: false, monthStart: '2020-01-01' },
+        epic: { text: '', progressPct: 0 },
+      },
+      history: [
+        { date: dstr(-21), questText: 'Lifted at the yard', statTrained: 'str', type: 'daily' },
+        { date: dstr(-7), questText: 'Played tennis', statTrained: 'agi', type: 'daily' },
+      ],
+      daysPlayed: 3,
+      stamina: { current: 60, date: dstr(0) },
+      counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
+      sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
+      shop: { owned: [] },
+      coronationAt: null,
+    };
+    await page.evaluateOnNewDocument((save) => {
+      if (!sessionStorage.getItem('smoke-injected')) {
+        sessionStorage.setItem('smoke-injected', '1');
+        localStorage.setItem('crownbound_save', JSON.stringify(save));
+      }
+      localStorage.setItem('crownbound_sage_key', 'sk-ant-smoke-test');
+      const load = Number(sessionStorage.getItem('smoke-loads') || 0) + 1;
+      sessionStorage.setItem('smoke-loads', String(load));
+      const realFetch = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url = typeof input === 'string' ? input : input.url;
+        if (!url.includes('api.anthropic.com')) return realFetch(input, init);
+        sessionStorage.setItem('smoke-calls', String(Number(sessionStorage.getItem('smoke-calls') || 0) + 1));
+        const headers = { 'content-type': 'application/json' };
+        if (load === 1) {
+          return new Response(
+            JSON.stringify({ type: 'error', error: { type: 'api_error', message: 'smoke' } }),
+            { status: 500, headers }
+          );
+        }
+        const bodyText = init?.body ?? (typeof input !== 'string' ? await input.clone().text() : '');
+        const req = JSON.parse(bodyText);
+        const ledger = String(req.messages?.[0]?.content ?? '');
+        const prose = ledger.includes('tennis') ? 'He strove at the ball court.' : 'He laboured in the yard.';
+        return new Response(
+          JSON.stringify({
+            id: 'msg_smoke',
+            type: 'message',
+            role: 'assistant',
+            model: req.model,
+            content: [{ type: 'text', text: prose }],
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          }),
+          { status: 200, headers }
+        );
+      };
+    }, old);
   }
 
   await page.goto(`http://localhost:${PORT}/?smoke=${scenario}`, {
@@ -807,6 +887,7 @@ try {
       const t = window.__game.getState().treasury;
       return {
         version: window.__game.getState().saveVersion,
+        latest: window.__game.CONFIG.saveVersion,
         name: t.name,
         pledge: t.pledge,
         rolls: Array.isArray(t.rolls) && t.rolls.length === 0,
@@ -814,7 +895,8 @@ try {
       };
     });
     console.log('migrated:', JSON.stringify(migrated));
-    if (migrated.version !== 7) errors.push(`reckoning: saveVersion ${migrated.version} != 7`);
+    if (migrated.version !== migrated.latest)
+      errors.push(`reckoning: saveVersion ${migrated.version} != current ${migrated.latest}`);
     if (migrated.name !== '' || migrated.pledge !== 0 || !migrated.rolls || !migrated.conquered)
       errors.push('reckoning: migration did not grow the v7 treasury fields');
 
@@ -1087,6 +1169,65 @@ try {
     await new Promise((r) => setTimeout(r, 300));
     const manual = await page.evaluate(() => !!document.querySelector('[data-pick]'));
     if (!manual) errors.push('sage: picker absent after dismissal');
+  } else if (scenario === 'chronicle') {
+    const read = () =>
+      page.evaluate(() => {
+        const st = window.__game.getState();
+        return {
+          version: st.saveVersion,
+          latest: window.__game.CONFIG.saveVersion,
+          texts: st.chronicle.map((e) => e.text),
+          weeks: st.chronicle.map((e) => e.week),
+          calls: Number(sessionStorage.getItem('smoke-calls') || 0),
+        };
+      });
+    const reload = async () => {
+      await page.reload({ waitUntil: 'networkidle2' });
+      await new Promise((r) => setTimeout(r, 2000));
+    };
+
+    // 1) migration lands on the current version; a failed call writes nothing
+    const first = await read();
+    console.log('chronicle load 1 (API fails):', JSON.stringify(first));
+    if (first.version !== first.latest) errors.push(`chronicle: saveVersion ${first.version} != current ${first.latest}`);
+    if (first.calls !== 1) errors.push(`chronicle: ${first.calls} API calls on a failing load != 1`);
+    if (first.texts.length !== 0) errors.push('chronicle: an entry was written despite the failure');
+
+    // 2) the next load is the retry: exactly one written entry, the oldest week
+    await reload();
+    const second = await read();
+    console.log('chronicle load 2:', JSON.stringify(second));
+    if (second.texts.length !== 1 || !second.texts[0].includes('yard'))
+      errors.push(`chronicle: load 2 wrote ${JSON.stringify(second.texts)}, wanted the oldest week only`);
+    if (second.calls !== 2) errors.push(`chronicle: ${second.calls} API calls by load 2 != 2`);
+
+    // 3) then the silent week for free and the last week in prose, in order
+    await reload();
+    const third = await read();
+    console.log('chronicle load 3:', JSON.stringify(third));
+    if (third.texts.length !== 3) errors.push(`chronicle: ${third.texts.length} entries after load 3 != 3`);
+    else {
+      if (!third.texts[1].includes('blank')) errors.push('chronicle: the empty week was not left blank');
+      if (!third.texts[2].includes('ball court')) errors.push('chronicle: the last week is not the tennis entry');
+      if ([...third.weeks].sort().join() !== third.weeks.join()) errors.push('chronicle: entries out of week order');
+    }
+    if (third.calls !== 3) errors.push(`chronicle: ${third.calls} API calls by load 3 != 3 (silent week must be free)`);
+
+    // 4) nothing more is owed: a further load neither calls nor writes
+    await reload();
+    const fourth = await read();
+    if (fourth.texts.length !== 3 || fourth.calls !== 3)
+      errors.push(`chronicle: a caught-up load still wrote or called (${fourth.texts.length} entries, ${fourth.calls} calls)`);
+
+    // 5) the Tome shows the journal, newest week first
+    await page.evaluate(() => window.__game.openPanel('tome'));
+    const shown = await page.evaluate(() =>
+      [...document.querySelectorAll('.journal-entry .journal-prose')].map((p) => p.textContent)
+    );
+    console.log('chronicle in the Tome:', JSON.stringify(shown));
+    if (shown.length !== 3) errors.push(`chronicle: Tome shows ${shown.length} journal entries != 3`);
+    else if (!shown[0].includes('ball court')) errors.push('chronicle: Tome journal is not newest-first');
+    await page.screenshot({ path: 'scripts/smoke-chronicle.png' });
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
     await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });

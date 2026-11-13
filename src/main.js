@@ -10,6 +10,7 @@ import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, im
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
+import { keepChronicle } from './ai/chronicler.js';
 import { toast } from './ui/toasts.js';
 import { initAudio, sfx } from './ui/audio.js';
 import { createDummy } from './combat/dummy.js';
@@ -191,6 +192,12 @@ setTimeout(() => {
   for (const m of bootMessages) toast(m.text, m.style);
   if (marketToday) toast('The chapman has come — his cart stands by the path.', 'gold');
 }, 700);
+
+// the chronicler catches up on finished weeks, quietly and off the critical
+// path — he swallows his own failures, and a later load is the retry
+keepChronicle().then((wrote) => {
+  if (wrote.prose) toast('The chronicler has set down the week past — read it in the Tome.');
+});
 
 function insideHovel() {
   const z = world.hovelInterior;

@@ -44,7 +44,7 @@ src/player/camera.js  pointer-lock third-person orbit camera
 src/combat/dummy.js   training dummy wobble + diminishing STR XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
 src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
-src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep log, under the sage's key (not yet wired into main.js)
+src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep log, under the sage's key; run once after boot
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
@@ -334,18 +334,19 @@ headlessly; everything else covered by the regression suite below.
   been denied (`lockDenied`, cleared if a lock is ever granted) — a press that travelled under
   5px is handed to `setOnTap` (main.js wires it to player.attack, gated on player.isEnabled).
   Browsers that grant the lock behave as before. Verified by hand in the pane (drag turns,
-  click swings); the smoke suite did not run that day — headless Edge would not launch.
+  click swings); the full smoke suite passed afterwards (run in Chrome).
   Also added .claude/launch.json (dev server on 5173). No save change.
 
-- [ ] v2 — "The Chronicler" (IN PROGRESS, groundwork committed 2026-11-13, untested): weekly
-  medieval-prose journal entries from the deed history + sleep log, under the sage's key
-  (`sageKey()` exported from sage.js; no key, no chronicler). Done so far: src/ai/chronicler.js
-  (`weeksOwed`, `weekMaterial`, `keepChronicle` — silent weeks marked for free, at most ONE
-  written entry per load, stops at the first failure so entries land in week order),
-  CONFIG.chronicler, `state.chronicle` + `addChronicleEntry` (emits 'chronicle'), the v7→v8
-  migration, and the Tome's "Weekly Chronicle" section + styling. NOT done: nothing calls
-  `keepChronicle()` yet (main.js never imports it, so no entry is ever written), there is no
-  smoke scenario, and the smoke suite has not been run against saveVersion 8.
+- [x] v2 — "The Chronicler" (2026-11-13): the first true v2 arrival. Each finished week gets
+  one short entry of medieval prose written from the deed history + sleep log, under the sage's
+  key (`sageKey()` exported from sage.js; no key, no chronicler). main.js calls
+  `keepChronicle()` once after boot, off the critical path; a written entry raises one toast
+  and is read in the Tome's "Weekly Chronicle" section (newest first). His laws
+  (src/ai/chronicler.js): weeks with no deeds are marked blank for free (no API call); at most
+  ONE written entry per load, so a long absence catches up a week per session; any failure
+  writes nothing and the next load is the retry; entries always land in week order.
+  `state.chronicle` + `addChronicleEntry` (emits 'chronicle'), CONFIG.chronicler, saveVersion 8.
+  Tested with a stubbed API only — no entry has yet been written by the real model.
 
 ### Session notes
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
@@ -370,6 +371,12 @@ headlessly; everything else covered by the regression suite below.
   follows (screenshot → scripts/smoke-alive.png) ·
   `sage` fetch-stubbed verdict auto-completes the daily + nonsense verdict falls back to the
   picker + Tome dismissal clears the key & restores manual (screenshot → scripts/smoke-sage.png) ·
+  `chronicle` v7→v8 migration + fetch-stubbed weekly entries: a failing call writes nothing,
+  the next load retries, one written entry per load, the empty week left blank for free, week
+  order kept, Tome journal newest-first (screenshot → scripts/smoke-chronicle.png) ·
   `aerial`/`front` screenshots.
+- If headless Edge quits at once ("Failed to launch the browser process: Code: 0" — seen
+  2026-11-13 with Edge already open), point the suite at Chrome:
+  `SMOKE_BROWSER="C:\Program Files\Google\Chrome\Application\chrome.exe" node scripts/smoke.mjs <scenario>`.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
