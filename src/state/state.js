@@ -90,6 +90,7 @@ function defaultState(now = new Date()) {
     counters: { date: today, dummyHits: 0, ratsKilled: 0 },
     sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
     shop: { owned: [] }, // ids of one-time purchases from the chapman
+    chest: { wielded: 'stick', loaves: 0 }, // the weapon in hand (the rest lie in the chest) + the larder
     coronationAt: null, // set the moment the rank reaches King — the Coronation
   };
 }
@@ -119,11 +120,15 @@ function migrate(s) {
   if (s.saveVersion === 7) {
     s.saveVersion = 8; // v8: the Chronicler's weekly chronicle
   }
+  if (s.saveVersion === 8) {
+    s.saveVersion = 9; // v9: the chest — keep wielding the best weapon owned, as before
+  }
   // hand-edited or restored saves may miss fields regardless of version
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   if (!s.sleep.log) s.sleep.log = [];
   if (!s.chronicle) s.chronicle = [];
   if (!s.shop) s.shop = { owned: [] };
+  if (!s.chest) s.chest = { wielded: bestOwnedWeapon(s.shop.owned), loaves: 0 };
   if (!('coronationAt' in s)) s.coronationAt = null;
   if (!('name' in s.treasury)) s.treasury.name = '';
   if (!('pledge' in s.treasury)) s.treasury.pledge = 0;
@@ -428,6 +433,15 @@ export function setEpicProgress(pct) {
 
 // ---------- the shop (the chapman's cart) ----------
 
+const handItems = () => CONFIG.shop.items.filter((i) => i.category === 'hand');
+
+// before the chest, the best weapon owned was always in hand
+function bestOwnedWeapon(owned) {
+  let best = { id: 'stick', tier: 0 };
+  for (const item of handItems()) if (owned.includes(item.id) && item.tier > best.tier) best = item;
+  return best.id;
+}
+
 function rankIndex(title) {
   return CONFIG.ranks.findIndex((r) => r.title === title);
 }
@@ -443,9 +457,12 @@ export function buyItem(id) {
   if (!item) return { ok: false, why: 'unknown' };
   if (item.once && ownsItem(id)) return { ok: false, why: 'owned' };
   if (item.minRank && rankIndex(state.rank) < rankIndex(item.minRank)) return { ok: false, why: 'rank' };
+  if (id === 'loaf' && state.chest.loaves >= CONFIG.chest.larderCap) return { ok: false, why: 'larder' };
   if (state.coins < item.price) return { ok: false, why: 'coins' };
   state.coins -= item.price;
   if (item.once) state.shop.owned.push(id);
+  if (item.category === 'hand') state.chest.wielded = id; // new gear goes straight to hand
+  if (id === 'loaf') state.chest.loaves += 1; // bread keeps in the chest's larder
   state.history.push({
     date: todayStr(),
     questText: `Bought ${item.name} from the chapman`,
@@ -456,6 +473,35 @@ export function buyItem(id) {
   emit('coins');
   emit('shop');
   return { ok: true, item };
+}
+
+// ---------- the chest by the cot ----------
+
+// every weapon the player can take up: the stick, plus whatever gear is owned
+export function ownedWeapons() {
+  return [CONFIG.chest.stick, ...handItems().filter((i) => ownsItem(i.id))];
+}
+
+export function wieldedWeapon() {
+  return ownedWeapons().find((w) => w.id === state.chest.wielded) ?? CONFIG.chest.stick;
+}
+
+// take up a weapon from the chest; the one in hand goes back in
+export function wieldWeapon(id) {
+  if (!ownedWeapons().some((w) => w.id === id)) return false;
+  state.chest.wielded = id;
+  save();
+  emit('chest');
+  return true;
+}
+
+// one loaf out of the larder; the caller heals (state knows nothing of HP)
+export function eatLoaf() {
+  if (state.chest.loaves <= 0) return false;
+  state.chest.loaves -= 1;
+  save();
+  emit('chest');
+  return true;
 }
 
 // ---------- treasury (the monthly reckoning) ----------

@@ -14,6 +14,10 @@ import {
   fileReckoning,
   reckoningDue,
   buyItem,
+  ownedWeapons,
+  wieldedWeapon,
+  wieldWeapon,
+  eatLoaf,
   xpToNext,
   totalLevels,
   STAT_NAMES,
@@ -29,10 +33,10 @@ import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody;
 let open = null;
 let onOpenChange = () => {};
-let shopActions = { isWounded: () => false, onPurchase: () => {} }; // wired by main.js
+let shopActions = { isWounded: () => false, onPurchase: () => {}, onEat: () => {}, onWield: () => {} }; // wired by main.js
 let statPickFor = null; // 'daily' | 'weekly' | 'monthly'
 let judgingFor = null; // quest kind awaiting the sage's verdict
 let judgeSeq = 0; // bumped to orphan any in-flight verdict (cancel, close, dismiss)
@@ -721,13 +725,13 @@ function renderShop() {
       .map((item) => {
         const owned = item.once && s.shop.owned.includes(item.id);
         const locked = item.minRank && rankIdx(s.rank) < rankIdx(item.minRank);
-        const hale = item.id === 'loaf' && !shopActions.isWounded();
+        const larderFull = item.id === 'loaf' && s.chest.loaves >= CONFIG.chest.larderCap;
         let action;
         if (owned) action = `<span class="deed-tag tag-gold">owned</span>`;
         else if (locked) action = `<span class="deed-tag tag-grim">for a ${item.minRank}</span>`;
         else
-          action = `<button data-buy="${item.id}" ${s.coins < item.price || hale ? 'disabled' : ''}
-            title="${hale ? 'Thou art hale — bread keeps.' : ''}">${item.price}c</button>`;
+          action = `<button data-buy="${item.id}" ${s.coins < item.price || larderFull ? 'disabled' : ''}
+            title="${larderFull ? 'Thy chest&#8217;s larder is full.' : ''}">${item.price}c</button>`;
         return `<div class="deed">
           <span class="deed-text"><b>${item.name}</b> — <span class="muted">${item.flavor}</span></span>
           ${action}
@@ -748,7 +752,8 @@ function renderShop() {
     btn.addEventListener('click', () => {
       const res = buyItem(btn.dataset.buy);
       if (res.ok) {
-        toast(`${res.item.name} — bought and paid for.`, 'gold');
+        const where = res.item.id === 'loaf' ? ' It waits in thy chest at home.' : '';
+        toast(`${res.item.name} — bought and paid for.${where}`, 'gold');
         sfx.questDone();
         shopActions.onPurchase(res.item);
       } else if (res.why === 'coins') {
@@ -757,6 +762,70 @@ function renderShop() {
       renderShop();
     });
   }
+}
+
+// ---------- The Chest (beside the cot) ----------
+
+function renderChest() {
+  const s = getState();
+  const inHand = wieldedWeapon();
+  const damageOf = (w) => w.damage ?? CONFIG.player.attackDamage;
+
+  const weapons = ownedWeapons()
+    .map((w) => {
+      const action =
+        w.id === inHand.id
+          ? `<span class="deed-tag tag-gold">in hand</span>`
+          : `<button data-wield="${w.id}">Take up</button>`;
+      return `<div class="deed">
+        <span class="deed-text"><b>${w.name}</b> — <span class="muted">${w.flavor}</span>
+          <span class="muted">(${damageOf(w)} damage)</span></span>
+        ${action}
+      </div>`;
+    })
+    .join('');
+
+  const loaves = s.chest.loaves;
+  const hale = !shopActions.isWounded();
+  chestBody.innerHTML = `
+    <div class="sheet-section">
+      <div class="kv"><span>In thy hand</span><span class="v">${inHand.name}</span></div>
+      <p class="muted">Thou carriest one weapon; the chest keeps the rest.</p>
+    </div>
+    <div class="sheet-section">
+      <h2>Weapons</h2>
+      ${weapons}
+    </div>
+    <div class="sheet-section">
+      <h2>The Larder</h2>
+      <div class="kv"><span>Loaves</span><span class="v">${loaves} of ${CONFIG.chest.larderCap}</span></div>
+      <p class="muted">${
+        loaves
+          ? 'A loaf mends every wound at once. Bread keeps; eat it when thou art hurt.'
+          : 'Empty. The chapman sells loaves on market days.'
+      }</p>
+      <div class="row right">
+        <button class="primary" data-eat ${!loaves || hale ? 'disabled' : ''}
+          title="${loaves && hale ? 'Thou art hale — bread keeps.' : ''}">Eat a loaf</button>
+      </div>
+    </div>`;
+
+  for (const btn of chestBody.querySelectorAll('[data-wield]')) {
+    btn.addEventListener('click', () => {
+      if (wieldWeapon(btn.dataset.wield)) {
+        toast(`Thou takest up ${wieldedWeapon().name}.`, '');
+        shopActions.onWield();
+      }
+      renderChest();
+    });
+  }
+  chestBody.querySelector('[data-eat]').addEventListener('click', () => {
+    if (shopActions.isWounded() && eatLoaf()) {
+      toast('Warm bread. The aches ease.', 'gold');
+      shopActions.onEat();
+    }
+    renderChest();
+  });
 }
 
 // ---------- open/close ----------
@@ -776,6 +845,7 @@ function close() {
   treasuryPanel.classList.add('hidden');
   shopPanel.classList.add('hidden');
   guidePanel.classList.add('hidden');
+  chestPanel.classList.add('hidden');
   onOpenChange(false);
 }
 
@@ -789,11 +859,13 @@ export function openPanel(id) {
   treasuryPanel.classList.toggle('hidden', id !== 'treasury');
   shopPanel.classList.toggle('hidden', id !== 'shop');
   guidePanel.classList.toggle('hidden', id !== 'guide');
+  chestPanel.classList.toggle('hidden', id !== 'chest');
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
   else if (id === 'treasury') renderTreasury();
   else if (id === 'shop') renderShop();
   else if (id === 'guide') renderGuide(guideBody);
+  else if (id === 'chest') renderChest();
   else renderTome();
   onOpenChange(true);
 }
@@ -812,12 +884,14 @@ export function initPanels(openChangeCallback, shopHooks) {
   treasuryPanel = document.getElementById('treasury-panel');
   shopPanel = document.getElementById('shop-panel');
   guidePanel = document.getElementById('guide-panel');
+  chestPanel = document.getElementById('chest-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
   ledgerBody = document.getElementById('ledger-body');
   treasuryBody = document.getElementById('treasury-body');
   shopBody = document.getElementById('shop-body');
   guideBody = document.getElementById('guide-body');
+  chestBody = document.getElementById('chest-body');
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && open) close();

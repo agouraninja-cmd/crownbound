@@ -16,10 +16,11 @@ happens the moment the character reaches King** (70 total virtue levels).
   No model files and no image files — the one texture is a soft round dot drawn on a canvas at
   load (sprites.js).
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 8`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 9`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
-  v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle).
+  v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle;
+  v8→v9 the chest — weapon in hand + loaf larder).
 - Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
   one shadow-casting directional light, cheap particles, no post-processing.
 
@@ -59,7 +60,7 @@ src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep 
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
-src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury panel UIs
+src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ```
@@ -97,6 +98,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
                                                         //   for the v2 Chronicler; ledger shows last 7)
   shop: { owned: [] },                                  // ids of one-time chapman purchases; purchases
                                                         //   also land in history as type "purchase"
+  chest: { wielded, loaves },                           // weapon in hand ('stick' or an owned hand item;
+                                                        //   the rest lie in the chest) + loaves in the larder
   coronationAt                                          // ISO timestamp, set once at rank King (else null)
 }
 ```
@@ -127,8 +130,14 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   no streak repair, no stamina is ever for sale. Catalogue (config `shop.items`): gear
   (cudgel 300c → damage 2; quarterstaff 1000c → damage 3 + reach, Squire-gated), home upgrades
   (rug 250c, door paint 300c, glass window 400c, garden 600c — pre-built hidden meshes in the
-  hovel, shown when owned), comforts (loaf 10c full heal, wounded only; rat trophy 60c;
+  hovel, shown when owned), comforts (loaf 10c → the chest's larder; rat trophy 60c;
   lantern 120c). One-time items live in shop.owned; the loaf repeats.
+- The chest by the cot (E inside the hovel → lid up + Chest panel; closing the panel lowers it):
+  the hand holds ONE weapon — the stick, cudgel or quarterstaff — and the chest keeps the rest;
+  "Take up" swaps (`chest.wielded`, applied by main.js `applyPurchases`). A newly bought weapon
+  goes straight to hand. Loaves bought at the cart land in the larder (cap
+  `CONFIG.chest.larderCap` = 6; the cart refuses bread when it's full) and are eaten from the
+  chest for a full heal, wounded only. Bread mends HP and nothing else — the sacred rule holds.
 - The hovel is enterable: E opens/closes the hinged door (closed = solid collider), furnished
   one-room peasant interior, indoor camera pulls in close. E on the cot sleeps: fade out, full heal,
   and the bedtime is recorded. On the next load, if ≥7h passed (≤13h, so it was last night) and it is
@@ -429,6 +438,13 @@ headlessly; everything else covered by the regression suite below.
   isn't saved (each load starts shut). The cot crowds its front, so you stand at its corner,
   which is also the wake spot — waking offers the lid first. No save change.
 
+- [x] Post-v1 — "The Larder" (2026-11-14): the chest stores things. One weapon in hand, the
+  rest in the chest, swapped in the Chest panel; loaves from the cart go to its larder (cap 6)
+  instead of being eaten on the spot, and are eaten there when wounded. The lid now opens with
+  the panel and lowers when it closes. v8→v9 migration puts the best owned weapon in hand (the
+  old behaviour). The Charter's Chapman section mentions the larder. Stored items aren't drawn
+  in the chest — the quarterstaff alone would be twice its length. saveVersion 9.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -447,11 +463,13 @@ headlessly; everything else covered by the regression suite below.
   `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/miller-tally greeting/death
   (respawn at the cot) ·
   `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
-  `house` door collider open/close + chest lid open/close (→ scripts/smoke-chest.png) + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
+  `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
-  mesh shown, rank gate, cudgel damage, loaf heal) + cart screenshot · `crown` v5→current migration
+  mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
+  damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
+  `crown` v5→current migration (incl. best owned weapon → chest.wielded)
   + last-level daily completion → King + coronation once-only · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
   `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat) + conquest & next
