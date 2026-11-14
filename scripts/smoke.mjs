@@ -791,8 +791,12 @@ try {
       g.player.pos.z = 1.5;
       g.orbitCam.setView(0, 0.6, 2); // looking past him at the chest
     });
-    await new Promise((r) => setTimeout(r, 400));
-    const chestPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    // poll: the software renderer can stall past a fixed wait on a fresh view
+    let chestPrompt = '';
+    for (let i = 0; i < 30 && !chestPrompt.includes('open the chest'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      chestPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    }
     console.log('chest prompt:', JSON.stringify(chestPrompt));
     if (!chestPrompt.includes('open the chest')) errors.push(`house: chest prompt "${chestPrompt}"`);
     await page.keyboard.press('KeyE');
