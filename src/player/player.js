@@ -2,11 +2,15 @@ import * as THREE from 'three';
 import { CONFIG } from '../state/config.js';
 import { terrainHeight } from '../scene/terrain.js';
 import { buildPlayerMesh } from './playerMesh.js';
+import { createPlayerAnimator } from './playerAnim.js';
 import { flash } from '../scene/meshUtils.js';
 
 const P = CONFIG.player;
 const PLAYER_RADIUS = 0.35;
 const WORLD_RADIUS = 78;
+const SLOPE_PROBE = 0.25; // how far each way the ground is felt for its tilt
+
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
 function lerpAngle(a, b, t) {
   let d = (b - a) % (Math.PI * 2);
@@ -17,6 +21,7 @@ function lerpAngle(a, b, t) {
 
 export function createPlayer(scene, spawn) {
   const m = buildPlayerMesh();
+  const anim = createPlayerAnimator(m); // every joint is his to turn
   m.group.position.set(spawn.x, terrainHeight(spawn.x, spawn.z), spawn.z);
   m.group.rotation.y = Math.PI / 3;
   scene.add(m.group);
@@ -46,16 +51,18 @@ export function createPlayer(scene, spawn) {
     pos: m.group.position,
     vel: new THREE.Vector2(0, 0), // xz
     facing: m.group.rotation.y,
-    mode: 'normal', // normal | roll | attack
+    mode: 'normal', // normal | roll | attack | sleep
     modeT: 0,
     invulnerable: false,
     vy: 0,
     airborne: false,
-    landT: Infinity, // time since last touchdown, drives the landing crouch
+    jumpIn: 0, // seconds until a called-for leap leaves the ground (the knees load first)
+    slope: { x: 0, z: 0 }, // the ground's rise per unit along world x and z, under the feet
+    turnRate: 0, // radians per second the body is turning
     crouching: false,
     crouch01: 0, // eased crouch amount, 0 standing → 1 fully crouched
-    walkPhase: 0,
-    idleT: 0,
+    lie01: 0, // eased lying-down amount on the cot, 0 upright → 1 flat
+    restY: 0, // where the waist settles on the mattress, above the ground
     time: 0,
     hp: P.maxHp,
     maxHp: P.maxHp,
@@ -110,9 +117,8 @@ export function createPlayer(scene, spawn) {
   }
 
   function startJump() {
-    if (player.mode !== 'normal' || player.airborne) return;
-    player.vy = P.jumpSpeed;
-    player.airborne = true;
+    if (player.mode !== 'normal' || player.airborne || player.jumpIn > 0) return;
+    player.jumpIn = Math.max(P.jumpWindup, 1e-4); // update() springs the leap once the knees have loaded
   }
 
   // E on the cot: glide to the bed, lie back on the pillow, breathe.
@@ -125,41 +131,31 @@ export function createPlayer(scene, spawn) {
     player.vel.set(0, 0);
     player.vy = 0;
     player.airborne = false;
+    player.jumpIn = 0;
     player.invulnerable = true; // nothing interrupts a tired peasant
   }
 
   function updateSleep(dt) {
-    const mm = m;
     const b = player.sleepTarget;
 
-    // glide onto the cot
+    // glide onto the cot; the animator is told a walking pace so the last
+    // steps shuffle rather than sprint
     const k = 1 - Math.exp(-dt * 6);
-    player.pos.x += (b.x - player.pos.x) * k;
-    player.pos.z += (b.z - player.pos.z) * k;
+    const dx = (b.x - player.pos.x) * k;
+    const dz = (b.z - player.pos.z) * k;
+    player.pos.x += dx;
+    player.pos.z += dz;
     player.pos.y = terrainHeight(player.pos.x, player.pos.z);
+    if (dt > 1e-4) player.vel.set(dx / dt, dz / dt).clampLength(0, 1.8);
     player.facing = lerpAngle(player.facing, b.facing, k);
-    mm.group.rotation.y = player.facing;
+    player.turnRate = 0;
+    m.group.rotation.y = player.facing;
 
-    // then lie back, eased
-    const lt = Math.min(Math.max((player.modeT - 0.4) / 0.6, 0), 1);
-    const lie = lt * lt * (3 - 2 * lt);
-    const breathe = lie >= 1 ? Math.sin(player.time * 1.8) * 0.012 : 0;
-    mm.roller.rotation.x = (-Math.PI / 2) * lie;
-    // settle the waist pivot onto the mattress
-    mm.roller.position.y = 0.6 + (b.y + 0.16 - player.pos.y - 0.6) * lie + breathe;
-    mm.weapon.visible = lie < 0.5; // the stick rests for the night too
-
-    // last shuffling steps fade into a flat, resting pose
-    const remaining = Math.hypot(b.x - player.pos.x, b.z - player.pos.z);
-    const stepK = Math.min(remaining * 3, 1) * (1 - lie);
-    player.walkPhase += dt * 7 * stepK;
-    const swing = Math.sin(player.walkPhase) * 0.6 * stepK;
-    mm.leftLeg.rotation.x = swing - 0.05 * lie;
-    mm.rightLeg.rotation.x = -swing - 0.05 * lie;
-    mm.leftArm.rotation.x = -swing * 0.5 + (-0.25 + breathe * 2) * lie;
-    mm.rightArm.rotation.x = swing * 0.5 + (-0.25 + breathe * 2) * lie;
-    mm.body.rotation.x = 0;
-    mm.body.rotation.y = 0;
+    // then lie back, eased, and settle the waist onto the mattress
+    const lt = clamp((player.modeT - 0.4) / 0.6, 0, 1);
+    player.lie01 = lt * lt * (3 - 2 * lt);
+    player.restY = b.y + 0.16 - player.pos.y;
+    m.weapon.visible = player.lie01 < 0.5; // the stick rests for the night too
   }
 
   function startRoll(dirX, dirZ) {
@@ -175,9 +171,12 @@ export function createPlayer(scene, spawn) {
   }
 
   // colliders are circles {x, z, r} (trees, rocks) or axis-aligned rects
-  // {minX, maxX, minZ, maxZ} (hovel walls, furniture)
+  // {minX, maxX, minZ, maxZ} (hovel walls, furniture). Being pushed out of one
+  // also takes away the speed that was carrying him into it, so he slides
+  // along a wall and stops against it instead of running on the spot.
   function resolveCollisions(colliders) {
     const p = player.pos;
+    const v = player.vel; // Vector2: y holds z
     for (const c of colliders) {
       if (c.r !== undefined) {
         const dx = p.x - c.x;
@@ -186,8 +185,15 @@ export function createPlayer(scene, spawn) {
         const d2 = dx * dx + dz * dz;
         if (d2 < minDist * minDist && d2 > 1e-6) {
           const d = Math.sqrt(d2);
-          p.x = c.x + (dx / d) * minDist;
-          p.z = c.z + (dz / d) * minDist;
+          const nx = dx / d;
+          const nz = dz / d;
+          p.x = c.x + nx * minDist;
+          p.z = c.z + nz * minDist;
+          const into = v.x * nx + v.y * nz;
+          if (into < 0) {
+            v.x -= nx * into;
+            v.y -= nz * into;
+          }
         }
       } else {
         const minX = c.minX - PLAYER_RADIUS;
@@ -200,11 +206,20 @@ export function createPlayer(scene, spawn) {
           const toMaxX = maxX - p.x;
           const toMinZ = p.z - minZ;
           const toMaxZ = maxZ - p.z;
-          const m = Math.min(toMinX, toMaxX, toMinZ, toMaxZ);
-          if (m === toMinX) p.x = minX;
-          else if (m === toMaxX) p.x = maxX;
-          else if (m === toMinZ) p.z = minZ;
-          else p.z = maxZ;
+          const least = Math.min(toMinX, toMaxX, toMinZ, toMaxZ);
+          if (least === toMinX) {
+            p.x = minX;
+            v.x = Math.min(v.x, 0);
+          } else if (least === toMaxX) {
+            p.x = maxX;
+            v.x = Math.max(v.x, 0);
+          } else if (least === toMinZ) {
+            p.z = minZ;
+            v.y = Math.min(v.y, 0);
+          } else {
+            p.z = maxZ;
+            v.y = Math.max(v.y, 0);
+          }
         }
       }
     }
@@ -212,70 +227,27 @@ export function createPlayer(scene, spawn) {
     if (r > WORLD_RADIUS) {
       p.x *= WORLD_RADIUS / r;
       p.z *= WORLD_RADIUS / r;
+      const out = (v.x * p.x + v.y * p.z) / WORLD_RADIUS;
+      if (out > 0) {
+        v.x -= (p.x / WORLD_RADIUS) * out;
+        v.y -= (p.z / WORLD_RADIUS) * out;
+      }
     }
   }
 
-  function animate(dt, speed01, sprinting) {
-    const mm = m;
-    if (player.mode === 'roll') {
-      const t = player.modeT / P.dodgeDuration;
-      mm.roller.rotation.x = t * Math.PI * 2;
-      mm.leftLeg.rotation.x = -1.4;
-      mm.rightLeg.rotation.x = -1.4;
-      mm.leftArm.rotation.x = -1.2;
-      mm.rightArm.rotation.x = -1.2;
-      return;
-    }
-    mm.roller.rotation.x = 0;
-
-    player.walkPhase += dt * speed01 * (sprinting ? 11 : 8);
-    player.idleT += dt;
-    const swing = Math.sin(player.walkPhase) * 0.75 * speed01;
-
-    mm.leftLeg.rotation.x = swing;
-    mm.rightLeg.rotation.x = -swing;
-    mm.leftArm.rotation.x = -swing * 0.6 + Math.sin(player.idleT * 1.4) * 0.04;
-
-    if (player.mode === 'attack') {
-      const t = Math.min(player.modeT / P.attackDuration, 1);
-      // windup back over the shoulder, then snap down through the arc
-      const windup = -2.3;
-      const follow = 0.8;
-      const k = Math.min(t / 0.35, 1);
-      const swingT = Math.max(0, (t - 0.35) / 0.65);
-      const ease = 1 - Math.pow(1 - swingT, 3);
-      mm.rightArm.rotation.x = windup * k + (follow - windup) * ease;
-      mm.body.rotation.y = 0.35 - ease * 0.7;
+  // Finite push, finite grip: velocity moves toward what is wanted at `rate`
+  // units/s² and no faster. A sprint takes a moment to wind up, a stop slides
+  // a step, and a hard turn is carved rather than snapped.
+  function steer(wantX, wantZ, rate, dt) {
+    const dx = wantX - player.vel.x;
+    const dz = wantZ - player.vel.y; // Vector2.y holds z
+    const gap = Math.hypot(dx, dz);
+    const reach = rate * dt;
+    if (gap <= reach) {
+      player.vel.set(wantX, wantZ);
     } else {
-      mm.rightArm.rotation.x = -swing * 0.6 - Math.sin(player.idleT * 1.4) * 0.04;
-      mm.body.rotation.y = 0;
-    }
-
-    // lean into the run, breathe at rest
-    mm.body.rotation.x = speed01 * (sprinting ? 0.18 : 0.1) + Math.sin(player.idleT * 2.1) * 0.012;
-    mm.roller.position.y = 0.6 + Math.abs(Math.sin(player.walkPhase)) * 0.06 * speed01;
-
-    // crouch: sink at the knees, hunch the shoulders, keep the shuffle
-    if (player.crouch01 > 0.001) {
-      const c = player.crouch01;
-      mm.roller.position.y -= 0.2 * c;
-      mm.leftLeg.rotation.x -= 0.9 * c;
-      mm.rightLeg.rotation.x -= 0.9 * c;
-      mm.body.rotation.x += 0.3 * c;
-    }
-
-    // jump: lean into the leap on the way up, knees absorb the landing
-    if (player.airborne) {
-      const rise = Math.max(player.vy / P.jumpSpeed, 0); // 1 at takeoff → 0 past apex
-      mm.body.rotation.x += 0.28 * rise;
-      mm.leftLeg.rotation.x = -0.45;
-      mm.rightLeg.rotation.x = -0.45;
-    } else if (player.landT < P.landCrouchTime) {
-      const k = 1 - player.landT / P.landCrouchTime; // 1 at touchdown, easing out
-      mm.roller.position.y -= 0.14 * k;
-      mm.leftLeg.rotation.x = -0.65 * k;
-      mm.rightLeg.rotation.x = -0.65 * k;
-      mm.body.rotation.x += 0.18 * k;
+      player.vel.x += (dx / gap) * reach;
+      player.vel.y += (dz / gap) * reach;
     }
   }
 
@@ -288,6 +260,7 @@ export function createPlayer(scene, spawn) {
     const d = Math.hypot(dx, dz) || 1;
     player.vel.x += (dx / d) * 5;
     player.vel.y += (dz / d) * 5;
+    anim.reel(dx / d, dz / d, player.facing, player.vel);
     flash(m.group);
     player.onHurt();
     player.onHpChange(player.hp, player.maxHp);
@@ -299,21 +272,23 @@ export function createPlayer(scene, spawn) {
     player.vel.set(0, 0);
     player.vy = 0;
     player.airborne = false;
+    player.jumpIn = 0;
     player.hp = player.maxHp;
     player.mode = 'normal';
     player.invulnerable = false;
+    player.lie01 = 0;
     m.weapon.visible = true; // back in hand after a nap
-    m.roller.rotation.x = 0;
+    anim.reset(); // on his feet, no leftover lean or half-finished pose
     player.onHpChange(player.hp, player.maxHp);
   };
 
   player.update = function update(dt, camYaw, colliders) {
     player.modeT += dt;
     player.time += dt;
-    player.landT += dt;
 
     if (player.mode === 'sleep') {
       updateSleep(dt);
+      anim.update(dt, player);
       return;
     }
 
@@ -359,13 +334,27 @@ export function createPlayer(scene, spawn) {
       startRoll(fwdX * tz + rightX * tx, fwdZ * tz + rightZ * tx);
     }
 
-    let targetSpeed = 0;
+    // the leap leaves the ground once the knees have loaded; a roll or a
+    // swing begun in that moment forgets it
+    if (player.jumpIn > 0) {
+      if (player.mode !== 'normal' || player.airborne) {
+        player.jumpIn = 0;
+      } else if ((player.jumpIn -= dt) <= 0) {
+        player.jumpIn = 0;
+        player.vy = P.jumpSpeed;
+        player.airborne = true;
+      }
+    }
+
     if (player.mode === 'roll') {
-      if (player.modeT >= P.dodgeDuration) {
+      const t = player.modeT / P.dodgeDuration;
+      if (t >= 1) {
         player.mode = 'normal';
         player.invulnerable = false;
       } else {
-        player.vel.set(player.rollDir.x * P.dodgeSpeed, player.rollDir.z * P.dodgeSpeed);
+        // dive in fast, bleed speed through the tumble; dodgeSpeed is the average
+        const pace = P.dodgeSpeed * (1.35 - 0.7 * t);
+        player.vel.set(player.rollDir.x * pace, player.rollDir.z * pace);
       }
     }
 
@@ -380,38 +369,57 @@ export function createPlayer(scene, spawn) {
     }
 
     if (player.mode === 'normal') {
-      const mult = player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1;
-      targetSpeed = len > 0 ? P.walkSpeed * mult : 0;
-      const k = 1 - Math.exp(-dt * 10);
-      player.vel.x += (dirX * targetSpeed - player.vel.x) * k;
-      player.vel.y += (dirZ * targetSpeed - player.vel.y) * k; // Vector2.y holds z
+      const pace = P.walkSpeed * (player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1);
+      if (player.airborne) {
+        // nothing to push against: momentum carries the leap, the keys only nudge it
+        if (len > 0) steer(dirX * pace, dirZ * pace, P.airAccel, dt);
+      } else {
+        // a climb costs speed, a descent lends a little
+        const grade = len > 0 ? clamp(player.slope.x * dirX + player.slope.z * dirZ, -0.6, 0.6) : 0;
+        const want = len > 0 ? pace * (1 - grade * (grade > 0 ? P.climbDrag : P.descentGain)) : 0;
+        // pushing off toward the wanted pace, or braking: easing off, or turning back on himself
+        const turnedBack = player.vel.x * dirX + player.vel.y * dirZ < 0;
+        steer(dirX * want, dirZ * want, len > 0 && !turnedBack ? P.accel : P.brake, dt);
+      }
     }
 
     player.pos.x += player.vel.x * dt;
     player.pos.z += player.vel.y * dt;
     resolveCollisions(colliders);
-    const groundY = terrainHeight(player.pos.x, player.pos.z);
+    const px = player.pos.x;
+    const pz = player.pos.z;
+    const groundY = terrainHeight(px, pz);
     if (player.airborne) {
       player.vy -= P.gravity * dt;
       player.pos.y += player.vy * dt;
-      if (player.vy <= 0 && player.pos.y <= groundY) {
+      // down onto the ground — or the ground, on a climb, up into the feet
+      if (player.pos.y < groundY || (player.vy <= 0 && player.pos.y <= groundY)) {
+        anim.land(Math.max(-player.vy, 0)); // the knees take the fall...
+        player.vel.multiplyScalar(P.landKeep); // ...and some of the pace goes with it
         player.pos.y = groundY;
         player.vy = 0;
         player.airborne = false;
-        player.landT = 0;
       }
     } else {
       player.pos.y = groundY;
     }
 
-    const speed = Math.hypot(player.vel.x, player.vel.y);
-    if (speed > 0.4 && player.mode !== 'attack') {
-      const target = Math.atan2(player.vel.x, player.vel.y);
-      player.facing = lerpAngle(player.facing, target, 1 - Math.exp(-dt * P.turnLerp));
+    // feel the ground's tilt: it slows a climb and lays the soles to the slope
+    player.slope.x = (terrainHeight(px + SLOPE_PROBE, pz) - terrainHeight(px - SLOPE_PROBE, pz)) / (SLOPE_PROBE * 2);
+    player.slope.z = (terrainHeight(px, pz + SLOPE_PROBE) - terrainHeight(px, pz - SLOPE_PROBE)) / (SLOPE_PROBE * 2);
+
+    // the body turns toward where it is being steered. A shove steers
+    // nothing, so a bitten peasant staggers back still facing his rat.
+    const facingWas = player.facing;
+    if (player.mode === 'roll') {
+      player.facing = lerpAngle(player.facing, Math.atan2(player.rollDir.x, player.rollDir.z), 1 - Math.exp(-dt * P.turnLerp));
+    } else if (player.mode === 'normal' && len > 0) {
+      player.facing = lerpAngle(player.facing, Math.atan2(dirX, dirZ), 1 - Math.exp(-dt * P.turnLerp));
     }
+    player.turnRate = dt > 1e-4 ? (player.facing - facingWas) / dt : 0;
     m.group.rotation.y = player.facing;
 
-    animate(dt, Math.min(speed / P.walkSpeed, 1.3), sprinting);
+    anim.update(dt, player);
   };
 
   player.attack = startAttack;

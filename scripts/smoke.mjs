@@ -643,6 +643,212 @@ try {
     const moved = Math.hypot(after.x - before.x, after.z - before.z);
     console.log(`walk check: moved ${moved.toFixed(2)} units`);
     if (moved < 2) errors.push(`walk: player barely moved (${moved.toFixed(2)} units)`);
+  } else if (scenario === 'body') {
+    // The Living Body: weight, knees and feet. Each check drives player.update
+    // by hand at a fixed step inside one evaluate, so its numbers don't hang on
+    // the software renderer's frame rate. Checks pause 350ms apart: two presses
+    // of a movement key within 250ms are read as a dodge-roll.
+    const pause = () => new Promise((r) => setTimeout(r, 350));
+    await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      const DT = 1 / 60;
+      window.__body = {
+        key: (code, down) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code })),
+        // yaw 0 heads toward -z; (-2, -9) opens onto clear meadow that way
+        run: (seconds, yaw = 0) => {
+          for (let i = 0; i < Math.round(seconds / DT); i++) p.update(DT, yaw, g.colliders);
+        },
+        speed: () => Math.hypot(p.vel.x, p.vel.y),
+        stand: (x, z) => {
+          p.respawn(x, z);
+          p.update(DT, 0, g.colliders);
+        },
+        knee: () => p.mesh.legs[0].shin.rotation.x,
+      };
+    });
+
+    // 1) weight: speed is gathered and shed, not handed over
+    const weight = await page.evaluate(() => {
+      const b = window.__body;
+      b.stand(-2, -9);
+      b.key('KeyW', true);
+      b.key('ShiftLeft', true);
+      b.run(0.1);
+      const early = b.speed();
+      b.run(1.0);
+      const top = b.speed();
+      b.key('KeyW', false);
+      b.key('ShiftLeft', false);
+      b.run(0.1);
+      const sliding = b.speed();
+      b.run(0.4);
+      return { early, top, sliding, stopped: b.speed() };
+    });
+    console.log('weight:', JSON.stringify(weight));
+    if (!(weight.early > 1 && weight.early < 4)) errors.push(`body: 0.1s into a sprint he does ${weight.early.toFixed(2)}, expected a wind-up`);
+    if (weight.top < 6) errors.push(`body: sprint topped out at ${weight.top.toFixed(2)}`);
+    if (!(weight.sliding > 1.5 && weight.sliding < weight.top)) errors.push(`body: 0.1s after letting go he does ${weight.sliding.toFixed(2)}, expected a slide`);
+    if (weight.stopped > 0.05) errors.push(`body: still sliding (${weight.stopped.toFixed(2)}) half a second after letting go`);
+    await pause();
+
+    // 2) knees: nearly straight standing, folded in a crouch — with the sole still planted
+    const knees = await page.evaluate(() => {
+      const b = window.__body;
+      const p = window.__game.player;
+      b.stand(-2, -9);
+      b.run(0.5);
+      const standing = b.knee();
+      b.key('KeyC', true);
+      b.run(0.6);
+      const crouched = b.knee();
+      const ankle = p.mesh.legs[0].foot.getWorldPosition(p.pos.clone()).y - p.pos.y;
+      b.key('KeyC', false);
+      b.run(0.5);
+      return { standing, crouched, ankle };
+    });
+    console.log('knees:', JSON.stringify(knees));
+    if (knees.standing > 0.6) errors.push(`body: standing knee bent ${knees.standing.toFixed(2)} rad`);
+    if (knees.crouched < 1.2) errors.push(`body: crouched knee only bent ${knees.crouched.toFixed(2)} rad`);
+    if (Math.abs(knees.ankle - 0.035) > 0.05) errors.push(`body: crouching lifted the foot (ankle at ${knees.ankle.toFixed(3)})`);
+
+    // 3) the leap: the knees load, the arc is the old arc, the landing folds the knees
+    const leap = await page.evaluate(() => {
+      const b = window.__body;
+      const g = window.__game;
+      const p = g.player;
+      b.stand(-2, -9);
+      b.run(0.3);
+      const y0 = p.pos.y;
+      b.key('Space', true);
+      let t = 0;
+      let left = -1;
+      let peak = 0;
+      while (t < 2) {
+        p.update(1 / 60, 0, g.colliders);
+        t += 1 / 60;
+        if (p.airborne) {
+          if (left < 0) left = t;
+          peak = Math.max(peak, p.pos.y - y0);
+        } else if (left >= 0) break;
+      }
+      b.key('Space', false);
+      b.run(0.07);
+      const landing = b.knee();
+      b.run(0.8);
+      return { left, peak, air: t - left, landing, after: b.knee() };
+    });
+    console.log('leap:', JSON.stringify(leap));
+    if (!(leap.left > 0.05 && leap.left < 0.2)) errors.push(`body: the leap left the ground after ${leap.left.toFixed(3)}s, expected a short wind-up`);
+    if (!(leap.peak > 0.7 && leap.peak < 0.95)) errors.push(`body: leap peaked at ${leap.peak.toFixed(2)}, expected ~0.8`);
+    if (leap.landing < leap.after + 0.3) errors.push(`body: landing did not fold the knees (${leap.landing.toFixed(2)} vs ${leap.after.toFixed(2)} at rest)`);
+    await pause();
+
+    // 4) a wall takes the speed: run at the hovel's shut door and stand against it
+    const wall = await page.evaluate(() => {
+      const b = window.__body;
+      const p = window.__game.player;
+      b.stand(-5.5, 1.48);
+      b.key('KeyW', true);
+      b.run(1.0, Math.PI / 2); // yaw π/2 heads toward -x
+      const out = { speed: b.speed(), x: p.pos.x };
+      b.key('KeyW', false);
+      return out;
+    });
+    console.log('wall:', JSON.stringify(wall));
+    if (wall.speed > 0.6) errors.push(`body: still doing ${wall.speed.toFixed(2)} against a wall`);
+    if (Math.abs(wall.x + 6.95) > 0.06) errors.push(`body: the wall left him at x ${wall.x.toFixed(2)}`);
+    await pause();
+
+    // 5) the roll: same reach as ever, safe throughout, and he ends upright
+    const roll = await page.evaluate(() => {
+      const b = window.__body;
+      const g = window.__game;
+      const p = g.player;
+      b.stand(-2, -9);
+      b.run(0.2);
+      const z0 = p.pos.z;
+      for (const down of [true, false, true, false]) b.key('KeyW', down); // the double-tap
+      p.update(1 / 60, 0, g.colliders);
+      const out = { mode: p.mode, safe: p.invulnerable };
+      let t = 0;
+      while (p.mode === 'roll' && t < 2) {
+        p.update(1 / 60, 0, g.colliders);
+        t += 1 / 60;
+      }
+      out.reach = Math.abs(p.pos.z - z0);
+      b.run(0.8);
+      out.tilt = Math.abs(Math.sin(p.mesh.roller.rotation.x / 2)); // 0 when upright, whole turns ignored
+      out.safeAfter = p.invulnerable;
+      return out;
+    });
+    console.log('roll:', JSON.stringify(roll));
+    if (roll.mode !== 'roll' || !roll.safe) errors.push(`body: double-tap gave mode ${roll.mode}, invulnerable ${roll.safe}`);
+    if (!(roll.reach > 3.6 && roll.reach < 4.6)) errors.push(`body: roll carried ${roll.reach.toFixed(2)}, expected ~4.05`);
+    if (roll.tilt > 0.15) errors.push(`body: he did not come back upright out of the roll (${roll.tilt.toFixed(2)})`);
+    if (roll.safeAfter) errors.push('body: still invulnerable after the roll');
+    await pause();
+
+    // 6) feet: at a run, the ground must not slide away under a planted foot.
+    // The ball of each foot is followed; "planted" is within a hair of the
+    // ground's plane under him (0.055 is the sole below the ankle, 0.11 the
+    // ball ahead of it — RIG.ball in playerMesh.js).
+    const feet = await page.evaluate(() => {
+      const b = window.__body;
+      const g = window.__game;
+      const p = g.player;
+      b.stand(-2, -9);
+      b.key('KeyW', true);
+      b.run(0.8);
+      const ballOf = (i) => {
+        const f = p.mesh.legs[i].foot;
+        f.updateWorldMatrix(true, false);
+        return p.pos.clone().set(0, -0.055, 0.11).applyMatrix4(f.matrixWorld);
+      };
+      const lifted = (at) => at.y - (p.pos.y + p.slope.x * (at.x - p.pos.x) + p.slope.z * (at.z - p.pos.z));
+      let slid = 0;
+      let covered = 0;
+      const was = [ballOf(0), ballOf(1)];
+      const wasLifted = was.map(lifted);
+      for (let i = 0; i < 240; i++) {
+        const px = p.pos.x;
+        const pz = p.pos.z;
+        p.update(1 / 240, 0, g.colliders);
+        const moved = Math.hypot(p.pos.x - px, p.pos.z - pz);
+        for (let f = 0; f < 2; f++) {
+          const now = ballOf(f);
+          const up = lifted(now);
+          if (up < 0.012 && wasLifted[f] < 0.012) {
+            slid += Math.hypot(now.x - was[f].x, now.z - was[f].z);
+            covered += moved;
+          }
+          was[f] = now;
+          wasLifted[f] = up;
+        }
+      }
+      b.key('KeyW', false);
+      // and nothing in the rig has gone to NaN after all of the above
+      let sound = true;
+      p.mesh.group.traverse((o) => {
+        if (![o.rotation.x, o.rotation.y, o.rotation.z, o.position.x, o.position.y, o.position.z].every(Number.isFinite)) sound = false;
+      });
+      return { skate: slid / Math.max(covered, 1e-6), covered, sound };
+    });
+    console.log('feet:', JSON.stringify(feet));
+    if (feet.covered < 0.5) errors.push('body: no foot was ever planted during the run');
+    if (feet.skate > 0.25) errors.push(`body: planted feet skate ${(feet.skate * 100).toFixed(0)}% of the ground covered`);
+    if (!feet.sound) errors.push('body: a joint went non-finite');
+
+    // mid-stride, side-on, for eyeballing
+    await page.evaluate(() => {
+      window.__body.stand(-2, -9);
+      window.__game.orbitCam.setView(Math.PI / 2, 0.12, 3.4);
+    });
+    await pause();
+    await page.keyboard.down('KeyW');
+    await new Promise((r) => setTimeout(r, 900));
+    await page.screenshot({ path: 'scripts/smoke-body.png' });
+    await page.keyboard.up('KeyW');
   } else if (scenario === 'house') {
     // 1) closed door bars the gap: stand in the doorway, get pushed back out
     await page.evaluate(() => {

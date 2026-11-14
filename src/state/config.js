@@ -110,11 +110,19 @@ export const CONFIG = {
     walkSpeed: 4.2,
     sprintMult: 1.65,
     crouchMult: 0.45, // hold C — a careful, low shuffle
+    // The body has weight: speed is gathered and shed at these rates
+    // (units/s²), not handed over at a keypress.
+    accel: 26, // pushing off — full sprint from a standstill takes ~¼s
+    brake: 32, // easing off or turning back — a sprint slides to a stop in under a stride
+    airAccel: 7, // steering in mid-leap: a nudge, momentum does the rest
+    climbDrag: 0.9, // share of pace a climb costs per unit of grade (a 20% hill: 18% slower)
+    descentGain: 0.4, // ...and what a descent lends
     turnLerp: 12,
     jumpSpeed: 6.8, // peak ≈ 0.8 units — a strong human leap, not a superhero
+    jumpWindup: 0.09, // the knees load this long before the feet leave the ground
     gravity: 28,
-    landCrouchTime: 0.18, // knees absorb the landing for this long
-    dodgeSpeed: 9,
+    landKeep: 0.8, // share of ground speed kept through a touchdown
+    dodgeSpeed: 9, // the roll's average pace: it dives in faster and tumbles out slower
     dodgeDuration: 0.45,
     dodgeTapWindow: 0.25, // double-tap a movement key within this to roll
     attackDamage: 1,
