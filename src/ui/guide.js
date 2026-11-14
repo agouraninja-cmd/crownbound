@@ -81,6 +81,13 @@ export function renderGuide(guideBody) {
           .map((d) => WEEKDAY_NAMES[d])
           .join(', ')}. He deals in comfort and swagger for coin — but virtue is not for sale,
         at any price. No XP, no streak, no stamina changes hands at his cart.</p>
+        ${
+          CONFIG.chest
+            ? `<p class="muted">His bread keeps in the larder of the chest by thy cot — up to
+              ${CONFIG.chest.larderCap} loaves — and a loaf eaten there mends every wound. The chest
+              also keeps thy spare weapons: thou carriest one, and choosest which.</p>`
+            : ''
+        }
       </div>`
     : '';
 

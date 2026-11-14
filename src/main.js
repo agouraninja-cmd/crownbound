@@ -6,7 +6,7 @@ import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, placePrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
-import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit } from './state/state.js';
+import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wieldedWeapon } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
@@ -43,23 +43,14 @@ const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerH
 const world = buildWorld(scene, marketToday);
 const player = createPlayer(scene, LAYOUT.playerSpawn);
 
-// gear and home comforts bought from the chapman, applied on load + purchase
+// the weapon in hand (chosen at the chest) and the home comforts bought from
+// the chapman, applied on load, on purchase, and when a weapon is taken up
 function applyPurchases() {
-  const owned = getState().shop.owned;
-  let damage = CONFIG.player.attackDamage;
-  let reach = CONFIG.player.attackRange;
-  let tier = 0;
-  for (const item of CONFIG.shop.items) {
-    if (item.tier && owned.includes(item.id) && item.tier > tier) {
-      tier = item.tier;
-      damage = item.damage;
-      reach = CONFIG.player.attackRange + (item.reach ?? 0);
-    }
-  }
-  player.attackDamage = damage;
-  player.attackReach = reach;
-  player.setWeaponTier(tier);
-  world.applyHomeUpgrades(owned);
+  const w = wieldedWeapon(); // the stick carries no damage/reach/tier of its own
+  player.attackDamage = w.damage ?? CONFIG.player.attackDamage;
+  player.attackReach = CONFIG.player.attackRange + (w.reach ?? 0);
+  player.setWeaponTier(w.tier ?? 0);
+  world.applyHomeUpgrades(getState().shop.owned);
 }
 applyPurchases();
 
@@ -154,16 +145,18 @@ initPanels(
     if (opened) {
       orbitCam.unlock();
       showPrompt(null);
+    } else if (world.chest.isOpen) {
+      world.chest.setOpen(false); // closing the Chest panel lowers the lid
+      sfx.creak();
     }
   },
   {
     isWounded: () => player.hp < player.maxHp - 0.01,
-    onPurchase: (item) => {
-      if (item.id === 'loaf') {
-        player.hp = player.maxHp;
-        player.onHpChange(player.hp, player.maxHp);
-      }
-      applyPurchases();
+    onPurchase: applyPurchases,
+    onWield: applyPurchases,
+    onEat: () => {
+      player.hp = player.maxHp;
+      player.onHpChange(player.hp, player.maxHp);
     },
   }
 );
@@ -291,8 +284,10 @@ window.addEventListener('keydown', (e) => {
   } else if (a.id === 'bed') {
     sleepAtCot();
   } else if (a.id === 'chest') {
+    world.chest.setOpen(true);
     sfx.creak();
-    if (world.chest.toggle()) toast('The lid creaks up: a spare tunic, a whetstone, a thin purse. A peasant’s whole estate.', '');
+    orbitCam.unlock();
+    openPanel('chest');
   } else if (a.id === 'miller') {
     millerGreeting();
   } else {

@@ -201,17 +201,16 @@ export function buildWorld(scene, marketToday = false) {
     },
   };
 
-  // the chest by the cot: E lifts the lid and lowers it again. Pure scenery —
-  // it holds no items and changes no state; the lid isn't saved either.
+  // the chest by the cot: E lifts the lid and opens the Chest panel; closing
+  // the panel lowers it (main.js). The lid's angle is never saved.
   let chestOpen = false;
   let chestAnim = 0; // eased 0 shut → 1 open
   const chest = {
     get isOpen() {
       return chestOpen;
     },
-    toggle() {
-      chestOpen = !chestOpen;
-      return chestOpen;
+    setOpen(v) {
+      chestOpen = v;
     },
     update(dt) {
       const target = chestOpen ? 1 : 0;
@@ -248,9 +247,7 @@ export function buildWorld(scene, marketToday = false) {
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
     {
       id: 'chest',
-      get label() {
-        return chestOpen ? 'close the chest' : 'open the chest';
-      },
+      label: 'open the chest',
       x: hx + (H.chest.x0 + H.chest.x1) / 2,
       z: hz + (H.chest.z0 + H.chest.z1) / 2,
       // the cot crowds the chest's front, so you stand at its corner (~0.75

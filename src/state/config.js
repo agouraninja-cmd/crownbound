@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 8, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle
+  saveVersion: 9, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest
 
   xpPerLevel: 100, // next level costs 100 × current level
 
@@ -63,6 +63,14 @@ export const CONFIG = {
       { id: 'lantern', name: 'a candle lantern', flavor: 'A little light for the doorpost.',
         price: 120, category: 'comforts', once: true },
     ],
+  },
+
+  // The chest by the cot: the hand holds one weapon, the chest keeps the rest;
+  // loaves bought from the chapman wait in its larder until eaten (a full
+  // heal, wounded only). Still the sacred rule — bread mends HP, nothing more.
+  chest: {
+    larderCap: 6, // loaves the chest can keep at once
+    stick: { id: 'stick', name: 'the trusty stick', flavor: 'It has never let thee down. It has never impressed anyone either.' },
   },
 
   // The Sage: AI judgment of which virtue a completed deed trained (the

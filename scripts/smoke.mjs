@@ -168,7 +168,7 @@ try {
       stamina: { current: 60, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
-      shop: { owned: [] },
+      shop: { owned: ['cudgel', 'quarterstaff'] }, // pre-chest: the best weapon was always in hand
     };
     await page.evaluateOnNewDocument((save) => {
       if (!sessionStorage.getItem('smoke-injected')) {
@@ -782,26 +782,33 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
-    // 6b) the chest by the cot: stand at its open corner, E lifts the lid,
-    //     E again lowers it (scenery only — no state is touched)
+    // 6b) the chest by the cot: stand at its open corner, E lifts the lid and
+    //     opens the Chest panel; Esc closes both (the market scenario
+    //     covers what the chest holds)
     await page.evaluate(() => {
       const g = window.__game;
       g.player.pos.x = -9.4; // local (-0.4, -0.5): between chest and cot
       g.player.pos.z = 1.5;
       g.orbitCam.setView(0, 0.6, 2); // looking past him at the chest
     });
-    await new Promise((r) => setTimeout(r, 400));
-    const chestPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    // poll: the software renderer can stall past a fixed wait on a fresh view
+    let chestPrompt = '';
+    for (let i = 0; i < 30 && !chestPrompt.includes('open the chest'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      chestPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    }
     console.log('chest prompt:', JSON.stringify(chestPrompt));
     if (!chestPrompt.includes('open the chest')) errors.push(`house: chest prompt "${chestPrompt}"`);
     await page.keyboard.press('KeyE');
-    await new Promise((r) => setTimeout(r, 1200)); // let the lid swing
-    const lidUp = await page.evaluate(() => window.__game.chest.isOpen);
-    await page.screenshot({ path: 'scripts/smoke-chest.png' });
-    if (!lidUp) errors.push('house: E at the chest did not open it');
-    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 400));
+    const lidUp = await page.evaluate(() => ({
+      lid: window.__game.chest.isOpen,
+      panel: !document.getElementById('chest-panel').classList.contains('hidden'),
+    }));
+    if (!lidUp.lid || !lidUp.panel) errors.push(`house: E at the chest -> ${JSON.stringify(lidUp)}`);
+    await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 200));
-    if (await page.evaluate(() => window.__game.chest.isOpen)) errors.push('house: second E did not close the chest');
+    if (await page.evaluate(() => window.__game.chest.isOpen)) errors.push('house: closing the panel left the lid up');
 
     // 7) interior screenshot: indoors camera should pull in under the rafters
     await page.evaluate(() => {
@@ -1320,25 +1327,77 @@ try {
     if (armed.coins !== 1450) errors.push(`market: coins ${armed.coins} != 1450 after the cudgel`);
     if (armed.damage !== 2) errors.push(`market: attackDamage ${armed.damage} != 2 with the cudgel`);
 
-    // 6) the loaf: refused while hale, mends when wounded
-    const hale = await page.evaluate(() => document.querySelector('[data-buy="loaf"]')?.disabled);
-    if (!hale) errors.push('market: loaf sold at full health');
-    await page.keyboard.press('Escape');
-    await new Promise((r) => setTimeout(r, 300));
-    await page.evaluate(() => window.__game.player.takeDamage(6, 0, 0));
-    await page.keyboard.press('KeyE');
-    await new Promise((r) => setTimeout(r, 300));
-    await page.click('[data-buy="loaf"]');
-    await new Promise((r) => setTimeout(r, 200));
-    const fed = await page.evaluate(() => ({
+    // 6) loaves: sold at full health now — they go to the chest's larder, not
+    //    the mouth — until the larder is full
+    const cap = await page.evaluate(() => window.__game.CONFIG.chest.larderCap);
+    for (let i = 0; i < cap; i++) {
+      await page.click('[data-buy="loaf"]');
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    const stocked = await page.evaluate(() => ({
       hp: window.__game.player.hp,
       coins: window.__game.getState().coins,
+      loaves: window.__game.getState().chest.loaves,
+      full: document.querySelector('[data-buy="loaf"]')?.disabled,
+    }));
+    console.log('larder:', JSON.stringify(stocked));
+    if (stocked.loaves !== cap) errors.push(`market: larder holds ${stocked.loaves} != ${cap} loaves`);
+    if (stocked.coins !== 1450 - 10 * cap) errors.push(`market: coins ${stocked.coins} != ${1450 - 10 * cap} after the loaves`);
+    if (stocked.hp !== 20) errors.push(`market: hp ${stocked.hp} changed by buying bread`);
+    if (!stocked.full) errors.push('market: loaf still sold with the larder full');
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+    // 6b) the chest at home: E lifts the lid and opens the panel; the stick
+    //     and the cudgel trade places in hand; a loaf mends the wounded
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -9.4; // inside the hovel, at the chest's corner
+      g.player.pos.z = 1.5;
+      g.player.takeDamage(6, 0, 0);
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 400));
+    const chestOpen = await page.evaluate(() => ({
+      panel: !document.getElementById('chest-panel').classList.contains('hidden'),
+      lid: window.__game.chest.isOpen,
+      hand: document.getElementById('chest-body').textContent.includes('oaken cudgel'),
+    }));
+    console.log('chest:', JSON.stringify(chestOpen));
+    if (!chestOpen.panel || !chestOpen.lid) errors.push('market: E at the chest did not open lid + panel');
+    await page.click('[data-wield="stick"]');
+    await new Promise((r) => setTimeout(r, 150));
+    const stickDamage = await page.evaluate(() => window.__game.player.attackDamage);
+    await page.click('[data-wield="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
+    const swapped = await page.evaluate(() => ({
+      damage: window.__game.player.attackDamage,
+      wielded: window.__game.getState().chest.wielded,
+    }));
+    console.log('swap:', JSON.stringify({ stickDamage, ...swapped }));
+    if (stickDamage !== 1) errors.push(`market: stick in hand but attackDamage ${stickDamage} != 1`);
+    if (swapped.damage !== 2 || swapped.wielded !== 'cudgel') errors.push(`market: cudgel back in hand -> ${JSON.stringify(swapped)}`);
+    await page.click('[data-eat]');
+    await new Promise((r) => setTimeout(r, 150));
+    const fed = await page.evaluate(() => ({
+      hp: window.__game.player.hp,
+      loaves: window.__game.getState().chest.loaves,
+      haleNow: document.querySelector('[data-eat]').disabled,
     }));
     console.log('loaf:', JSON.stringify(fed));
     if (fed.hp !== 20) errors.push(`market: loaf left hp at ${fed.hp}`);
-    if (fed.coins !== 1440) errors.push(`market: coins ${fed.coins} != 1440 after the loaf`);
+    if (fed.loaves !== cap - 1) errors.push(`market: larder ${fed.loaves} != ${cap - 1} after eating`);
+    if (!fed.haleNow) errors.push('market: eating still offered at full health');
+    await page.screenshot({ path: 'scripts/smoke-chest.png' });
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
+    if (await page.evaluate(() => window.__game.chest.isOpen)) errors.push('market: closing the chest panel left the lid up');
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 1.5; // back to the cart for its portrait
+      g.player.pos.z = 9.0;
+    });
 
     // 7) cart portrait, then the empty spot on a non-market day
     await page.evaluate(() => window.__game.orbitCam.setView(-1.1, 0.3, 5.5));
@@ -1364,13 +1423,16 @@ try {
     const migrated = await page.evaluate(() => {
       const st = window.__game.getState();
       // migration must land on the CURRENT version, whatever it is by now
-      return { version: st.saveVersion, latest: window.__game.CONFIG.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt };
+      return { version: st.saveVersion, latest: window.__game.CONFIG.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt, chest: st.chest, damage: window.__game.player.attackDamage };
     });
     console.log('migrated:', JSON.stringify(migrated));
     if (migrated.version !== migrated.latest)
       errors.push(`crown: saveVersion ${migrated.version} != current ${migrated.latest}`);
     if (migrated.hasDeadline) errors.push('crown: epic deadline survived the migration');
     if (migrated.at !== null) errors.push('crown: coronationAt set before the crowning');
+    if (migrated.chest?.wielded !== 'quarterstaff' || migrated.chest?.loaves !== 0)
+      errors.push(`crown: migrated chest ${JSON.stringify(migrated.chest)} != quarterstaff in hand, empty larder`);
+    if (migrated.damage !== 3) errors.push(`crown: migrated attackDamage ${migrated.damage} != 3 (the staff)`);
 
     // complete the last daily: str 24 -> 25, total levels 70 -> the Coronation
     await page.evaluate(() => window.__game.openPanel('board'));
