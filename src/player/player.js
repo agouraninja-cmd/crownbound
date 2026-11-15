@@ -79,6 +79,9 @@ export function createPlayer(scene, spawn) {
     onWorkDone: () => {}, // (kind) when the ridge is finished
     // wired up by later systems (stamina M5, combat M6)
     trySpend: () => true,
+    canSprint: () => true, // false once the stamina pool is dry
+    tire: () => {}, // (whole points) the legs' toll on the stamina pool
+    fatigue: 0, // the toll gathered so far, paid in whole points
     onAttackSwing: null, // called once at the active frame of a swing
     onActionBlocked: () => {},
     // gear from the chapman (main.js applies ownership on load + purchase)
@@ -347,7 +350,7 @@ export function createPlayer(scene, spawn) {
     if (keys.has('KeyS')) iz -= 1;
     if (keys.has('KeyA')) ix -= 1;
     if (keys.has('KeyD')) ix += 1;
-    const sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    const sprinting = (keys.has('ShiftLeft') || keys.has('ShiftRight')) && player.canSprint();
 
     player.crouching = keys.has('KeyC') && player.mode === 'normal' && !player.airborne;
     player.crouch01 += ((player.crouching ? 1 : 0) - player.crouch01) * (1 - Math.exp(-dt * 12));
@@ -438,6 +441,16 @@ export function createPlayer(scene, spawn) {
         // pushing off toward the wanted pace, or braking: easing off, or turning back on himself
         const turnedBack = player.vel.x * dirX + player.vel.y * dirZ < 0;
         steer(dirX * want, dirZ * want, len > 0 && !turnedBack ? P.accel : P.brake, dt);
+        // walking and running wear on the stamina pool
+        if (len > 0) {
+          const ST = CONFIG.stamina;
+          player.fatigue += (sprinting && !player.crouching ? ST.sprintDrain : ST.walkDrain) * dt;
+          if (player.fatigue >= 1) {
+            const whole = Math.floor(player.fatigue);
+            player.fatigue -= whole;
+            player.tire(whole);
+          }
+        }
       }
     }
 
