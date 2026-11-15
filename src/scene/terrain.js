@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { pathX, LAYOUT, fieldGap } from './layout.js';
+import { pathX, LAYOUT, fieldGap, trackGap } from './layout.js';
 import { smoothstep, fbm2, hash2 } from './meshUtils.js';
 
 // Analytic height so gameplay code can sample the ground anywhere without raycasts.
@@ -93,8 +93,14 @@ function groundColor(x, z, out) {
   // over it) and trodden a little way out. Kept out of dirtAmount on purpose —
   // the flora reads that as it draws its random numbers, and the meadow
   // should grow where it always has.
-  const trodden = 1 - smoothstep(fieldGap(x, z), 0.15, 0.8);
+  const gap = fieldGap(x, z);
+  const trodden = 1 - smoothstep(gap, 0.15, 0.9);
   if (trodden > 0) out.lerp(DIRT_DARK, trodden);
+  // ...and a cart track worn from its gate down to the granary yard
+  if (gap < 40) {
+    const worn = (1 - smoothstep(trackGap(x, z) + (fbm2(x * 0.6 + 2.2, z * 0.6 - 7.4, 2) - 0.5) * 0.7, 0.45, 1.25)) * 0.62;
+    if (worn > 0) out.lerp(DIRT, worn);
+  }
   return out;
 }
 

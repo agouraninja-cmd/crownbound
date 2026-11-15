@@ -36,7 +36,7 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/state/prefs.js    device preferences (mouse feel), own localStorage slot outside the save
 src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
 vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
-src/scene/layout.js   where everything stands: LAYOUT positions, the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap)
+src/scene/layout.js   where everything stands: LAYOUT positions, the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap)
 src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() static batching, tint/sway/batch helpers, hit flash
 src/scene/kit.js      the building kit: palette, thatch roofs, boarding, stone footings, villager heads/arms/robes
 src/scene/terrain.js  analytic terrain height fn (gameplay) + the drawn land: faceted vertex-colored ground, dirt path, outer hills, far mountains
@@ -49,7 +49,7 @@ src/scene/particles.js  soft-puff particle pool (one Points draw call per pool):
 src/scene/sprites.js  the canvas-drawn soft dot texture + additive glow billboards
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
-src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, the scarecrow; draw(looks) rebuilds it
+src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, fence + gate + hayrick + scarecrow; draw(looks) rebuilds the crop
 src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
 src/scene/campfire.js campfire mesh, tongues of flame, sparks, smoke; scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight; update() drives the ambient scenery
@@ -137,8 +137,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 - Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
-- The miller's strip (the farming job): a wheat field of 5 ridges (`CONFIG.farm.rows`) south-east
-  of the Quest Board at (11, -9), under a scarecrow. One job per real local day, each in its
+- The miller's strip (the farming job): a fenced wheat field of 10 ridges (`CONFIG.farm.rows`),
+  each 12.8 long, out past the granary to the north-east at (27, 33), reached by a cart track
+  from the granary yard. One job per real local day, each in its
   turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → ~1.5s of work
   (hoe, sowing hand or sickle in place of the stick) → that ridge changes its look. The last
   ridge finishes the job and the miller pays: +4 coins for a day's tilling, sowing or weeding,
@@ -378,7 +379,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     heightfield bed with ridges, plus the sheaves) and what grows (blades under the wind
     shader). main.js redraws on the save's 'farm' change. Each ridge-and-look has its own
     seeded stream, so working one ridge never reshuffles its neighbours.
-  - The strip is turned on the map (rotY 0.35) and built in world coordinates, as the wind
+  - The strip is turned on the map (rotY 0.6) and built in world coordinates, as the wind
     shader needs. Anything that asks about it works in field coordinates (u along the ridges,
     v across) through layout.js: `fieldToWorld`, `worldToField`, `fieldGap`, `FIELD`.
   - The meadow was NOT re-rolled. Flora draws its random numbers exactly as before and the
@@ -396,9 +397,26 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     is one more row there, one in `FARM_JOBS`/`FARM_LOOKS`, and a look if it needs one.
   - The miller himself is unchanged — still mute, his E still tallies rats. "The miller
     pays" is flavor, as with the bounty. No panel, no HUD element: toasts only.
-  - Placed 17 units from the granary (the rats roam to ~11), on ground that rises 0.24 across
-    the strip, 7.9 from the nearest tree or boulder. One new collider: the scarecrow's stake.
-    About 3 draw calls; ~3k triangles when the wheat stands.
+  - Bigger, farther, more of a farm (same day, at the owner's word: "4 times the size, look
+    more realistic and farther away from the village"). It began as 5 ridges × 6.4 at (11, -9)
+    by the Quest Board; it is now 10 ridges × 12.8 at (27, 33), 43 units out and 27 from the
+    granary (the rats roam to ~11, though the walk there passes their yard), on ground that
+    rises ~1.5 across it, 11.8 from the nearest tree or boulder. A day's job is therefore ten
+    ridges; the pay was left as it was.
+  - The yard (field.js): a split-rail fence round a 1.3 headland with the gate standing open
+    in the middle of the village-ward side, seed sacks inside it, a hayrick outside, the
+    scarecrow on the far headland. The field is turned, so rails cannot be box colliders:
+    each run of fence is a string of small circles (r 0.22 every 0.4) too close to pass —
+    about 135 colliders, with the gate leaf, the rick and the scarecrow's stake. The only way
+    in is the gate.
+  - The cart track from the gate to the granary yard is paint only (`trackGap` in
+    layout.js, drawn in terrain.js `groundColor`; flora thins its middle after the draw).
+    It is not a dirtPatch, for the same reason the field is not.
+  - The bed's edge is ragged on purpose (its outer ring of points is pushed out unevenly and
+    sunk); ripe wheat is sown six lines to a ridge so the ridges close into one crop, in a
+    handful of golds; a stook is four sheaves leaned together. What grows on a ridge under a
+    look is built once and cached, so a redraw is ~4ms after the first (~19ms).
+    About 4 draw calls; ~20k triangles when the whole field stands in wheat.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -603,8 +621,8 @@ headlessly; everything else covered by the regression suite below.
   Intelligence as planning/discipline/judgment/money. saveVersion 11. Details: "The Virtues
   Renamed" under Noted decisions.
 
-- [x] Post-v1 — "The Miller's Strip" (2026-11-15): the farming job. A five-ridge wheat strip
-  south-east of the Quest Board, worked one job per real day — till, sow, weed, reap — with a
+- [x] Post-v1 — "The Miller's Strip" (2026-11-15): the farming job. A fenced ten-ridge wheat
+  field out past the granary (gate, hayrick, cart track, scarecrow), worked one job per real day — till, sow, weed, reap — with a
   hoe, a sowing hand and a sickle, so the crop grows across the days you turn up: stubble,
   furrows, seed, shoots and weeds, clean shoots, standing wheat, sheaves. The miller pays 4
   coins a working day and 20 at harvest; coins only, never XP. A scarecrow marks it; the

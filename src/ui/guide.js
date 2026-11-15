@@ -96,8 +96,8 @@ export function renderGuide(guideBody) {
   const farmSection = FM
     ? `<div class="sheet-section">
         <h2>The Miller&#8217;s Strip</h2>
-        <p class="muted">South-east of the Quest Board, under the scarecrow&#8217;s eye, lies the
-        miller&#8217;s wheat strip, and honest work on it is paid in coin. One job a day, each in
+        <p class="muted">Out past the granary to the north-east, at the end of a cart track and
+        behind a rail fence, lies the miller&#8217;s wheat strip, and honest work on it is paid in coin. One job a day, each in
         its turn — till, sow, weed, reap — and a job is all ${FM.rows} ridges, E at each. The crop
         grows only across the days thou turnest up; a day missed costs nothing but the day.</p>
         <div class="kv"><span>a day&#8217;s tilling, sowing or weeding</span><span class="v">${FM.wage} coins</span></div>

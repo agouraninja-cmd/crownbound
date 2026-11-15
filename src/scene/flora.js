@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { makeRng, makeBatch, soup, roughen, tintFaces, tintVerts, setSway, raggedCone, smoothstep, fbm2, hash2 } from './meshUtils.js';
 import { terrainHeight, dirtAmount, grassTint } from './terrain.js';
-import { LAYOUT, fieldGap } from './layout.js';
+import { LAYOUT, fieldGap, trackGap } from './layout.js';
 import { withWind } from './wind.js';
 
 // Everything that grows low: grass tufts, tall meadow grass, wildflowers,
@@ -238,6 +238,7 @@ export function buildFlora(scatter) {
   // plant has drawn its random numbers, never by skipping the draw — so the
   // rest of the meadow stands exactly where it stood before there was a field.
   const ploughed = (x, z) => fieldGap(x, z) < 0.4;
+  const rutted = (x, z) => trackGap(x, z) < 0.55; // the cart track's middle is worn bare of grass
 
   // thin blades are lit as if they lay flat like the ground (see wind.js)
   const bladeMat = withWind(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.11, { upNormals: true });
@@ -263,7 +264,7 @@ export function buildFlora(scatter) {
       tone: 0.9 + rng() * 0.2,
     });
   }
-  const wild = (list) => list.filter((s) => !ploughed(s.x, s.z));
+  const wild = (list) => list.filter((s) => !ploughed(s.x, s.z) && !rutted(s.x, s.z));
   group.add(plantTufts(tuftGeometry(rng, { blades: 5, height: 0.34, width: 0.05, splay: 0.42 }), bladeMat, wild(tufts)));
 
   // tall meadow grass, gone to seed: drifts of it out beyond the village

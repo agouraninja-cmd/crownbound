@@ -19,10 +19,12 @@ export const LAYOUT = {
   dummy: { x: -8.5, z: 9.5 },
   granary: { x: 11, z: 11, rotY: -Math.PI / 5 },
   miller: { x: 9.0, z: 9.3, rotY: 2.44 }, // minding his granary, facing the village
-  // The miller's strip, south-east of the quest board and well out of his
-  // rats' reach. Its ridges run `length` along the field's own x, side by
-  // side `spacing` apart along its z (how many: CONFIG.farm.rows).
-  field: { x: 11, z: -9, rotY: 0.35, length: 6.4, spacing: 1.0 },
+  // The miller's strip: out past his granary to the north-east, fenced, its
+  // gate toward the village. Its ridges run `length` along the field's own x,
+  // side by side `spacing` apart along its z (how many: CONFIG.farm.rows);
+  // `margin` is the grassy headland between the ploughland and the fence.
+  field: { x: 27, z: 33, rotY: 0.6, length: 12.8, spacing: 1.0, margin: 1.3 },
+  fieldTrackEnd: { x: 13.6, z: 14.4 }, // where the cart track from the gate meets the granary yard
   // dirt wear circles painted onto the terrain: {x, z, radius}
   dirtPatches: [
     { x: -4.6, z: 6.2, r: 2.6 }, // around campfire
@@ -48,6 +50,8 @@ export const FIELD = {
   halfLength: F.length / 2,
   halfWidth: (CONFIG.farm.rows * F.spacing) / 2,
   rowV: (row) => (row - (CONFIG.farm.rows - 1) / 2) * F.spacing, // where a ridge's crest runs
+  margin: F.margin,
+  gateHalf: 1.2, // the gate stands in the middle of the village-ward (-v) fence, this wide each way
 };
 
 export function fieldToWorld(u, v) {
@@ -58,6 +62,16 @@ export function worldToField(x, z) {
   const dx = x - F.x;
   const dz = z - F.z;
   return { u: dx * COS - dz * SIN, v: dx * SIN + dz * COS };
+}
+
+// How far a spot lies from the cart track that runs from the field gate to
+// the granary yard (a straight line; the ground paints it, nothing collides).
+const GATE = fieldToWorld(0, -(FIELD.halfWidth + FIELD.margin));
+const TRACK = LAYOUT.fieldTrackEnd;
+const TRACK_LEN2 = (TRACK.x - GATE.x) ** 2 + (TRACK.z - GATE.z) ** 2;
+export function trackGap(x, z) {
+  const t = Math.min(1, Math.max(0, ((x - GATE.x) * (TRACK.x - GATE.x) + (z - GATE.z) * (TRACK.z - GATE.z)) / TRACK_LEN2));
+  return Math.hypot(x - GATE.x - t * (TRACK.x - GATE.x), z - GATE.z - t * (TRACK.z - GATE.z));
 }
 
 // How far outside the strip a spot lies, 0 anywhere on it. Asked for every
