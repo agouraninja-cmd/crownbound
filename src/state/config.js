@@ -1,5 +1,12 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
+
+  // Names on the Map of the Kingdom (M). The village is the one place the
+  // player walks; the kingdom around it is drawn on the map only.
+  realm: {
+    kingdom: 'Aldermere',
+    village: 'Brackenley',
+  },
   saveVersion: 12, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip
 
   xpPerLevel: 100, // next level costs 100 × current level

@@ -2,6 +2,8 @@
 
 ## Vision
 A third-person, low-poly 3D medieval life RPG — set in **England, around 1250** — that is also the owner's personal goal tracker.
+The player lives in **Brackenley**, a village in a clearing of the Brackenwood, in the **Kingdom of Aldermere**
+(both fictional; names in `CONFIG.realm`, shown on the Map of the Kingdom).
 **Real life levels you up; the game is where you feel it.** The player completes real-world goals
 (lifting, tennis, business, learning, saving), logs them as quests at the in-game Quest Board, and
 the character grows. Sessions are short (10–15 min daily). Honor system — no verification.
@@ -64,8 +66,9 @@ src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep 
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
-src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest panel UIs
+src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest, Map panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
+src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
 ```
 
@@ -192,7 +195,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 - Controls: Space jumps (grounded gravity arc, no double-jump, free — stamina blocks combat only);
   dodge-roll is double-tap of a movement key, rolling in that key's camera-relative direction;
   hold C to crouch (visual stance + slower walk, no stealth effect — Ctrl was rejected because
-  Ctrl+W closes the browser tab); E is the one interact key — quest board, tome, cot, and the hovel
+  Ctrl+W closes the browser tab); M opens the Map of the Kingdom; E is the one interact key — quest board, tome, cot, and the hovel
   door all use it, nearest target wins (a separate F-for-doors binding was tried and consolidated
   away). None work while a UI panel is open.
 - Hovel interior (post-v1 "Hearth & Home"): same footprint, walls became hollow shell + furniture;
@@ -430,6 +433,32 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   The Chronicler is told to name no year, century or country and to avoid those
   anachronisms; the Sage's prompt just says "medieval". The thee/thy voice and the
   IM Fell font are later (1600s) but stay — the style, not the history.
+- The Map of the Kingdom (2026-11-15), asked for by the owner ("Create a Kingdom map and add our
+  village in it, keep the game boundaries the same for now"; the village's name was left to
+  Claude). M opens and closes it (nothing while asleep, dead or under another panel; Esc also
+  closes). No save change, no world change — the walkable world is exactly as it was. What a
+  future session must know:
+  - Names. The village is **Brackenley** ("the clearing among the bracken" — the flora has
+    ferns), the kingdom **Aldermere**, after the Alder Mere at its heart. Both live in
+    `CONFIG.realm`; the Charter's key list reads them. Every other place name on the map
+    (Kingsholt the royal seat, Hollin Cross, Saltmouth, Edricminster, Wendham, Coldbrook,
+    Whitwold Abbey, Fellgate; the Grimfells, the Brackenwood, Blackmoor, the King's Chase, the
+    Marches, the Whale's Road) is fixed art in map.js, with a hover note each. All fictional —
+    the setting rule holds: no real country, year or century appears.
+  - Two sheets. The realm (1000×700 SVG) is drawn once per load from seeded rng(1250) and
+    cached; it is a picture only, no place on it can be visited. The village plan beside it is
+    redrawn every time the map opens, from the game's own data: LAYOUT positions and turns, the
+    path (`pathX`), the strip (`fieldToWorld`, each ridge coloured by today's `farmRowLooks`),
+    the real trees and boulders (`world.mapMarks`, scatter's own arrays), the cart only on a
+    market day, the bounds (radius 78) — and the player as a red arrow along `player.facing`.
+    Two zooms: The Green (the village's heart) and The Bounds (all the walkable land); the
+    first open picks by where he stands, then the choice holds for the session.
+  - North. The plan is drawn north-up with the world turned by `NORTH` (0.45 rad) in map.js:
+    that puts the miller's strip to the north-east, as the Charter says, and the fixed sun in
+    the west-north-west. The realm's roads agree: the village path leaves east-north-east for
+    Hollin Cross and west-south-west for the Marches.
+  - Wiring: panels.js `openPanel('map')` calls `renderMap(body, mapView())`; `mapView` is a hook
+    main.js passes to initPanels. panels.js now exports `closePanel` and `openPanelId`.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -658,6 +687,15 @@ headlessly; everything else covered by the regression suite below.
   Charter's Stamina section lists both drains. `body` smoke scenario checks the toll; seeds
   and expected numbers in other scenarios were moved to the new caps. No save change.
 
+- [x] Post-v1 — "The Map of the Kingdom" (2026-11-15): M unrolls a hand-drawn map of the
+  Kingdom of Aldermere — coast and sea, the Grimfells, the Alder Mere, rivers, woods, roads,
+  the royal seat of Kingsholt and seven more places, each read aloud on hover — with the home
+  village, Brackenley, ringed in wax. Beside it, a plan of Brackenley drawn live from the game's
+  layout (buildings, real trees, today's crop on the strip, the bounds, the player's arrow), in
+  two zooms. The walkable world is unchanged. No save change. New smoke scenario `map`; all
+  21 scenarios pass (cloud container, headless Chromium, run on top of The Long Road). Not yet seen on the owner's machine.
+  Details: "The Map of the Kingdom" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -708,6 +746,11 @@ headlessly; everything else covered by the regression suite below.
   `chronicle` v7→current migration (old str/agi deeds re-tagged ath) + fetch-stubbed weekly entries: a failing call writes nothing,
   the next load retries, one written entry per load, the empty week left blank for free, week
   order kept, Tome journal newest-first (screenshot → scripts/smoke-chronicle.png) ·
+  `map` M opens the map, both sheets draw, kingdom + village named, home ringed, hover caption,
+  plan opens on The Green at the spawn, The Bounds button, M closes and frees the player, the
+  arrow moves north-east when he stands by the strip, the zoom kept for the session, Esc
+  closes, M does nothing under the Charter, the Charter lists the key (screenshots →
+  scripts/smoke-map.png, scripts/smoke-map-bounds.png) ·
   `aerial`/`front` screenshots.
 - If headless Edge quits at once ("Failed to launch the browser process: Code: 0" — seen
   2026-11-13 with Edge already open), point the suite at Chrome:

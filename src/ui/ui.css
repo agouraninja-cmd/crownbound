@@ -528,3 +528,118 @@ button:disabled {
   font-size: 15px;
   line-height: 1.45;
 }
+
+/* ---------- The Map of the Kingdom ---------- */
+
+#map-panel { width: min(1180px, 96vw); }
+
+.map-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.map-realm { flex: 1 1 560px; min-width: 0; }
+.map-side { flex: 0 1 330px; min-width: 240px; margin: 0 auto; }
+
+.map-realm svg,
+.map-side svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.map-realm svg { max-height: calc(86vh - 200px); } /* letterboxed if short; the sheet draws its own paper */
+.map-side svg { background: rgba(255, 248, 220, 0.22); }
+.map-realm svg, .map-side svg { overflow: hidden; }
+
+.map-side h2 {
+  margin: 0;
+  text-align: center;
+  font-size: 22px;
+  font-variant: small-caps;
+  letter-spacing: 2px;
+}
+
+.map-views { display: flex; gap: 6px; justify-content: center; margin: 4px 0 8px; }
+.map-views button { padding: 2px 12px; font-size: 14px; }
+.map-views button.on {
+  background: linear-gradient(#a33424, var(--wax));
+  color: #f3e6c4;
+  border-color: #4a120a;
+}
+
+.map-caption {
+  min-height: 2.8em;
+  margin-top: 10px;
+  text-align: center;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ink-faded);
+}
+
+/* the ink of the map itself */
+.m-tree { fill: #8f9a5e; stroke: #3d3a20; stroke-width: 0.7; }
+.m-trunk { stroke: #3d3a20; stroke-width: 0.9; fill: none; }
+.m-peak { fill: var(--parchment); stroke: var(--ink); stroke-width: 1.1; stroke-linejoin: round; }
+.m-hill { fill: var(--parchment); stroke: var(--ink-faded); stroke-width: 0.9; }
+.m-hatch { fill: none; stroke: var(--ink-faded); stroke-width: 0.7; }
+.m-bldg { fill: var(--parchment); stroke: var(--ink); stroke-width: 0.9; stroke-linejoin: round; }
+.m-line { stroke: var(--ink); stroke-width: 1; fill: none; }
+.m-roof { fill: #c9a96a; stroke: var(--ink); stroke-width: 0.9; }
+
+.m-name {
+  font-size: 15px;
+  text-anchor: middle;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: rgba(234, 217, 176, 0.92);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+.m-big { font-size: 20px; font-variant: small-caps; letter-spacing: 1.5px; }
+.m-small { font-size: 12px; }
+.m-home { font-size: 19px; fill: var(--wax); font-variant: small-caps; letter-spacing: 1px; }
+.m-here {
+  font-size: 12px;
+  font-style: italic;
+  text-anchor: middle;
+  fill: var(--wax);
+  paint-order: stroke;
+  stroke: rgba(234, 217, 176, 0.92);
+  stroke-width: 3px;
+}
+.m-faint { fill: var(--ink-faded); opacity: 0.85; }
+
+.m-region {
+  font-size: 17px;
+  font-style: italic;
+  letter-spacing: 4px;
+  text-anchor: middle;
+  fill: var(--ink-faded);
+  paint-order: stroke;
+  stroke: rgba(234, 217, 176, 0.85);
+  stroke-width: 3px;
+}
+.m-fells { font-size: 19px; font-variant: small-caps; letter-spacing: 7px; }
+.m-water { fill: #3f6470; }
+.m-sea { font-size: 22px; letter-spacing: 5px; }
+
+.m-cart-small { font-size: 16px; font-style: italic; text-anchor: middle; fill: var(--ink-faded); }
+.m-cart-big { font-size: 34px; font-variant: small-caps; letter-spacing: 6px; text-anchor: middle; fill: var(--ink); }
+.m-compass-n { font-size: 16px; text-anchor: middle; fill: var(--ink); }
+
+.m-place, .m-site, [data-place] { cursor: help; }
+.m-place:hover .m-name, .m-site:hover { filter: drop-shadow(0 0 2px rgba(201, 162, 39, 0.9)); }
+
+/* the home village's wax ring breathes, so the eye finds it at once */
+.m-home-ring { transform-box: fill-box; transform-origin: center; animation: m-ring 2.4s ease-in-out infinite; }
+@keyframes m-ring {
+  50% { transform: scale(1.12); opacity: 0.55; }
+}
+.m-you.m-off { opacity: 0.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .m-home-ring { animation: none; }
+}

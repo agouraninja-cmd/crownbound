@@ -1252,6 +1252,95 @@ try {
       g.player.pos.z = -0.3;
       g.orbitCam.setView(-0.85, 0.18, 4.1);
     });
+  } else if (scenario === 'map') {
+    // the Map of the Kingdom: M unrolls it, the realm and the village plan
+    // both draw, hovering reads a place aloud, the plan's arrow stands where
+    // the player does with north up (the strip to the north-east), M rolls it up
+    const mapState = () =>
+      page.evaluate(() => {
+        const C = window.__game.CONFIG;
+        const body = document.getElementById('map-body');
+        const you = body.querySelector('.m-you');
+        return {
+          opened: !document.getElementById('map-panel').classList.contains('hidden'),
+          which: window.__game.openPanelId(),
+          realm: !!body.querySelector('svg.m-realm'),
+          plan: !!body.querySelector('svg.m-plan'),
+          kingdom: body.textContent.includes(C.realm.kingdom),
+          village: body.textContent.includes(C.realm.village),
+          home: !!body.querySelector('.m-place[data-place="home"] .m-home-ring'),
+          places: body.querySelectorAll('.m-place').length,
+          view: body.querySelector('.map-views button.on')?.dataset.view,
+          you: you ? { x: Number(you.dataset.px), y: Number(you.dataset.py) } : null,
+          enabled: window.__game.player.isEnabled(),
+        };
+      });
+    await page.keyboard.press('KeyM');
+    await new Promise((r) => setTimeout(r, 400));
+    const m1 = await mapState();
+    console.log('map opened:', JSON.stringify(m1));
+    if (!m1.opened || m1.which !== 'map') errors.push('map: M did not open the map');
+    if (!m1.realm || !m1.plan) errors.push('map: realm or village plan missing');
+    if (!m1.kingdom || !m1.village) errors.push('map: the kingdom or village is not named');
+    if (!m1.home) errors.push('map: the home village is not ringed');
+    if (m1.places < 8) errors.push(`map: only ${m1.places} places on the realm`);
+    if (m1.view !== 'green') errors.push(`map: plan opened on "${m1.view}" though he stands on the green`);
+    if (!m1.you) errors.push('map: no arrow for the player');
+    if (m1.enabled) errors.push('map: player still free to move under the map');
+    const hover = await page.evaluate(() => {
+      const el = document.querySelector('#map-body [data-place="kingsholt"]');
+      el.dispatchEvent(new MouseEvent('mouseenter'));
+      const on = document.getElementById('map-caption').textContent;
+      el.dispatchEvent(new MouseEvent('mouseleave'));
+      return { on, off: document.getElementById('map-caption').textContent };
+    });
+    console.log('hover:', JSON.stringify(hover));
+    if (!hover.on.includes('Kingsholt')) errors.push('map: hovering Kingsholt reads nothing of it');
+    if (hover.off.includes('Kingsholt')) errors.push('map: the caption kept Kingsholt after the hover');
+    await page.screenshot({ path: 'scripts/smoke-map.png' });
+
+    await page.click('#map-body [data-view="bounds"]');
+    await new Promise((r) => setTimeout(r, 200));
+    const m2 = await mapState();
+    if (m2.view !== 'bounds') errors.push('map: The Bounds button did not change the plan');
+    await page.screenshot({ path: 'scripts/smoke-map-bounds.png' });
+
+    await page.keyboard.press('KeyM');
+    await new Promise((r) => setTimeout(r, 300));
+    const m3 = await mapState();
+    if (m3.which !== null || m3.opened) errors.push('map: M did not roll the map up');
+    if (!m3.enabled) errors.push('map: player not freed when the map closed');
+
+    // out by the strip: the arrow must move up (north) and right (east) of where it was
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 21;
+      g.player.pos.z = 25;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    await page.keyboard.press('KeyM');
+    await new Promise((r) => setTimeout(r, 400));
+    const m4 = await mapState();
+    console.log('by the strip:', JSON.stringify({ view: m4.view, was: m2.you, now: m4.you }));
+    if (m4.view !== 'bounds') errors.push('map: the chosen plan view was not kept for the session');
+    if (!(m4.you && m2.you && m4.you.y < m2.you.y - 20 && m4.you.x > m2.you.x)) {
+      errors.push('map: walking to the north-east strip did not move the arrow north-east');
+    }
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+    if ((await mapState()).opened) errors.push('map: Esc did not close the map');
+
+    // M does nothing under another panel; the Charter lists the key
+    await page.evaluate(() => window.__game.openPanel('guide'));
+    await page.keyboard.press('KeyM');
+    await new Promise((r) => setTimeout(r, 300));
+    const under = await page.evaluate(() => ({
+      which: window.__game.openPanelId(),
+      charter: document.getElementById('guide-body').textContent.includes(window.__game.CONFIG.realm.village),
+    }));
+    if (under.which !== 'guide') errors.push(`map: M under the Charter opened "${under.which}"`);
+    if (!under.charter) errors.push('map: the Charter does not list the map key');
+    await page.keyboard.press('Escape');
   } else if (scenario === 'reckoning') {
     // month keys computed the same way dates.js does, offset in months
     const mk = (offset) => {
