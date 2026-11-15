@@ -129,6 +129,7 @@ export const CONFIG = {
     attackRange: 1.9,
     attackArcDeg: 110,
     attackDuration: 0.34,
+    comboWindow: 0.9, // a swing begun within this of the last one chains to the next kind of blow
   },
 
   dummy: {

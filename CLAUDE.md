@@ -316,6 +316,13 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
     dives in fast and tumbles out slow around the same average `dodgeSpeed`.
   - He faces where he is steered, not where he is moving: a rat's bite shoves him back still
     facing the rat (velocity-facing used to spin him away from it).
+  - Three swings (2026-11-15, the owner: "make the stick hit more than just one animation"):
+    the chop, a backhand whipped out level to the stick side, and a sweep scythed back across.
+    A swing begun within `CONFIG.player.comboWindow` (0.9s) of the last chains to the next
+    kind (`player.swing`: 0 → 1 → 2 → 0); a pause starts over with the chop. Looks only —
+    cost, reach, arc, damage and the 55% hit moment are the same for all three. Each is three
+    held poses in playerAnim.js (`SWINGS`); a fourth is one more row there and a bigger modulus
+    in player.js `startAttack`.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -497,6 +504,11 @@ headlessly; everything else covered by the regression suite below.
   stalled frame outran a fixed wait — see Session notes). Details: "The Living Body" under
   Noted decisions.
 
+- [x] Post-v1 — "The Three Blows" (2026-11-15): the stick has three swings instead of one —
+  chop, backhand, sweep — chained when swung in quick succession. Animation only: every swing
+  costs, reaches and hits as before. `body` smoke scenario extended; `body` and `combat` pass
+  (cloud container). No save change.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -517,8 +529,9 @@ headlessly; everything else covered by the regression suite below.
   `walk` movement · `body` the player's weight and limbs, stepped by hand at a fixed rate:
   sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole
   planted, the leap's wind-up + height + landing fold, a wall taking his speed, the roll's
-  reach and upright finish, planted feet skating under 25%, no NaN joint (mid-stride
-  screenshot → scripts/smoke-body.png) ·
+  reach and upright finish, planted feet skating under 25%, no NaN joint, the three swings
+  chaining 0→1→2→0 and starting over after a pause (mid-stride screenshot →
+  scripts/smoke-body.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
