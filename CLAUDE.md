@@ -16,12 +16,12 @@ happens the moment the character reaches King** (70 total virtue levels).
   No model files and no image files — the one texture is a soft round dot drawn on a canvas at
   load (sprites.js).
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 10`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 11`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
   v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle;
   v8→v9 the chest — weapon in hand + loaf larder; v9→v10 the virtues renamed —
-  str→ath, agi→int).
+  str→ath, agi→int; v10→v11 the miller's strip — the field begins fallow).
 - Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
   one shadow-casting directional light, cheap particles, no post-processing.
 
@@ -35,7 +35,7 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/state/prefs.js    device preferences (mouse feel), own localStorage slot outside the save
 src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
 vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
-src/scene/layout.js   where everything stands: LAYOUT positions, the path's centreline, dirt patches
+src/scene/layout.js   where everything stands: LAYOUT positions, the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap)
 src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() static batching, tint/sway/batch helpers, hit flash
 src/scene/kit.js      the building kit: palette, thatch roofs, boarding, stone footings, villager heads/arms/robes
 src/scene/terrain.js  analytic terrain height fn (gameplay) + the drawn land: faceted vertex-colored ground, dirt path, outer hills, far mountains
@@ -48,12 +48,13 @@ src/scene/particles.js  soft-puff particle pool (one Points draw call per pool):
 src/scene/sprites.js  the canvas-drawn soft dot texture + additive glow billboards
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
+src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, the scarecrow; draw(looks) rebuilds it
 src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
 src/scene/campfire.js campfire mesh, tongues of flame, sparks, smoke; scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight; update() drives the ambient scenery
-src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements
-src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/sleep), springs — the only thing that turns the rig
-src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack state machine, HP, stamina spend
+src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements; the hoe and sickle, hidden in the stick hand
+src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
+src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
 src/player/camera.js  pointer-lock third-person orbit camera
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
@@ -64,13 +65,13 @@ src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact promp
 src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
-src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing)
+src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
 ```
 
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 10,
+  saveVersion: 11,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
   stats: { ath|int|wis|inf: { level, xp } },     // Athleticism, Intelligence, Wisdom, Influence;
@@ -103,6 +104,10 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
                                                         //   also land in history as type "purchase"
   chest: { wielded, loaves },                           // weapon in hand ('stick' or an owned hand item;
                                                         //   the rest lie in the chest) + loaves in the larder
+  farm: { stage, done, workedOn },                      // the miller's strip: the job owed (0 till · 1 sow ·
+                                                        //   2 tend · 3 reap), the ridges done of it, the local
+                                                        //   day the last job was finished (one job a day);
+                                                        //   a harvest also lands in history as type "harvest"
   coronationAt                                          // ISO timestamp, set once at rank King (else null)
 }
 ```
@@ -130,6 +135,15 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 - Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
+- The miller's strip (the farming job): a wheat field of 5 ridges (`CONFIG.farm.rows`) south-east
+  of the Quest Board at (11, -9), under a scarecrow. One job per real local day, each in its
+  turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → ~1.5s of work
+  (hoe, sowing hand or sickle in place of the stick) → that ridge changes its look. The last
+  ridge finishes the job and the miller pays: +4 coins for a day's tilling, sowing or weeding,
+  +20 for the harvest (`wage` / `harvestPay`). The crop grows only across the days worked
+  (shoots the night after sowing, ripe wheat the night after weeding). Nothing spoils: a missed
+  day costs only the day, and a half-done job keeps its ridges. COINS ONLY — field work pays no
+  XP, costs no stamina and feeds no streak; virtue is still earned only by real deeds.
 - The shop (the chapman's cart): parked by the path on market days only — Sun/Wed/Fri local
   (`CONFIG.shop.marketWeekdays`; `?market=1|0` URL param forces it for testing). E at the cart
   opens the shop panel. THE SACRED RULE: coins buy comfort and swagger, never virtue — no XP,
@@ -345,6 +359,41 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   discipline, judgment, personal finance). The smoke suite's old-version seeds still carry
   `str`/`agi` on purpose — they are what exercises the migration.
 
+- The Miller's Strip (2026-11-15): the farming job, asked for by the owner ("Add a Farming
+  Job"), who chose a crop that grows across real days over flat daily chores, and coins only
+  over coins plus Athleticism. What a future session must know:
+  - The rules are three functions in state.js, all taking `now` so the smoke suite can pin
+    the clock: `farmJob()` (today's job, or null once it is done), `farmRowLooks()` (what each
+    ridge looks like) and `workFarmRow(row)` (work one ridge; pays when the last one lands).
+    The `FARM_LOOKS` table there is the whole crop: per job, how a ridge looks once it has had
+    that job, while it waits after a night, and while it waits on the day the last job ended.
+  - field.js only draws. It knows seven looks (stubble, furrow, sown, weedy, tended, ripe,
+    stook) and `draw(looks)` rebuilds the whole strip as two meshes — the earth (a faceted
+    heightfield bed with ridges, plus the sheaves) and what grows (blades under the wind
+    shader). main.js redraws on the save's 'farm' change. Each ridge-and-look has its own
+    seeded stream, so working one ridge never reshuffles its neighbours.
+  - The strip is turned on the map (rotY 0.35) and built in world coordinates, as the wind
+    shader needs. Anything that asks about it works in field coordinates (u along the ridges,
+    v across) through layout.js: `fieldToWorld`, `worldToField`, `fieldGap`, `FIELD`.
+  - The meadow was NOT re-rolled. Flora draws its random numbers exactly as before and the
+    strip is weeded out afterwards (`ploughed()` in flora.js); the bare earth under it is
+    painted in terrain.js `groundColor`, deliberately not in `dirtAmount` (flora reads that
+    mid-draw). Adding the field to keepClear() or dirtAmount would move every tuft and flower.
+  - One interactable, `field.spot`, re-aimed every step by main.js `aimFieldSpot` at the
+    nearest ridge that still wants today's job (any ridge once the job is done — E then only
+    says what the strip is waiting on). No prompt shows while he is working.
+  - Player mode `work`: rooted and turned to the ridge for `CONFIG.farm.strokes` ×
+    `strokeTime` seconds; `onWorkStroke` (sounds) and `onWorkDone` (main.js works the ridge)
+    fire from player.js. The hoe and sickle are hidden Groups in the stick hand
+    (`mesh.tools`); `takeUp()` swaps them for the stick, `stopWork()` puts it back — also on
+    death and respawn. Poses are [drawn, struck] pairs in playerAnim.js (`WORK`): a fifth job
+    is one more row there, one in `FARM_JOBS`/`FARM_LOOKS`, and a look if it needs one.
+  - The miller himself is unchanged — still mute, his E still tallies rats. "The miller
+    pays" is flavor, as with the bounty. No panel, no HUD element: toasts only.
+  - Placed 17 units from the granary (the rats roam to ~11), on ground that rises 0.24 across
+    the strip, 7.9 from the nearest tree or boulder. One new collider: the scarecrow's stake.
+    About 3 draw calls; ~3k triangles when the wheat stands.
+
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
   The Chronicler writes weekly journal entries in medieval prose from the history log.
@@ -541,6 +590,17 @@ headlessly; everything else covered by the regression suite below.
   seat for seat and re-tags old str/agi deeds as athletic. saveVersion 10. Details: "The
   Virtues Renamed" under Noted decisions.
 
+- [x] Post-v1 — "The Miller's Strip" (2026-11-15): the farming job. A five-ridge wheat strip
+  south-east of the Quest Board, worked one job per real day — till, sow, weed, reap — with a
+  hoe, a sowing hand and a sickle, so the crop grows across the days you turn up: stubble,
+  furrows, seed, shoots and weeds, clean shoots, standing wheat, sheaves. The miller pays 4
+  coins a working day and 20 at harvest; coins only, never XP. A scarecrow marks it; the
+  Charter gained a section. saveVersion 11. New smoke scenario `farm`; all 20 scenarios pass
+  (run on the owner's machine, headless Edge). Looked at in the Browser pane on the real GPU;
+  the three work sounds are untested by ear. CROWNBOUND-Guide.docx was NOT updated — it has
+  fallen well behind the game (it still speaks of a dated Coronation and no shop). Details:
+  "The Miller's Strip" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -574,7 +634,12 @@ headlessly; everything else covered by the regression suite below.
   damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
   `crown` v5→current migration (incl. best owned weapon → chest.wielded, and str/agi levels
   landing as ath/int)
-  + last-level daily completion → King + coronation once-only · `guide` charter prompt + E-open
+  + last-level daily completion → King + coronation once-only · `farm` v10→current migration
+  (a fallow strip) + ridge prompt + E takes up the hoe, the ridge is redrawn, no pay before the
+  last ridge + the wage paid once + one job a day + the field kept across a reload + the rest
+  of the crop on a pinned clock (sow/weed/reap, half-done looks, nothing spoils, harvest pay
+  and its history deed, back to stubble) + no XP earned + the Charter's section (screenshot →
+  scripts/smoke-farm.png) · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
   `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat) + conquest & next
   summit + double-file guard + unreckoned backfill (panel screenshot → scripts/smoke-reckoning.png) ·

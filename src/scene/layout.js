@@ -1,5 +1,6 @@
 // World layout: one shared map of where everything stands.
 // The dirt path winds along z; pathX(z) gives its centerline.
+import { CONFIG } from '../state/config.js';
 
 export function pathX(z) {
   return Math.sin(z * 0.045) * 5;
@@ -18,6 +19,10 @@ export const LAYOUT = {
   dummy: { x: -8.5, z: 9.5 },
   granary: { x: 11, z: 11, rotY: -Math.PI / 5 },
   miller: { x: 9.0, z: 9.3, rotY: 2.44 }, // minding his granary, facing the village
+  // The miller's strip, south-east of the quest board and well out of his
+  // rats' reach. Its ridges run `length` along the field's own x, side by
+  // side `spacing` apart along its z (how many: CONFIG.farm.rows).
+  field: { x: 11, z: -9, rotY: 0.35, length: 6.4, spacing: 1.0 },
   // dirt wear circles painted onto the terrain: {x, z, radius}
   dirtPatches: [
     { x: -4.6, z: 6.2, r: 2.6 }, // around campfire
@@ -29,3 +34,38 @@ export const LAYOUT = {
     { x: 11, z: 11, r: 4.2 }, // granary yard
   ],
 };
+
+// ---------- the field's own frame ----------
+// The strip is turned on the map, so everything built or asked about it works
+// in field coordinates: u along the ridges, v across them, both from its centre.
+
+const F = LAYOUT.field;
+const COS = Math.cos(F.rotY);
+const SIN = Math.sin(F.rotY);
+
+export const FIELD = {
+  rows: CONFIG.farm.rows,
+  halfLength: F.length / 2,
+  halfWidth: (CONFIG.farm.rows * F.spacing) / 2,
+  rowV: (row) => (row - (CONFIG.farm.rows - 1) / 2) * F.spacing, // where a ridge's crest runs
+};
+
+export function fieldToWorld(u, v) {
+  return { x: F.x + u * COS + v * SIN, z: F.z - u * SIN + v * COS };
+}
+
+export function worldToField(x, z) {
+  const dx = x - F.x;
+  const dz = z - F.z;
+  return { u: dx * COS - dz * SIN, v: dx * SIN + dz * COS };
+}
+
+// How far outside the strip a spot lies, 0 anywhere on it. Asked for every
+// facet of the ground and every tuft of grass, so it makes no garbage.
+export function fieldGap(x, z) {
+  const dx = x - F.x;
+  const dz = z - F.z;
+  const u = Math.abs(dx * COS - dz * SIN) - FIELD.halfLength;
+  const v = Math.abs(dx * SIN + dz * COS) - FIELD.halfWidth;
+  return Math.hypot(Math.max(u, 0), Math.max(v, 0));
+}

@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 10, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed
+  saveVersion: 11, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 the miller's strip
 
   xpPerLevel: 100, // next level costs 100 × current level
 
@@ -151,6 +151,17 @@ export const CONFIG = {
     biteDamage: 1,
     biteCooldown: 1.3,
     wanderRadius: 5,
+  },
+
+  // The miller's strip: a wheat field worked one job per real day — till,
+  // sow, tend, reap — so the crop grows only across the days you turn up.
+  // It pays the purse and never a virtue: no XP is earned in the field.
+  farm: {
+    rows: 5, // ridges in the strip; a day's job is every one of them
+    wage: 4, // coins for a finished day of tilling, sowing or weeding
+    harvestPay: 20, // coins when the wheat is brought in
+    strokes: 3, // blows of the hoe (casts of seed, cuts of the sickle) to work one ridge
+    strokeTime: 0.5, // seconds each takes
   },
 
   campfireTiers: [

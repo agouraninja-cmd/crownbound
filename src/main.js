@@ -6,7 +6,7 @@ import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, placePrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
-import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wieldedWeapon } from './state/state.js';
+import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
@@ -278,6 +278,72 @@ function millerGreeting() {
   }
 }
 
+// ---------- the miller's strip ----------
+// E at a ridge works it: a few strokes of the tool for the day's job, and the
+// ridge changes. When every ridge has had it, the miller pays. One job a day.
+const field = world.field;
+field.draw(farmRowLooks());
+onChange((reason) => {
+  if (reason === 'farm') field.draw(farmRowLooks());
+});
+
+const FIELD_PROMPTS = { till: 'till this ridge', sow: 'sow this ridge', tend: 'weed this ridge', reap: 'reap this ridge' };
+const FIELD_PAID = {
+  till: (c) => `The strip is tilled. The miller pays a day’s wage. (+${c}c)`,
+  sow: (c) => `The seed is in the ground. The miller pays a day’s wage. (+${c}c)`,
+  tend: (c) => `The shoots stand clean of weeds. The miller pays a day’s wage. (+${c}c)`,
+  reap: (c) => `The wheat is in. The miller pays for the harvest. (+${c}c)`,
+};
+// once today's job is done: what the strip is waiting on, by the job that comes next
+const FIELD_WAITS = {
+  till: 'The sheaves stand drying. The strip rests till the morrow.',
+  sow: 'The turned earth must settle. Sow it on the morrow.',
+  tend: 'The seed lies sleeping. Come back on the morrow.',
+  reap: 'The shoots stand clean. Wheat will not be hurried — come back on the morrow.',
+};
+
+// The strip's prompt hangs on the nearest ridge that still wants today's job
+// (any ridge, once the job is done). Called every step; beyond FIELD_REACH of
+// the strip's middle no ridge is in reach, so the spot is left where it lies.
+const FIELD_REACH = 9;
+function aimFieldSpot() {
+  const px = player.pos.x;
+  const pz = player.pos.z;
+  if (Math.hypot(px - LAYOUT.field.x, pz - LAYOUT.field.z) > FIELD_REACH) return;
+  const job = farmJob();
+  const done = getState().farm.done;
+  let best = null;
+  for (let row = 0; row < field.rows; row++) {
+    if (job && done.includes(row)) continue; // worked already
+    const p = field.nearestOnRow(row, px, pz);
+    if (!best || p.dist < best.dist) best = { ...p, row };
+  }
+  if (!best) return;
+  const spot = field.spot;
+  spot.x = best.x;
+  spot.z = best.z;
+  spot.row = best.row;
+  spot.label = job ? FIELD_PROMPTS[job] : 'look over the strip';
+}
+
+let workingRow = -1; // the ridge under the hoe
+function workTheField() {
+  const job = farmJob();
+  if (!job) {
+    toast(FIELD_WAITS[FARM_JOBS[getState().farm.stage]], '');
+    return;
+  }
+  if (player.startWork(job, field.spot.x, field.spot.z)) workingRow = field.spot.row;
+}
+player.onWorkStroke = (kind) => (kind === 'sow' ? sfx.sow() : kind === 'reap' ? sfx.reap() : sfx.dig());
+player.onWorkDone = () => {
+  const worked = workFarmRow(workingRow); // the strip redraws itself on the change
+  if (worked?.done) {
+    toast(FIELD_PAID[worked.job](worked.coins), 'gold');
+    sfx.coin();
+  }
+};
+
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyE' || !player.isEnabled() || isPanelOpen()) return;
   const a = nearestAction();
@@ -294,6 +360,8 @@ window.addEventListener('keydown', (e) => {
     openPanel('chest');
   } else if (a.id === 'miller') {
     millerGreeting();
+  } else if (a.id === 'field') {
+    workTheField();
   } else {
     orbitCam.unlock();
     openPanel(a.id);
@@ -302,7 +370,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -325,7 +393,8 @@ function step(dt) {
     player.update(dt, orbitCam.getYaw(), world.colliders);
     rats.update(dt, player, (dmg, x, z) => player.takeDamage(dmg, x, z));
     dummy.update(dt);
-    promptFor = player.isEnabled() ? nearestAction() : null; // none while asleep/dead
+    aimFieldSpot();
+    promptFor = player.isEnabled() && player.mode !== 'work' ? nearestAction() : null; // none while asleep, dead or busy at a ridge
     showPrompt(promptFor ? promptText(promptFor) : null);
   }
 

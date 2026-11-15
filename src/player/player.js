@@ -51,7 +51,8 @@ export function createPlayer(scene, spawn) {
     pos: m.group.position,
     vel: new THREE.Vector2(0, 0), // xz
     facing: m.group.rotation.y,
-    mode: 'normal', // normal | roll | attack | sleep
+    mode: 'normal', // normal | roll | attack | sleep | work
+    work: null, // while a ridge is being worked: { kind, x, z, strokes }
     modeT: 0,
     invulnerable: false,
     vy: 0,
@@ -74,6 +75,8 @@ export function createPlayer(scene, spawn) {
     onHurt: () => {},
     onFootstep: () => {}, // (weight 0..1) each time a foot comes down in a stride
     onLand: () => {}, // (downward speed) at a touchdown
+    onWorkStroke: () => {}, // (kind) each time the hoe bites, the seed flies, the sickle cuts
+    onWorkDone: () => {}, // (kind) when the ridge is finished
     // wired up by later systems (stamina M5, combat M6)
     trySpend: () => true,
     onAttackSwing: null, // called once at the active frame of a swing
@@ -165,6 +168,33 @@ export function createPlayer(scene, spawn) {
     player.lie01 = lt * lt * (3 - 2 * lt);
     player.restY = b.y + 0.16 - player.pos.y;
     m.weapon.visible = player.lie01 < 0.5; // the stick rests for the night too
+  }
+
+  // Field work (the miller's strip): rooted at a ridge for a few strokes —
+  // of the hoe (tilling, weeding), the sowing hand, or the sickle (reaping).
+  // The tool for the job takes the stick's place in the fist until it is done.
+  const TOOL_FOR = { till: 'hoe', tend: 'hoe', reap: 'sickle' }; // seed is cast by hand
+  function takeUp(kind) {
+    m.weapon.visible = kind === null; // null: the stick again
+    for (const [name, tool] of Object.entries(m.tools)) tool.visible = TOOL_FOR[kind] === name;
+  }
+
+  // Begin working the ridge at (x, z). False if he is busy or in the air.
+  function startWork(kind, x, z) {
+    if (player.mode !== 'normal' || player.airborne) return false;
+    player.mode = 'work';
+    player.modeT = 0;
+    player.jumpIn = 0;
+    player.work = { kind, x, z, strokes: 0 };
+    takeUp(kind);
+    return true;
+  }
+
+  // down tools, finished or not
+  function stopWork() {
+    if (player.mode === 'work') player.mode = 'normal';
+    player.work = null;
+    takeUp(null);
   }
 
   function startRoll(dirX, dirZ) {
@@ -273,7 +303,10 @@ export function createPlayer(scene, spawn) {
     flash(m.group);
     player.onHurt();
     player.onHpChange(player.hp, player.maxHp);
-    if (player.hp === 0) player.onDeath();
+    if (player.hp === 0) {
+      stopWork(); // a dead man finishes no ridge
+      player.onDeath();
+    }
   };
 
   player.respawn = function respawn(x, z) {
@@ -286,7 +319,7 @@ export function createPlayer(scene, spawn) {
     player.mode = 'normal';
     player.invulnerable = false;
     player.lie01 = 0;
-    m.weapon.visible = true; // back in hand after a nap
+    stopWork(); // the stick back in hand — after a nap, or a death in the field
     anim.reset(); // on his feet, no leftover lean or half-finished pose
     player.onHpChange(player.hp, player.maxHp);
   };
@@ -377,6 +410,22 @@ export function createPlayer(scene, spawn) {
       player.vel.multiplyScalar(Math.max(0, 1 - dt * 14));
     }
 
+    if (player.mode === 'work') {
+      const W = CONFIG.farm;
+      const job = player.work;
+      // each stroke lands 60% of the way through its beat
+      const landed = Math.min(W.strokes, Math.floor(player.modeT / W.strokeTime + 0.4));
+      while (job.strokes < landed) {
+        job.strokes += 1;
+        player.onWorkStroke(job.kind);
+      }
+      player.vel.multiplyScalar(Math.max(0, 1 - dt * 14)); // feet planted at the ridge
+      if (player.modeT >= W.strokes * W.strokeTime) {
+        stopWork();
+        player.onWorkDone(job.kind);
+      }
+    }
+
     if (player.mode === 'normal') {
       const pace = P.walkSpeed * (player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1);
       if (player.airborne) {
@@ -425,6 +474,13 @@ export function createPlayer(scene, spawn) {
       player.facing = lerpAngle(player.facing, Math.atan2(player.rollDir.x, player.rollDir.z), 1 - Math.exp(-dt * P.turnLerp));
     } else if (player.mode === 'normal' && len > 0) {
       player.facing = lerpAngle(player.facing, Math.atan2(dirX, dirZ), 1 - Math.exp(-dt * P.turnLerp));
+    } else if (player.mode === 'work') {
+      // turned to the spot he is working — unless he is standing on it
+      const wx = player.work.x - px;
+      const wz = player.work.z - pz;
+      if (wx * wx + wz * wz > 0.04) {
+        player.facing = lerpAngle(player.facing, Math.atan2(wx, wz), 1 - Math.exp(-dt * P.turnLerp));
+      }
     }
     player.turnRate = dt > 1e-4 ? (player.facing - facingWas) / dt : 0;
     m.group.rotation.y = player.facing;
@@ -434,6 +490,7 @@ export function createPlayer(scene, spawn) {
 
   player.attack = startAttack;
   player.startSleep = startSleep;
+  player.startWork = startWork;
 
   player.faceToward = function faceToward(x, z) {
     player.facing = Math.atan2(x - player.pos.x, z - player.pos.z);
