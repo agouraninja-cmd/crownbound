@@ -12,6 +12,7 @@ Each entry has a name, the idea as the owner gave it, then the questions it leav
 | **Kingdoms** | Multiplayer as a whole — the throne, won by vote or duel |
 | **The Homelands** | Kingdoms shape A: kingdoms are real-life places |
 | **The Four Crowns** | Kingdoms shape B: four kingdoms you choose between, for good |
+| **The Four Realms** | Each kingdom has its own map — and its own kind, era or species |
 
 The Homelands and The Four Crowns are two different answers to the same question — what a
 kingdom *is*. They are alternatives; the owner has not picked one.
@@ -103,3 +104,21 @@ Open questions:
 - What the huge prize is — and how it keeps the sacred rule, that virtue is earned by real
   deeds and never handed out.
 - Is the prize for the winning kingdom's players only, or for everyone who fought?
+
+### The Four Realms — a map for every kingdom
+
+*Noted 2026-11-15. Builds on The Four Crowns.*
+
+- There is a **map of the kingdom**, and **each kingdom has its own map**.
+- The kingdoms need not all be alike. The other three could each be **another type of
+  kingdom**, **another time period**, or **another species**.
+
+Open questions:
+- Which of the three it is — a different kind of kingdom, a different era, or a different
+  species — or a mix, one per kingdom.
+- What the map is: the 3D land a player walks (today's village, grown), an overview map to
+  look at, or both.
+- Whether a player can visit the other kingdoms' maps, and when — only in the yearly war?
+- Whether the differences are looks only, or change how a kingdom plays.
+- The art cost: today everything is one hand-built low-poly medieval village. Four distinct
+  realms is four times the world, and another era or species means new buildings and figures.
