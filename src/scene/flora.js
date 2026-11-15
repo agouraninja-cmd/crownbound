@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { makeRng, makeBatch, soup, roughen, tintFaces, tintVerts, setSway, raggedCone, smoothstep, fbm2, hash2 } from './meshUtils.js';
 import { terrainHeight, dirtAmount, grassTint } from './terrain.js';
-import { LAYOUT } from './layout.js';
+import { LAYOUT, fieldGap } from './layout.js';
 import { withWind } from './wind.js';
 
 // Everything that grows low: grass tufts, tall meadow grass, wildflowers,
@@ -234,6 +234,10 @@ export function buildFlora(scatter) {
   group.name = 'flora';
   const blocked = keepClear(scatter);
   const rng = makeRng(2718);
+  // Nothing wild grows on the miller's strip. It is weeded out AFTER each
+  // plant has drawn its random numbers, never by skipping the draw — so the
+  // rest of the meadow stands exactly where it stood before there was a field.
+  const ploughed = (x, z) => fieldGap(x, z) < 0.4;
 
   // thin blades are lit as if they lay flat like the ground (see wind.js)
   const bladeMat = withWind(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.11, { upNormals: true });
@@ -259,7 +263,8 @@ export function buildFlora(scatter) {
       tone: 0.9 + rng() * 0.2,
     });
   }
-  group.add(plantTufts(tuftGeometry(rng, { blades: 5, height: 0.34, width: 0.05, splay: 0.42 }), bladeMat, tufts));
+  const wild = (list) => list.filter((s) => !ploughed(s.x, s.z));
+  group.add(plantTufts(tuftGeometry(rng, { blades: 5, height: 0.34, width: 0.05, splay: 0.42 }), bladeMat, wild(tufts)));
 
   // tall meadow grass, gone to seed: drifts of it out beyond the village
   const meadow = [];
@@ -273,7 +278,7 @@ export function buildFlora(scatter) {
     if (dirtAmount(x, z) > 0.04 || blocked(x, z, 0.25)) continue;
     meadow.push({ x, z, ry: rng() * Math.PI * 2, size: 0.85 + rng() * 0.5, tall: 0.8 + rng() * 0.5, dry: 0.25 + rng() * 0.3, tone: 0.95 + rng() * 0.15 });
   }
-  group.add(plantTufts(tuftGeometry(rng, { blades: 5, height: 0.78, width: 0.045, splay: 0.3, bend: 0.5 }), bladeMat, meadow));
+  group.add(plantTufts(tuftGeometry(rng, { blades: 5, height: 0.78, width: 0.045, splay: 0.3, bend: 0.5 }), bladeMat, wild(meadow)));
 
   // wildflowers: patches of one kind, the way they seed
   const blooms = makeBatch({ sway: true });
@@ -285,7 +290,9 @@ export function buildFlora(scatter) {
       const z = cz + Math.sin(a) * d;
       if (dirtAmount(x, z) > 0.25 || blocked(x, z)) continue;
       const s = 0.85 + rng() * 0.6;
-      blooms.add(flowerGeometry(rng, FLOWERS[kind]), { x, y: terrainHeight(x, z), z, ry: rng() * Math.PI * 2, s });
+      const bloom = flowerGeometry(rng, FLOWERS[kind]);
+      const ry = rng() * Math.PI * 2;
+      if (!ploughed(x, z)) blooms.add(bloom, { x, y: terrainHeight(x, z), z, ry, s });
     }
   };
   const patches = []; // where the flowers stand thick — the butterflies keep to these
@@ -295,7 +302,7 @@ export function buildFlora(scatter) {
     const px = Math.cos(ang) * rad;
     const pz = Math.sin(ang) * rad;
     patch(px, pz, Math.floor(rng() * FLOWERS.length), 7 + Math.floor(rng() * 12), 1.0 + rng() * 1.8);
-    if (dirtAmount(px, pz) < 0.1 && !blocked(px, pz, 1)) patches.push({ x: px, z: pz });
+    if (dirtAmount(px, pz) < 0.1 && !blocked(px, pz, 1) && !ploughed(px, pz)) patches.push({ x: px, z: pz });
   }
   group.userData.patches = patches;
   // a scatter of daisies and buttercups through the village green itself

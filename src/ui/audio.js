@@ -95,4 +95,11 @@ export const sfx = {
     noise({ dur: 0.06, gain: 0.1 * weight, freq: 900, when: 0.02 });
   },
   hurt: () => tone({ freq: 200, to: 90, type: 'sawtooth', dur: 0.15, gain: 0.3 }),
+  // field work: the hoe biting earth, seed pattering down, the sickle through straw
+  dig: () => {
+    tone({ freq: 95, to: 48, dur: 0.08, gain: 0.22 });
+    noise({ dur: 0.08, gain: 0.16, freq: 480 + Math.random() * 120 });
+  },
+  sow: () => noise({ dur: 0.14, gain: 0.07, freq: 3000 + Math.random() * 600 }),
+  reap: () => noise({ dur: 0.11, gain: 0.15, freq: 1700 + Math.random() * 300 }),
 };

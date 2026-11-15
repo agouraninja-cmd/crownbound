@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { pathX, LAYOUT } from './layout.js';
+import { pathX, LAYOUT, fieldGap } from './layout.js';
 import { smoothstep, fbm2, hash2 } from './meshUtils.js';
 
 // Analytic height so gameplay code can sample the ground anywhere without raycasts.
@@ -88,6 +88,13 @@ function groundColor(x, z, out) {
     _dirt.lerp(DUST, (1 - smoothstep(distToPath(x, z), 0.2, 1.5)) * 0.55);
     out.lerp(_dirt, dirt);
   }
+
+  // the miller's strip: bare earth under the bed (field.js lays the ploughland
+  // over it) and trodden a little way out. Kept out of dirtAmount on purpose —
+  // the flora reads that as it draws its random numbers, and the meadow
+  // should grow where it always has.
+  const trodden = 1 - smoothstep(fieldGap(x, z), 0.15, 0.8);
+  if (trodden > 0) out.lerp(DIRT_DARK, trodden);
   return out;
 }
 

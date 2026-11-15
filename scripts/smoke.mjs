@@ -219,6 +219,48 @@ try {
     }, ledger);
   }
 
+  if (scenario === 'farm') {
+    // a v10 save from before there was a field: the migration must lay the
+    // strip out fallow; 30 coins in the purse for the wages to add to
+    const landless = {
+      saveVersion: 10,
+      createdAt: new Date().toISOString(),
+      lastPlayedAt: new Date().toISOString(),
+      lastQuestDate: null,
+      rank: 'Peasant',
+      stats: {
+        ath: { level: 1, xp: 0 },
+        int: { level: 1, xp: 0 },
+        wis: { level: 1, xp: 0 },
+        inf: { level: 1, xp: 0 },
+      },
+      coins: 30,
+      treasury: { name: '', current: 0, goal: 10000, pledge: 0, rolls: [], conquered: [] },
+      streak: { current: 0, best: 0 },
+      quests: {
+        daily: { text: '', completed: false, date: dstr(0) },
+        weekly: { text: '', completed: false, weekStart: '2020-01-06' },
+        monthly: { text: '', completed: false, monthStart: '2020-01-01' },
+        epic: { text: '', progressPct: 0 },
+      },
+      history: [],
+      chronicle: [],
+      daysPlayed: 1,
+      stamina: { current: 60, date: dstr(0) },
+      counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
+      sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
+      shop: { owned: [] },
+      chest: { wielded: 'stick', loaves: 0 },
+      coronationAt: null,
+    };
+    await page.evaluateOnNewDocument((save) => {
+      if (!sessionStorage.getItem('smoke-injected')) {
+        sessionStorage.setItem('smoke-injected', '1');
+        localStorage.setItem('crownbound_save', JSON.stringify(save));
+      }
+    }, landless);
+  }
+
   if (scenario === 'sage') {
     // appoint the sage and stub the Anthropic API at the fetch layer: the
     // verdict comes from the quest text, so the wiring is tested end-to-end
@@ -1691,6 +1733,221 @@ try {
     console.log('off-day:', JSON.stringify({ cart: offDay.cart, promptHidden: offPrompt }));
     if (offDay.cart !== null) errors.push('market: cart present though market=0');
     if (!offPrompt) errors.push('market: something still prompts at the empty spot');
+  } else if (scenario === 'farm') {
+    // The miller's strip. A v10 save gains a fallow field; E at a ridge works
+    // it (tool in hand, the ridge redrawn, no pay yet); the last ridge
+    // finishes the job and pays the wage once; one job a day; the save
+    // carries it across a reload. Then the rest of the crop on a pinned clock
+    // — sow, weed, reap — to the harvest and back to stubble.
+    const read = () =>
+      page.evaluate(() => {
+        const g = window.__game;
+        const st = g.getState();
+        const prompt = document.getElementById('interact-prompt');
+        return {
+          version: st.saveVersion,
+          latest: g.CONFIG.saveVersion,
+          farm: st.farm,
+          coins: st.coins,
+          looks: g.field.looks(),
+          job: g.farmJob(),
+          mode: g.player.mode,
+          stick: g.player.mesh.weapon.visible,
+          hoe: g.player.mesh.tools.hoe.visible,
+          prompt: prompt.classList.contains('hidden') ? '' : prompt.textContent,
+          promptRow: g.field.spot.row,
+          toasts: document.getElementById('toasts').textContent,
+        };
+      });
+    // stand beside a ridge's middle, a step off its crest
+    const standAt = (row) =>
+      page.evaluate((r) => {
+        const g = window.__game;
+        const p = g.field.nearestOnRow(r, 11, -9);
+        g.player.pos.x = p.x + 0.35;
+        g.player.pos.z = p.z + 0.3;
+      }, row);
+    const until = (fn, arg, ms = 15000) => page.waitForFunction(fn, { timeout: ms, polling: 100 }, arg).then(() => true, () => false);
+    const all = (looks, name) => looks.length === 5 && looks.every((l) => l === name);
+    const rows = await page.evaluate(() => window.__game.CONFIG.farm.rows);
+    const wage = await page.evaluate(() => window.__game.CONFIG.farm.wage);
+    const harvestPay = await page.evaluate(() => window.__game.CONFIG.farm.harvestPay);
+
+    // 1) the migration: current version, a fallow strip, stubble drawn
+    const fallow = await read();
+    console.log('migrated:', JSON.stringify({ version: fallow.version, farm: fallow.farm, looks: fallow.looks, job: fallow.job }));
+    if (fallow.version !== fallow.latest) errors.push(`farm: saveVersion ${fallow.version} != current ${fallow.latest}`);
+    if (fallow.farm?.stage !== 0 || fallow.farm?.done?.length !== 0 || fallow.farm?.workedOn !== null)
+      errors.push(`farm: migrated field ${JSON.stringify(fallow.farm)} is not fallow`);
+    if (!all(fallow.looks, 'stubble')) errors.push(`farm: fallow strip drawn as ${fallow.looks}`);
+    if (fallow.job !== 'till') errors.push(`farm: first job ${fallow.job} != till`);
+
+    // 2) at a ridge the prompt offers the day's job; E takes up the hoe
+    await standAt(2);
+    if (!(await until(() => document.getElementById('interact-prompt').textContent.includes('till this ridge'))))
+      errors.push(`farm: prompt "${(await read()).prompt}" does not offer the tilling`);
+    await page.keyboard.press('KeyE');
+    if (!(await until(() => window.__game.player.mode === 'work'))) errors.push('farm: E at the ridge did not start the work');
+    // the prompt goes with the next frame, not the keypress — give it one
+    await until(() => document.getElementById('interact-prompt').classList.contains('hidden'), undefined, 1000);
+    const working = await read();
+    console.log('working:', JSON.stringify({ mode: working.mode, hoe: working.hoe, stick: working.stick, prompt: working.prompt }));
+    if (!working.hoe || working.stick) errors.push(`farm: tilling with hoe ${working.hoe} / stick ${working.stick} — the hoe should be in hand`);
+    if (working.prompt) errors.push(`farm: prompt "${working.prompt}" still showing while he works`);
+
+    // 3) the ridge is done: redrawn as a furrow, the stick back, no pay yet,
+    // and the prompt has moved on to a ridge that still wants the hoe
+    if (!(await until(() => window.__game.getState().farm.done.length === 1))) errors.push('farm: the ridge was never finished');
+    await new Promise((r) => setTimeout(r, 300));
+    const one = await read();
+    console.log('one ridge:', JSON.stringify({ farm: one.farm, looks: one.looks, coins: one.coins, prompt: one.prompt, promptRow: one.promptRow }));
+    if (one.farm.done[0] !== 2) errors.push(`farm: worked ridge ${one.farm.done[0]} != 2, the one he stood at`);
+    if (one.looks[2] !== 'furrow' || one.looks.filter((l) => l === 'stubble').length !== rows - 1)
+      errors.push(`farm: after one ridge the strip is drawn ${one.looks}`);
+    if (one.mode !== 'normal' || !one.stick || one.hoe) errors.push(`farm: after the ridge mode ${one.mode}, stick ${one.stick}, hoe ${one.hoe}`);
+    if (one.coins !== 30) errors.push(`farm: paid ${one.coins - 30}c before the job was done`);
+    if (!one.prompt.includes('till this ridge') || one.promptRow === 2)
+      errors.push(`farm: prompt "${one.prompt}" on ridge ${one.promptRow} — should offer a ridge still untilled`);
+
+    // 4) the other ridges: the last one finishes the job and the miller pays, once
+    for (const row of [0, 1, 3, 4]) {
+      await standAt(row);
+      await until((r) => window.__game.field.spot.row === r, row, 5000);
+      await page.keyboard.press('KeyE');
+      const worked = await until((r) => {
+        const f = window.__game.getState().farm;
+        return f.done.includes(r) || f.stage === 1;
+      }, row);
+      if (!worked) errors.push(`farm: ridge ${row} was never finished`);
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    const tilled = await read();
+    console.log('tilled:', JSON.stringify({ farm: tilled.farm, looks: tilled.looks, coins: tilled.coins, job: tilled.job, prompt: tilled.prompt, toasts: tilled.toasts }));
+    if (tilled.farm.stage !== 1 || tilled.farm.done.length !== 0 || tilled.farm.workedOn !== dstr(0))
+      errors.push(`farm: after tilling the field is ${JSON.stringify(tilled.farm)}`);
+    if (tilled.coins !== 30 + wage) errors.push(`farm: coins ${tilled.coins} != ${30 + wage} after the day's wage`);
+    if (!all(tilled.looks, 'furrow')) errors.push(`farm: tilled strip drawn as ${tilled.looks}`);
+    if (!tilled.toasts.includes('The strip is tilled')) errors.push(`farm: no wage toast ("${tilled.toasts}")`);
+
+    // 5) one job a day: nothing more to do, E only looks the strip over
+    if (tilled.job !== null) errors.push(`farm: a second job (${tilled.job}) offered the same day`);
+    if (!(await until(() => document.getElementById('interact-prompt').textContent.includes('look over the strip'), undefined, 5000)))
+      errors.push(`farm: prompt "${(await read()).prompt}" after the day's job`);
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 500));
+    const idle = await page.evaluate(() => ({
+      mode: window.__game.player.mode,
+      refused: window.__game.workFarmRow(0),
+      toasts: document.getElementById('toasts').textContent,
+      coins: window.__game.getState().coins,
+    }));
+    console.log('same day:', JSON.stringify(idle));
+    if (idle.mode === 'work' || idle.refused !== null || idle.coins !== 30 + wage) errors.push('farm: more work was had the same day');
+    if (!idle.toasts.includes('on the morrow')) errors.push(`farm: no word on what the strip waits for ("${idle.toasts}")`);
+
+    // 6) the save carries the field across a reload
+    await page.reload({ waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 2000));
+    const kept = await read();
+    console.log('after reload:', JSON.stringify({ farm: kept.farm, looks: kept.looks, coins: kept.coins, job: kept.job }));
+    if (kept.farm.stage !== 1 || !all(kept.looks, 'furrow') || kept.coins !== 30 + wage || kept.job !== null)
+      errors.push(`farm: the field did not survive a reload: ${JSON.stringify(kept.farm)} drawn ${kept.looks}`);
+
+    // 7) the rest of the crop, a day at a time on a pinned clock
+    const crop = await page.evaluate((n) => {
+      const g = window.__game;
+      const day = (offset) => {
+        const d = new Date();
+        d.setDate(d.getDate() + offset);
+        return d;
+      };
+      const workAll = (d) => {
+        const results = [];
+        for (let r = 0; r < n; r++) results.push(g.workFarmRow(r, d));
+        return results;
+      };
+      const out = {};
+      // day 1: sowing
+      out.sowJob = g.farmJob(day(1));
+      out.beforeSow = g.farmRowLooks(day(1));
+      out.firstSown = g.workFarmRow(3, day(1));
+      out.twice = g.workFarmRow(3, day(1)); // the same ridge again
+      out.partSown = g.farmRowLooks(day(1));
+      out.sowing = workAll(day(1)); // ridge 3 refuses, the rest finish it
+      out.sown = g.farmRowLooks(day(1));
+      out.sameDay = g.farmJob(day(1));
+      out.coinsSown = g.getState().coins;
+      // a night later the shoots are up, weeds among them — and wait as long as he likes
+      out.weedy = g.farmRowLooks(day(2));
+      out.muchLater = g.farmRowLooks(day(12));
+      out.tendJob = g.farmJob(day(2));
+      workAll(day(2));
+      out.tended = g.farmRowLooks(day(2));
+      // day 3: the wheat stands ripe; reaping
+      out.ripe = g.farmRowLooks(day(3));
+      out.reapJob = g.farmJob(day(3));
+      out.firstCut = g.workFarmRow(0, day(3));
+      out.partCut = g.farmRowLooks(day(3));
+      const before = g.getState().history.length;
+      out.reaping = workAll(day(3));
+      out.stooks = g.farmRowLooks(day(3));
+      out.harvestDeeds = g.getState().history.slice(before).map((h) => h.type);
+      out.coinsEnd = g.getState().coins;
+      out.farmEnd = g.getState().farm;
+      // day 4: the sheaves are gone, the strip wants the hoe again
+      out.stubble = g.farmRowLooks(day(4));
+      out.nextJob = g.farmJob(day(4));
+      return out;
+    }, rows);
+    console.log('crop:', JSON.stringify(crop));
+    if (crop.sowJob !== 'sow' || !all(crop.beforeSow, 'furrow')) errors.push(`farm: day 1 offers ${crop.sowJob} on ${crop.beforeSow}`);
+    if (crop.firstSown?.job !== 'sow' || crop.firstSown?.done || crop.firstSown?.coins !== 0)
+      errors.push(`farm: first sown ridge returned ${JSON.stringify(crop.firstSown)}`);
+    if (crop.twice !== null) errors.push('farm: the same ridge was sown twice');
+    if (crop.partSown[3] !== 'sown' || crop.partSown.filter((l) => l === 'furrow').length !== rows - 1)
+      errors.push(`farm: half-sown strip drawn ${crop.partSown}`);
+    const last = crop.sowing.at(-1);
+    if (!last?.done || last.coins !== wage) errors.push(`farm: the last sown ridge returned ${JSON.stringify(last)}`);
+    if (!all(crop.sown, 'sown') || crop.sameDay !== null) errors.push(`farm: sown strip drawn ${crop.sown}, job ${crop.sameDay}`);
+    if (crop.coinsSown !== 30 + wage * 2) errors.push(`farm: coins ${crop.coinsSown} != ${30 + wage * 2} after sowing`);
+    if (!all(crop.weedy, 'weedy') || !all(crop.muchLater, 'weedy')) errors.push(`farm: the night after sowing ${crop.weedy}; twelve days on ${crop.muchLater}`);
+    if (crop.tendJob !== 'tend' || !all(crop.tended, 'tended')) errors.push(`farm: weeding ${crop.tendJob} left ${crop.tended}`);
+    if (!all(crop.ripe, 'ripe') || crop.reapJob !== 'reap') errors.push(`farm: day 3 ${crop.reapJob} on ${crop.ripe}`);
+    if (crop.partCut[0] !== 'stook' || crop.partCut.filter((l) => l === 'ripe').length !== rows - 1)
+      errors.push(`farm: half-reaped strip drawn ${crop.partCut}`);
+    if (crop.reaping.at(-1)?.coins !== harvestPay) errors.push(`farm: harvest paid ${crop.reaping.at(-1)?.coins} != ${harvestPay}`);
+    if (crop.harvestDeeds.join() !== 'harvest') errors.push(`farm: harvest wrote history [${crop.harvestDeeds}] != one harvest deed`);
+    if (crop.coinsEnd !== 30 + wage * 3 + harvestPay) errors.push(`farm: coins ${crop.coinsEnd} != ${30 + wage * 3 + harvestPay} after the whole crop`);
+    if (crop.farmEnd.stage !== 0 || crop.farmEnd.done.length !== 0) errors.push(`farm: after the harvest the field is ${JSON.stringify(crop.farmEnd)}`);
+    if (!all(crop.stooks, 'stook') || !all(crop.stubble, 'stubble') || crop.nextJob !== 'till')
+      errors.push(`farm: harvest day ${crop.stooks}; the day after ${crop.stubble}, job ${crop.nextJob}`);
+    const xp = await page.evaluate(() => Object.values(window.__game.getState().stats).map((s) => `${s.level}:${s.xp}`).join());
+    if (xp !== '1:0,1:0,1:0,1:0') errors.push(`farm: field work trained a virtue (${xp})`);
+
+    // 8) the Charter knows the strip and its pay
+    await page.evaluate(() => window.__game.openPanel('guide'));
+    const charter = await page.evaluate(() => {
+      const C = window.__game.CONFIG;
+      const text = document.getElementById('guide-body').textContent;
+      return text.includes('Miller’s Strip') && text.includes(`${C.farm.wage} coins`) && text.includes(`${C.farm.harvestPay} coins`);
+    });
+    if (!charter) errors.push('farm: the Charter is silent on the strip or its pay');
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+    // for the eye: a strip half brought in, the sickle mid-cut
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.field.draw(['stook', 'stook', 'ripe', 'ripe', 'ripe']);
+      const p = g.field.nearestOnRow(2, 10.2, -8.2);
+      g.player.pos.x = p.x - 0.24; // in the stubble, facing the standing wheat
+      g.player.pos.z = p.z - 0.66;
+      g.orbitCam.setView(-2.45, 0.32, 4.2); // from the reaped side
+      g.CONFIG.farm.strokeTime = 4; // hold the pose for the camera
+      g.player.startWork('reap', p.x, p.z);
+    });
+    await new Promise((r) => setTimeout(r, 2600));
+    await page.screenshot({ path: 'scripts/smoke-farm.png' });
   } else if (scenario === 'crown') {
     // the migration must have stripped the old scheduled deadline
     const migrated = await page.evaluate(() => {

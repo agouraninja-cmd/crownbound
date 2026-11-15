@@ -12,7 +12,8 @@ import { RIG } from './playerMesh.js';
 //     it must to put it there, so crouching, landing and hills all fold the
 //     legs for free;
 //   · the pose is the standing/striding body with the leap, the roll, the
-//     swing and sleep laid over it by eased weights, so nothing ever snaps;
+//     swing, field work and sleep laid over it by eased weights, so nothing
+//     ever snaps;
 //   · a few springs give him weight: he leans into a start and back from a
 //     stop, banks through a turn, sinks on landing, and his arms and head
 //     arrive a beat late.
@@ -133,6 +134,44 @@ const SWEEP_FOLLOW = { // wrapped across the body
 // each ending where the next winds up
 const SWINGS = [[WINDUP, IMPACT, FOLLOW], [BACK_WINDUP, BACK_IMPACT, BACK_FOLLOW], [SWEEP_WINDUP, SWEEP_IMPACT, SWEEP_FOLLOW]];
 
+// ---------- field work: two held moments, gone between over and over ----------
+// Same channels as the swings. Each job is [drawn back, struck]: the hoe
+// hauled up and brought down into the earth, seed taken from the lap and cast
+// wide, the sickle drawn out and swept through the stalks. He bends to it —
+// and with the chest pitched forward the arms must swing further to reach.
+const HOE_UP = {
+  drop: 0.05, hipYaw: 0.1, chestPitch: 0.28, chestYaw: 0.2, headPitch: 0, headYaw: -0.1,
+  swing0: -1.25, spread0: 0.3, elbow0: -1.0,
+  swing1: -1.6, spread1: -0.2, elbow1: -0.7, grip: -0.5,
+};
+const HOE_DOWN = {
+  drop: 0.13, hipYaw: -0.05, chestPitch: 0.62, chestYaw: -0.1, headPitch: 0.1, headYaw: 0.05,
+  swing0: -0.95, spread0: 0.3, elbow0: -0.5,
+  swing1: -1.1, spread1: -0.2, elbow1: -0.3, grip: 0,
+};
+const SEED_DRAW = { // the casting hand dips into the seed gathered at his belt
+  drop: 0.02, hipYaw: -0.1, chestPitch: 0.12, chestYaw: -0.3, headPitch: 0.05, headYaw: 0.15,
+  swing0: -0.5, spread0: 0.3, elbow0: -1.5,
+  swing1: -0.45, spread1: -0.5, elbow1: -1.7, grip: 0,
+};
+const SEED_CAST = { // ...and is flung out wide across the ridge
+  drop: 0.04, hipYaw: 0.15, chestPitch: 0.1, chestYaw: 0.5, headPitch: 0, headYaw: -0.25,
+  swing0: -0.5, spread0: 0.3, elbow0: -1.5,
+  swing1: -1.35, spread1: 0.9, elbow1: -0.2, grip: 0,
+};
+const SICKLE_BACK = { // bent low, the off hand gathering stalks, the blade drawn out to the side
+  drop: 0.2, hipYaw: 0.15, chestPitch: 0.72, chestYaw: 0.35, headPitch: 0.1, headYaw: -0.2,
+  swing0: -1.5, spread0: 0.25, elbow0: -0.3,
+  swing1: -0.95, spread1: 0.8, elbow1: -0.9, grip: 0.3,
+};
+const SICKLE_CUT = { // swept across, low, through what the off hand holds
+  drop: 0.22, hipYaw: -0.15, chestPitch: 0.76, chestYaw: -0.4, headPitch: 0.1, headYaw: 0.25,
+  swing0: -1.2, spread0: 0.3, elbow0: -0.9,
+  swing1: -1.3, spread1: -0.7, elbow1: -0.5, grip: 0.3,
+};
+// player.js names the job (pl.work.kind); weeding is hoe-work too
+const WORK = { till: [HOE_UP, HOE_DOWN], tend: [HOE_UP, HOE_DOWN], sow: [SEED_DRAW, SEED_CAST], reap: [SICKLE_BACK, SICKLE_CUT] };
+
 // ---------- the leap: pushed off, afloat, reaching for the ground ----------
 // Feet here are in the body's own frame, measured from each hip joint.
 const LAUNCH = {
@@ -180,6 +219,7 @@ export function createPlayerAnimator(m) {
   const body = [foot(), foot()]; // where they belong off it (from each hip joint, in the pelvis's frame)
   const air = { pose: { ...AFLOAT.pose }, feet: [foot(), foot()] }; // scratch: the leap, blended
   const blow = { ...WINDUP }; // scratch: the swing, blended
+  const toil = { ...HOE_UP }; // scratch: field work, blended
   const step = { along: 0, up: 0, pitch: 0 }; // scratch: one foot's place in the stride
 
   let clock = 0;
@@ -190,6 +230,9 @@ export function createPlayerAnimator(m) {
   let load = 0; // knees loading before a leap
   let blowT = 1; // how far through the swing, held at the end while it fades
   let blowKind = 0; // which swing: 0 chop, 1 backhand, 2 sweep
+  let wWork = 0; // eased weight of the field-work layer
+  let workBeat = 0; // how far through the current stroke, 0..1, held while the layer fades
+  let workKind = 'till';
   let lastVx = 0;
   let lastVz = 0;
 
@@ -291,6 +334,11 @@ export function createPlayerAnimator(m) {
     if (pl.mode === 'attack') {
       blowT = Math.min(pl.modeT / P.attackDuration, 1);
       blowKind = pl.swing % SWINGS.length;
+    }
+    wWork = ease(wWork, pl.mode === 'work' ? 1 : 0, pl.mode === 'work' ? 16 : 9, dt);
+    if (pl.mode === 'work') {
+      workBeat = (pl.modeT / CONFIG.farm.strokeTime) % 1;
+      workKind = pl.work.kind;
     }
 
     // ---- the stride ----
@@ -395,6 +443,20 @@ export function createPlayerAnimator(m) {
       ground[0].z += 0.1 * wBlow * smooth(blowT, 0.2, 0.6); // the off foot steps into the blow
     }
 
+    // ---- field work: drawn back, struck, drawn back again ----
+    if (wWork > 0.001) {
+      // the pose is struck by 55% of each beat so that, a few hundredths late
+      // through the springs, it lands as player.js counts the stroke at 60%;
+      // held a moment in the earth, then drawn back for the next
+      const [drawn, struck] = WORK[workKind];
+      const strike = smooth(workBeat, 0.3, 0.55) * (1 - smooth(workBeat, 0.72, 1));
+      mix(toil, drawn, 1);
+      mix(toil, struck, strike);
+      const dropWas = pose.drop;
+      mix(pose, toil, wWork);
+      pose.drop = dropWas + toil.drop * wWork; // he sinks into it from wherever he stood
+    }
+
     // ---- the leap ----
     let bodyFeet = 0; // how far the feet have left the ground's keeping
     for (let i = 0; i < 2; i++) mix(body[i], REACH.feet[i], 1);
@@ -443,8 +505,8 @@ export function createPlayerAnimator(m) {
     pose.chestRoll += reelS.x;
     pose.headPitch += reelF.x * 0.6;
 
-    // ---- arms, chest and head arrive a beat late; a swing is crisp ----
-    const stiff = lerp(40, 90, wBlow);
+    // ---- arms, chest and head arrive a beat late; a swing is crisp, work firm ----
+    const stiff = lerp(40, 90, Math.max(wBlow, wWork * 0.5));
     for (const k of SPRUNG) pose[k] = chase(sprung[k], pose[k], stiff, 0.75, dt);
 
     // ---- lay the pose on the rig ----
@@ -498,7 +560,7 @@ export function createPlayerAnimator(m) {
     },
     // stand him up fresh (respawn): no leftover lean, sink or half-blended layer
     reset() {
-      wAir = wRoll = wBlow = load = 0;
+      wAir = wRoll = wBlow = wWork = load = 0;
       blowT = 1;
       lastVx = lastVz = 0;
       for (const s of [bounce, leanF, leanS, reelF, reelS]) s.x = s.v = 0;

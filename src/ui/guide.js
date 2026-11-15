@@ -91,6 +91,22 @@ export function renderGuide(guideBody) {
       </div>`
     : '';
 
+  // likewise the field: drawn only while there is a farm in the config
+  const FM = CONFIG.farm;
+  const farmSection = FM
+    ? `<div class="sheet-section">
+        <h2>The Miller&#8217;s Strip</h2>
+        <p class="muted">South-east of the Quest Board, under the scarecrow&#8217;s eye, lies the
+        miller&#8217;s wheat strip, and honest work on it is paid in coin. One job a day, each in
+        its turn — till, sow, weed, reap — and a job is all ${FM.rows} ridges, E at each. The crop
+        grows only across the days thou turnest up; a day missed costs nothing but the day.</p>
+        <div class="kv"><span>a day&#8217;s tilling, sowing or weeding</span><span class="v">${FM.wage} coins</span></div>
+        <div class="kv"><span>the wheat brought in</span><span class="v">${FM.harvestPay} coins</span></div>
+        <p class="muted" style="margin-top:8px">The field fills the purse and never a virtue:
+        those are won only out in the world.</p>
+      </div>`
+    : '';
+
   guideBody.innerHTML = `
     <div class="sheet-section">
       <p class="quest-text" style="text-align:center">Real life levels thee up;
@@ -154,7 +170,7 @@ export function renderGuide(guideBody) {
     </div>
     <div class="sheet-section">
       <h2>The Two Purses</h2>
-      <div class="kv"><span>Coins</span><span class="v">quest spoils and rat bounties</span></div>
+      <div class="kv"><span>Coins</span><span class="v">${FM ? 'quest spoils, rat bounties, field wages' : 'quest spoils and rat bounties'}</span></div>
       <div class="kv"><span>The Treasury</span><span class="v">thy true savings, kept at the Exchequer</span></div>
       <p class="muted">They never mix. Coins of the realm will never buy back a virtue,
       and thy true hoard answers to no game. When each month turns, the clerk hears the
@@ -162,6 +178,7 @@ export function renderGuide(guideBody) {
       true — judges it against thy pledge, and enters the roll. Summits are named, climbed
       by the month, and conquered only at a filing.</p>
     </div>
+    ${farmSection}
     ${marketSection}
     <div class="sheet-section">
       <h2>The Keys</h2>

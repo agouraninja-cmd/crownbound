@@ -10,6 +10,7 @@ const HOSE = 0x5d4f3d;
 const BOOT = 0x3d3127;
 const LEATHER = 0x6b3a26;
 const STICK = 0x7a5a35;
+const IRON = 0x8b9097; // a worked edge, worn bright
 const EYE = 0x241a12;
 
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
@@ -49,7 +50,7 @@ function flat(m, z) {
 //            └ hips (the pelvis: twists and tilts with the stride)
 //               ├ leg ×2: thigh ─ shin ─ foot
 //               └ chest (the spine, at the belt)
-//                  ├ arm ×2: upper ─ fore ( ─ grip ─ weapon, on arm 1)
+//                  ├ arm ×2: upper ─ fore ( ─ grip ─ weapon / field tools, on arm 1)
 //                  └ head
 //
 // Side 0 is the figure's -x, side 1 its +x (the weapon hand). The animator
@@ -138,6 +139,31 @@ export function buildPlayerMesh() {
   weapon.add(mesh(box(0.14, 0.05, 0.08), TUNIC_DARK, { y: 0.31 }));
   grip.add(weapon);
 
+  // Tools for the miller's strip, held in the same fist: hidden until he
+  // works a ridge, when player.js swaps one in for the stick. Each is its own
+  // Group, so it bakes apart and can be shown and hidden. Like the stick they
+  // run on down the line of the forearm, past the fist.
+  const hoe = new THREE.Group();
+  hoe.add(mesh(cyl(0.022, 0.026, 0.92), tone(STICK, 1.15), { y: -0.33 })); // the shaft
+  hoe.add(mesh(box(0.16, 0.035, 0.13), IRON, { y: -0.78, z: 0.05, rx: 0.45 })); // the blade, set across its end
+  const sickle = new THREE.Group();
+  sickle.add(mesh(cyl(0.025, 0.022, 0.2), STICK, { y: -0.04 })); // the handle
+  // the blade: a crescent of short flats hooking forward from the handle's end
+  const HOOK = 0.14; // the crescent's radius
+  for (let k = 0; k < 6; k++) {
+    const a = 0.25 + k * 0.62; // round the crescent, from the handle
+    sickle.add(
+      mesh(box(0.012, 0.035 - k * 0.004, HOOK * 0.7), IRON, {
+        y: -0.16 - HOOK * Math.sin(a),
+        z: HOOK - HOOK * Math.cos(a),
+        rx: Math.PI / 2 - a, // each flat lies along the curve
+      })
+    );
+  }
+  hoe.visible = false;
+  sickle.visible = false;
+  grip.add(hoe, sickle);
+
   // head: a faceted skull under a thatch of dark hair
   const head = new THREE.Group();
   head.position.y = RIG.neck;
@@ -161,5 +187,5 @@ export function buildPlayerMesh() {
   head.add(mesh(box(0.062, 0.012, 0.02), 0x8a5a44, { y: 0.1, z: 0.153, shadow: false })); // mouth
 
   bake(group);
-  return { group, roller, hips, chest, head, legs, arms, grip, weapon };
+  return { group, roller, hips, chest, head, legs, arms, grip, weapon, tools: { hoe, sickle } };
 }

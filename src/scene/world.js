@@ -8,6 +8,7 @@ import { windTime } from './wind.js';
 import { buildAmbient } from './ambient.js';
 import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, buildMiller, HOVEL } from './structures.js';
 import { buildCart } from './cart.js';
+import { buildField } from './field.js';
 import { makeAlive, makeStroll } from './alive.js';
 import { createCampfire } from './campfire.js';
 
@@ -118,6 +119,12 @@ export function buildWorld(scene, marketToday = false) {
       { dur: 1.9, apply: (k) => { mill.armL.rotation.x = -1.25 + Math.sin(k * Math.PI) * 0.75; } },
     ],
   });
+
+  // the miller's strip: built in world coordinates, so it is added as it
+  // stands. main.js draws its ridges from the save and aims its prompt.
+  const field = buildField();
+  scene.add(field.group);
+  colliders.push(field.collider);
 
   // the chapman's cart parks by the path on market days only — no cart, no
   // collider, no prompt on other days (his wheel ruts stay painted year-round)
@@ -265,6 +272,12 @@ export function buildWorld(scene, marketToday = false) {
     },
   ];
 
+  // The strip's prompt hangs on whichever ridge the player is nearest: main.js
+  // moves this spot and words its label every step (aimFieldSpot). The radius
+  // is how far off that ridge's crest he may stand.
+  field.spot = { id: 'field', label: 'the miller’s strip', x: LAYOUT.field.x, z: LAYOUT.field.z, radius: 1.25, row: 0 };
+  interactables.push(field.spot);
+
   if (cart) {
     // the chapman's side of the cart, in world coords (the cart is rotated)
     const th = LAYOUT.cart.rotY;
@@ -307,5 +320,5 @@ export function buildWorld(scene, marketToday = false) {
     ambient.update(dt, camera);
   }
 
-  return { colliders, interactables, campfire, dummy, door, chest, exchequer, cart, miller, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, update };
+  return { colliders, interactables, campfire, dummy, door, chest, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, update };
 }

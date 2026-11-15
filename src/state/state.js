@@ -91,6 +91,7 @@ function defaultState(now = new Date()) {
     sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
     shop: { owned: [] }, // ids of one-time purchases from the chapman
     chest: { wielded: 'stick', loaves: 0 }, // the weapon in hand (the rest lie in the chest) + the larder
+    farm: { stage: 0, done: [], workedOn: null }, // the miller's strip: the job owed, the ridges done of it, the day the last job was finished
     coronationAt: null, // set the moment the rank reaches King — the Coronation
   };
 }
@@ -140,7 +141,11 @@ function migrate(s) {
     s.stats.int = { level: 1, xp: 0 };
     s.rank = rankForTotalLevels(Object.values(s.stats).reduce((a, st) => a + st.level, 0));
   }
+  if (s.saveVersion === 11) {
+    s.saveVersion = 12; // v12: the miller's strip — the field begins fallow
+  }
   // hand-edited or restored saves may miss fields regardless of version
+  if (!s.farm) s.farm = { stage: 0, done: [], workedOn: null };
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   if (!s.sleep.log) s.sleep.log = [];
   if (!s.chronicle) s.chronicle = [];
@@ -519,6 +524,71 @@ export function eatLoaf() {
   save();
   emit('chest');
   return true;
+}
+
+// ---------- the farm (the miller's strip) ----------
+// One job per real day, each in its turn: till, sow, tend, reap. A job is
+// every ridge in the strip; one left half-done keeps its ridges and is
+// finished another day. Nothing spoils — a missed day costs only the day.
+// Field work pays coins and nothing else: no virtue is earned in the field.
+
+export const FARM_JOBS = ['till', 'sow', 'tend', 'reap'];
+
+// How a ridge looks at each stage: once this job has been done to it, while
+// it waits after a night's growth, and while it waits on the day the last
+// job was finished.
+const FARM_LOOKS = [
+  { done: 'furrow', grown: 'stubble', fresh: 'stook' }, // to be tilled
+  { done: 'sown', grown: 'furrow', fresh: 'furrow' }, // to be sown
+  { done: 'tended', grown: 'weedy', fresh: 'sown' }, // to be weeded
+  { done: 'stook', grown: 'ripe', fresh: 'tended' }, // to be reaped
+];
+
+// The job waiting to be worked today, or null once today's is finished (the
+// field needs the night). Takes `now` so the smoke suite can pin the clock.
+export function farmJob(now = new Date()) {
+  return state.farm.workedOn === todayStr(now) ? null : FARM_JOBS[state.farm.stage];
+}
+
+// What each ridge looks like, first to last — the field draws itself from this.
+export function farmRowLooks(now = new Date()) {
+  const f = state.farm;
+  const look = FARM_LOOKS[f.stage];
+  const waiting = f.workedOn === todayStr(now) ? look.fresh : look.grown;
+  return Array.from({ length: CONFIG.farm.rows }, (_, i) => (f.done.includes(i) ? look.done : waiting));
+}
+
+// Work one ridge of today's job. Returns null if there is nothing to do
+// (no job today, or that ridge is already done), else { job, done, coins }:
+// `done` once the last ridge finishes the job, `coins` what the miller pays
+// for it. A harvest also lands in history (type 'harvest').
+export function workFarmRow(row, now = new Date()) {
+  const job = farmJob(now);
+  const f = state.farm;
+  if (!job || row < 0 || row >= CONFIG.farm.rows || f.done.includes(row)) return null;
+  f.done.push(row);
+
+  let coins = 0;
+  const done = f.done.length >= CONFIG.farm.rows;
+  if (done) {
+    coins = job === 'reap' ? CONFIG.farm.harvestPay : CONFIG.farm.wage;
+    f.done = [];
+    f.stage = (f.stage + 1) % FARM_JOBS.length;
+    f.workedOn = todayStr(now);
+    state.coins += coins;
+    if (job === 'reap') {
+      state.history.push({
+        date: todayStr(now),
+        questText: 'Brought in the wheat from the miller’s strip',
+        statTrained: null,
+        type: 'harvest',
+      });
+    }
+  }
+  save();
+  if (done) emit('coins');
+  emit('farm');
+  return { job, done, coins };
 }
 
 // ---------- treasury (the monthly reckoning) ----------
