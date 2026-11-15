@@ -139,7 +139,8 @@ try {
   }
 
   if (scenario === 'crown') {
-    // a Lord one daily quest from the throne: 69 total levels, str 25 XP
+    // a Lord one daily quest from the throne: 69 total levels once migrated
+    // (24 + Intelligence's fresh 1 + 22 + 22), str 25 XP
     // short of its next level (v5 save — the migration must also delete the
     // old epic deadline)
     const eve = {
@@ -150,9 +151,9 @@ try {
       rank: 'Lord',
       stats: {
         str: { level: 24, xp: 2375 },
-        agi: { level: 15, xp: 0 },
-        wis: { level: 15, xp: 0 },
-        inf: { level: 15, xp: 0 },
+        agi: { level: 15, xp: 40 }, // dropped by v11: Intelligence begins at level 1
+        wis: { level: 22, xp: 0 },
+        inf: { level: 22, xp: 0 },
       },
       coins: 5000,
       treasury: { current: 0, goal: 10000 },
@@ -1952,7 +1953,7 @@ try {
     const migrated = await page.evaluate(() => {
       const st = window.__game.getState();
       // migration must land on the CURRENT version, whatever it is by now
-      return { version: st.saveVersion, latest: window.__game.CONFIG.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt, chest: st.chest, damage: window.__game.player.attackDamage, stats: st.stats };
+      return { version: st.saveVersion, latest: window.__game.CONFIG.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt, chest: st.chest, damage: window.__game.player.attackDamage, stats: st.stats, rank: st.rank };
     });
     console.log('migrated:', JSON.stringify(migrated));
     if (migrated.version !== migrated.latest)
@@ -1965,8 +1966,10 @@ try {
     // v9→v10: Strength's seat is Athleticism's, Agility's is Intelligence's
     if (Object.keys(migrated.stats).join() !== 'ath,int,wis,inf')
       errors.push(`crown: migrated virtues ${Object.keys(migrated.stats).join()} != ath,int,wis,inf`);
-    if (migrated.stats.ath?.level !== 24 || migrated.stats.int?.level !== 15)
-      errors.push(`crown: migrated levels ath ${migrated.stats.ath?.level} / int ${migrated.stats.int?.level} != 24 / 15`);
+    // v10→v11: Agility's old levels are dropped — Intelligence begins at level 1
+    if (migrated.stats.ath?.level !== 24 || migrated.stats.int?.level !== 1 || migrated.stats.int?.xp !== 0)
+      errors.push(`crown: migrated ath L${migrated.stats.ath?.level} / int L${migrated.stats.int?.level} +${migrated.stats.int?.xp}xp != L24 / L1 +0xp`);
+    if (migrated.rank !== 'Lord') errors.push(`crown: migrated rank ${migrated.rank} != Lord (69 levels)`);
 
     // complete the last daily: ath 24 -> 25, total levels 70 -> the Coronation
     await page.evaluate(() => window.__game.openPanel('board'));
