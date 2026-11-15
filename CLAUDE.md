@@ -50,8 +50,9 @@ src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on 
 src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
 src/scene/campfire.js campfire mesh, tongues of flame, sparks, smoke; scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight; update() drives the ambient scenery
-src/player/playerMesh.js  procedural peasant figure: a jointed rig (reshape freely, the pivots are fixed points of player.js)
-src/player/player.js  movement/sprint/jump/crouch/dodge/attack state machine, HP, stamina spend
+src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements
+src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/sleep), springs — the only thing that turns the rig
+src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack state machine, HP, stamina spend
 src/player/camera.js  pointer-lock third-person orbit camera
 src/combat/dummy.js   training dummy wobble + diminishing STR XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
@@ -278,6 +279,44 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
     whole frame, each frame forced to finish): old 7.6ms → new 8.6ms at 1080p, 10.8 → 12.0ms
     at 2880×1620 — 60fps needs under 16.6. ~250–280k triangles, 40–106 draw calls.
 
+- The Living Body (2026-11-14): the player got weight and a body that shows it. Asked for by
+  the owner ("realistic animations and physics"). No rule, reward or save changed, and the
+  numbers the game is balanced on are where they were: walk/sprint/crouch speeds, the leap's
+  height (~0.8), the roll's reach (~4.05), the swing's length and the moment it lands (55%).
+  What a future session must know:
+  - Who owns what. player.js decides what he is doing and where he is; playerAnim.js decides
+    how that looks and is the ONLY thing that turns the rig's joints (sleep included — player.js
+    just sets `lie01`/`restY`). playerMesh.js exports `RIG`, the bone lengths and joint heights
+    both files measure from: move a joint, move its number.
+  - The rig. roller (waist) → hips (pelvis) → legs [thigh → shin → foot] and chest (spine at
+    the belt) → arms [upper → fore] and head; the stick hangs from a `grip` pivot in the fist
+    of arm 1. Sides are 0 (-x) and 1 (+x, the stick hand). ~6 more draw calls than the old
+    one-piece limbs. `mesh.roller.rotation.x` is still the lie-down angle the house smoke reads.
+  - Legs are solved, not swung. Each foot is given a place to be and a two-bone solve bends
+    the knee to put it there — on the ground (targets in the figure's ground frame, carried
+    into the pelvis's frame each step) or off it (targets from the hip, for the leap, the roll
+    and the cot), blended by how far the feet have left the ground. So crouching, landing and
+    hills fold the legs with no pose of their own. Feet tilt to the slope under them
+    (`player.slope`, felt once per step).
+  - The stride is built so planted feet don't skate: a foot on the ground is carried back at
+    the body's own pace, as far as the leg can reach. The legs are short for his speeds, so
+    cadence is quick and a run is mostly flight; what reach can't cover is the ~10% of skate
+    the `body` smoke scenario allows for (it was ~50% before).
+  - Layers and springs. The standing/striding pose has the leap, roll, swing and sleep laid
+    over it by eased weights; arms, chest and head then pass through springs (follow-through),
+    stiffened during a swing. The swing's pose lands at 50% so that, a few hundredths late
+    through the springs, the blow arrives as the hit is counted. Separate springs carry the
+    lean from speeding up/slowing, the bank of a turn, the landing's sink and the reel from
+    a bite. All springs use an exact step — steady at the loop's 50ms slices.
+  - Physics (CONFIG.player): speed is gathered at `accel` and shed at `brake` (a stop slides
+    a step, a hard turn is carved); mid-leap the keys only nudge (`airAccel`); a wall takes
+    away the speed that ran into it (he slides along it, stands against it); a climb costs
+    pace and a descent lends a little (`climbDrag`/`descentGain`); Space loads the knees for
+    `jumpWindup` before the feet leave; a touchdown keeps `landKeep` of the pace; the roll
+    dives in fast and tumbles out slow around the same average `dodgeSpeed`.
+  - He faces where he is steered, not where he is moving: a rat's bite shoves him back still
+    facing the rat (velocity-facing used to spin him away from it).
+
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
   The Chronicler writes weekly journal entries in medieval prose from the history log.
@@ -445,6 +484,19 @@ headlessly; everything else covered by the regression suite below.
   old behaviour). The Charter's Chapman section mentions the larder. Stored items aren't drawn
   in the chest — the quarterstaff alone would be twice its length. saveVersion 9.
 
+- [x] Post-v1 — "The Living Body" (2026-11-14): realistic movement and animation for the
+  player. A new jointed rig (knees, ankles, elbows, a spine) driven by a procedural animator:
+  a real stride with planted feet, a run with flight and arm pump, leaning into starts and
+  back from stops, banking through turns, a leap that loads, floats and lands on folding
+  knees, a tucked shoulder roll, a full-body overhead swing, a reel when bitten, breathing
+  and wandering weight at rest, feet laid to the slope. Movement has momentum: wind-up,
+  sliding stops, carved turns, little air control, walls that stop him, hills that slow him.
+  Speeds, leap height, roll reach and hit timing unchanged; no save change. New smoke
+  scenario `body`. The suite was run on Linux in a cloud container, not on the owner's
+  machine: all 19 scenarios passed there, `house` and `combat` each only on a re-run (a
+  stalled frame outran a fixed wait — see Session notes). Details: "The Living Body" under
+  Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -462,7 +514,12 @@ headlessly; everything else covered by the regression suite below.
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/miller-tally greeting/death
   (respawn at the cot) ·
-  `walk` movement · `tome` save export/import round-trip + chronicle deed list + screenshot ·
+  `walk` movement · `body` the player's weight and limbs, stepped by hand at a fixed rate:
+  sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole
+  planted, the leap's wind-up + height + landing fold, a wall taking his speed, the roll's
+  reach and upright finish, planted feet skating under 25%, no NaN joint (mid-stride
+  screenshot → scripts/smoke-body.png) ·
+  `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
@@ -486,5 +543,15 @@ headlessly; everything else covered by the regression suite below.
 - If headless Edge quits at once ("Failed to launch the browser process: Code: 0" — seen
   2026-11-13 with Edge already open), point the suite at Chrome:
   `SMOKE_BROWSER="C:\Program Files\Google\Chrome\Application\chrome.exe" node scripts/smoke.mjs <scenario>`.
+- The suite is written for Windows (Edge/Chrome paths, `taskkill` to stop the preview server).
+  On Linux (a cloud session) it runs unchanged with `SMOKE_BROWSER=<path to chromium>` and a
+  tiny `taskkill` stand-in script on PATH that kills the given PID's process tree; without the
+  stand-in the run ends in an unhandled spawn error and leaves `vite preview` holding port 5199.
+- In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
+  ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
+  that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
+  pushing him out) and `combat` (the second dummy swing landing) each failed once that way and
+  passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
+  the wait, not the game — re-run that scenario alone with nothing else busy on the machine.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
