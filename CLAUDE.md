@@ -680,8 +680,9 @@ headlessly; everything else covered by the regression suite below.
   the royal seat of Kingsholt and seven more places, each read aloud on hover — with the home
   village, Brackenley, ringed in wax. Beside it, a plan of Brackenley drawn live from the game's
   layout (buildings, real trees, today's crop on the strip, the bounds, the player's arrow), in
-  two zooms. The walkable world is unchanged. No save change. New smoke scenario `map`; full
-  suite run in a cloud container (see the commit for results). Details: "The Map of the
+  two zooms. The walkable world is unchanged. No save change. New smoke scenario `map`; all
+  21 scenarios pass (cloud container, headless Chromium). Not yet seen on the owner's machine.
+  Details: "The Map of the
   Kingdom" under Noted decisions.
 
 ### Session notes
