@@ -63,6 +63,7 @@ export function createRats(scene) {
       kbZ: 0,
       facing: a,
       hopPhase: Math.random() * 6,
+      hopAmp: 0,
       radius: 0.32,
     };
     rat.group.position.set(rat.x, terrainHeight(rat.x, rat.z), rat.z);
@@ -106,11 +107,14 @@ export function createRats(scene) {
         const homeDist = Math.hypot(rat.x - home.x, rat.z - home.z);
 
         // state choices
-        if (homeDist > R.leashRange) rat.state = 'return';
+        // 'return' is sticky: once a rat gives up at the leash edge it runs all the way
+        // home before it may notice the player again. Without this it flipped between
+        // chase and return every frame at the boundary and spun on the spot (the shake).
+        if (rat.state === 'return') {
+          if (homeDist < 2.5) rat.state = 'wander';
+        } else if (homeDist > R.leashRange) rat.state = 'return';
         else if (playerDist < R.aggroRange && player.hp > 0) rat.state = 'chase';
-        else if (rat.state === 'chase' || rat.state === 'return') {
-          if (homeDist < 2) rat.state = 'wander';
-        }
+        else if (rat.state === 'chase') rat.state = 'wander';
 
         let speed = 0;
         let dirX = 0;
@@ -159,11 +163,18 @@ export function createRats(scene) {
         rat.kbZ *= Math.max(0, 1 - dt * 8);
 
         if (speed > 0) {
-          rat.facing = Math.atan2(dirX, dirZ);
+          // turn toward the heading at a capped rate instead of snapping
+          const want = Math.atan2(dirX, dirZ);
+          let d = want - rat.facing;
+          d = Math.atan2(Math.sin(d), Math.cos(d));
+          const maxTurn = 12 * dt;
+          rat.facing += Math.max(-maxTurn, Math.min(maxTurn, d));
           rat.hopPhase += dt * 13;
         }
 
-        const hop = Math.abs(Math.sin(rat.hopPhase)) * 0.07 * (speed > 0 ? 1 : 0);
+        // ease the hop in and out so stopping at bite range doesn't pop the rat up and down
+        rat.hopAmp += ((speed > 0 ? 1 : 0) - rat.hopAmp) * Math.min(1, dt * 10);
+        const hop = Math.abs(Math.sin(rat.hopPhase)) * 0.07 * rat.hopAmp;
         rat.group.position.set(rat.x, terrainHeight(rat.x, rat.z) + hop, rat.z);
         rat.group.rotation.y = rat.facing;
       }
