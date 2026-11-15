@@ -3,7 +3,7 @@ import { dummyHitXp, addXp } from '../state/state.js';
 import { toast } from '../ui/toasts.js';
 import { sfx } from '../ui/audio.js';
 
-// The straw dummy: comical wobble spring + heavily diminishing daily STR XP.
+// The straw dummy: comical wobble spring + heavily diminishing daily Athleticism XP.
 export function createDummy(worldDummy) {
   const pivot = worldDummy.pivot;
   let velX = 0;
@@ -27,9 +27,9 @@ export function createDummy(worldDummy) {
 
       const xp = dummyHitXp();
       if (xp > 0) {
-        const ups = addXp('str', xp);
+        const ups = addXp('ath', xp);
         for (const lvl of ups) {
-          toast(`Strength rises to level ${lvl}!`, 'gold');
+          toast(`Athleticism rises to level ${lvl}!`, 'gold');
           sfx.levelUp();
         }
       } else if (!taughtToastShown) {

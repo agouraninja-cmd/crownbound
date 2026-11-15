@@ -36,7 +36,7 @@ function dummyRows() {
   for (let h = 1; h <= 500 && xp > 0; h++) {
     const v = CONFIG.dummy.xpForHit(h);
     if (v === xp) continue;
-    rows.push(`<div class="kv"><span>blows ${start + 1}–${h}</span><span class="v">${xp} Strength XP each</span></div>`);
+    rows.push(`<div class="kv"><span>blows ${start + 1}–${h}</span><span class="v">${xp} Athleticism XP each</span></div>`);
     start = h;
     xp = v;
   }
@@ -114,7 +114,7 @@ export function renderGuide(guideBody) {
     </div>
     <div class="sheet-section">
       <h2>The Four Virtues</h2>
-      <p class="muted">Strength, Agility, Wisdom, Influence — each begins at level 1, and the next
+      <p class="muted">Athleticism, Intelligence, Wisdom, Influence — each begins at level 1, and the next
       level always costs ${CONFIG.xpPerLevel} × thy current level in XP. Thy rank is the sum of
       all four, and the Coronation comes the moment the crown is earned:</p>
       ${rankRows}
@@ -138,7 +138,7 @@ export function renderGuide(guideBody) {
     </div>
     <div class="sheet-section">
       <h2>Arms &amp; the Yard</h2>
-      <p class="muted">The training dummy pays a trickle of Strength for honest sweat,
+      <p class="muted">The training dummy pays a trickle of Athleticism for honest sweat,
       less with every blow:</p>
       ${dummyRows()}
       <p class="muted" style="margin-top:8px">${CONFIG.rats.count} rats haunt the granary yard;

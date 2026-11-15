@@ -16,11 +16,12 @@ happens the moment the character reaches King** (70 total virtue levels).
   No model files and no image files — the one texture is a soft round dot drawn on a canvas at
   load (sprites.js).
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 9`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 10`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
   v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle;
-  v8→v9 the chest — weapon in hand + loaf larder).
+  v8→v9 the chest — weapon in hand + loaf larder; v9→v10 the virtues renamed —
+  str→ath, agi→int).
 - Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
   one shadow-casting directional light, cheap particles, no post-processing.
 
@@ -54,7 +55,7 @@ src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankle
 src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/sleep), springs — the only thing that turns the rig
 src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack state machine, HP, stamina spend
 src/player/camera.js  pointer-lock third-person orbit camera
-src/combat/dummy.js   training dummy wobble + diminishing STR XP
+src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
 src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
 src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep log, under the sage's key; run once after boot
@@ -69,10 +70,11 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 4,
+  saveVersion: 10,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
-  stats: { str|agi|wis|inf: { level, xp } },     // next level costs 100 × current level XP
+  stats: { ath|int|wis|inf: { level, xp } },     // Athleticism, Intelligence, Wisdom, Influence;
+                                                 //   next level costs 100 × current level XP
   coins,
   treasury: {                                    // real savings, manual, never converts with coins
     name, current, goal,                         // the named cumulative summit (goal 0 = none raised)
@@ -106,6 +108,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
 ```
 
 ## Core rules (tuned in config.js)
+- The four virtues (keys in `STAT_NAMES`, state.js): Athleticism `ath` (lifting, sport,
+  labour), Intelligence `int` (study, coursework, coding), Wisdom `wis` (planning, discipline,
+  judgment, money — and the sleep boon), Influence `inf` (business, people).
 - Stats start level 1. Next level = 100 × level XP. Rank by total stat levels:
   Peasant (4+) → Squire (12) → Knight (25) → Lord (45) → King (70). v1 renders only Peasant visuals.
 - The Coronation fires in `addXp()` the moment rank first reaches King: `coronationAt` is set,
@@ -122,7 +127,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   reminder; it swells to full tier the moment the deed is logged.
 - Stamina: base cap 60 (attack 5, dodge 8). Daily completion → refill + cap 120 for that day.
   Empty stamina blocks combat only: "Your arms are spent. Earn your strength — the board awaits."
-- Dummy: tiny STR XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
+- Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
 - The shop (the chapman's cart): parked by the path on market days only — Sun/Wed/Fri local
@@ -317,6 +322,17 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
   - He faces where he is steered, not where he is moving: a rat's bite shoves him back still
     facing the rat (velocity-facing used to spin him away from it).
 
+- The Virtues Renamed (2026-11-15), at the owner's request: Strength became Athleticism and
+  Agility made way for Intelligence. The save keys changed with the names (`str`→`ath`,
+  `agi`→`int`) so the code never says one thing and shows another. The v9→v10 migration keeps
+  every level in its seat — Athleticism takes Strength's, Intelligence starts from what
+  Agility had won — so no rank is lost; old history deeds tagged `str` OR `agi` both become
+  `ath` (lifting and tennis are athletic under the new names), so the Tome and the Chronicler
+  never call an old tennis match Intelligence. The Sage's prompt now splits the mind in two:
+  Intelligence is learning (study, coursework, reading, coding), Wisdom is conduct (planning,
+  discipline, judgment, personal finance). The smoke suite's old-version seeds still carry
+  `str`/`agi` on purpose — they are what exercises the migration.
+
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
   The Chronicler writes weekly journal entries in medieval prose from the history log.
@@ -497,6 +513,12 @@ headlessly; everything else covered by the regression suite below.
   stalled frame outran a fixed wait — see Session notes). Details: "The Living Body" under
   Noted decisions.
 
+- [x] Post-v1 — "The Virtues Renamed" (2026-11-15): Strength → Athleticism (`ath`), Agility →
+  Intelligence (`int`); Wisdom and Influence unchanged. Stat keys renamed throughout (state,
+  dummy, Sage prompt, Charter, CROWNBOUND-Guide.docx); v9→v10 migration carries levels across
+  seat for seat and re-tags old str/agi deeds as athletic. saveVersion 10. Details: "The
+  Virtues Renamed" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -526,7 +548,8 @@ headlessly; everything else covered by the regression suite below.
   `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
   damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
-  `crown` v5→current migration (incl. best owned weapon → chest.wielded)
+  `crown` v5→current migration (incl. best owned weapon → chest.wielded, and str/agi levels
+  landing as ath/int)
   + last-level daily completion → King + coronation once-only · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
   `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat) + conquest & next
@@ -536,7 +559,7 @@ headlessly; everything else covered by the regression suite below.
   follows (screenshot → scripts/smoke-alive.png) ·
   `sage` fetch-stubbed verdict auto-completes the daily + nonsense verdict falls back to the
   picker + Tome dismissal clears the key & restores manual (screenshot → scripts/smoke-sage.png) ·
-  `chronicle` v7→v8 migration + fetch-stubbed weekly entries: a failing call writes nothing,
+  `chronicle` v7→current migration (old str/agi deeds re-tagged ath) + fetch-stubbed weekly entries: a failing call writes nothing,
   the next load retries, one written entry per load, the empty week left blank for free, week
   order kept, Tome journal newest-first (screenshot → scripts/smoke-chronicle.png) ·
   `aerial`/`front` screenshots.
