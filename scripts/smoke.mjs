@@ -68,7 +68,7 @@ try {
   };
 
   if (scenario === 'fire') {
-    // a 35-day streak, daily already done today: roaring blaze + full 120 stamina
+    // a 35-day streak, daily already done today: roaring blaze + full 480 stamina
     const hot = {
       saveVersion: 1,
       createdAt: new Date().toISOString(),
@@ -91,7 +91,7 @@ try {
       },
       history: [],
       daysPlayed: 36,
-      stamina: { current: 120, date: dstr(0) },
+      stamina: { current: 480, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
     };
     await page.evaluateOnNewDocument((save) => {
@@ -126,7 +126,7 @@ try {
       },
       history: [{ date: dstr(-2), questText: 'old deed', statTrained: 'str', type: 'daily' }],
       daysPlayed: 3,
-      stamina: { current: 120, date: dstr(-2) },
+      stamina: { current: 480, date: dstr(-2) },
       counters: { date: dstr(-2), dummyHits: 25, ratsKilled: 3 },
     };
     // inject once; sessionStorage flag stops re-injection on reload
@@ -166,7 +166,7 @@ try {
       },
       history: [],
       daysPlayed: 340,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 240, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
       shop: { owned: ['cudgel', 'quarterstaff'] }, // pre-chest: the best weapon was always in hand
@@ -205,7 +205,7 @@ try {
       },
       history: [],
       daysPlayed: 1,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 240, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
       shop: { owned: [] },
@@ -246,7 +246,7 @@ try {
       history: [],
       chronicle: [],
       daysPlayed: 1,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 240, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
       shop: { owned: [] },
@@ -325,7 +325,7 @@ try {
         { date: dstr(-7), questText: 'Played tennis', statTrained: 'agi', type: 'daily' },
       ],
       daysPlayed: 3,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 240, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
       shop: { owned: [] },
@@ -406,7 +406,7 @@ try {
     if (s1.monthlyText !== '' || s1.monthlyDone) errors.push('rollover: monthly not reset');
     if (s1.streak !== 0) errors.push(`rollover: streak ${s1.streak} != 0 (fire should die)`);
     if (s1.best !== 9) errors.push(`rollover: best streak ${s1.best} != 9`);
-    if (s1.stamina !== 60) errors.push(`rollover: stamina ${s1.stamina} != 60`);
+    if (s1.stamina !== 240) errors.push(`rollover: stamina ${s1.stamina} != 240`);
     if (s1.dummyHits !== 0) errors.push('rollover: day counters not reset');
     if (s1.daysPlayed !== 4) errors.push(`rollover: daysPlayed ${s1.daysPlayed} != 4`);
     if (s1.coins !== 42) errors.push('rollover: coins not preserved');
@@ -434,9 +434,9 @@ try {
     const drain = await page.evaluate(() => {
       const g = window.__game;
       const spends = [];
-      for (let i = 0; i < 6; i++) spends.push(g.spendStamina(5)); // 120 -> 90
+      for (let i = 0; i < 6; i++) spends.push(g.spendStamina(5)); // 480 -> 450
       const mid = g.getState().stamina.current;
-      const big = g.spendStamina(90); // -> 0
+      const big = g.spendStamina(450); // -> 0
       const empty = g.spendStamina(5); // must refuse
       return { spends, mid, big, empty, end: g.getState().stamina.current };
     });
@@ -444,7 +444,7 @@ try {
     const tended = await page.evaluate(() => window.__game.campfire.getGutter());
     if (tended !== 1) errors.push(`fire: blaze guttering (${tended}) though daily is done`);
     if (drain.spends.some((v) => !v)) errors.push('fire: early spends refused');
-    if (drain.mid !== 90) errors.push(`fire: mid stamina ${drain.mid} != 90`);
+    if (drain.mid !== 450) errors.push(`fire: mid stamina ${drain.mid} != 450`);
     if (!drain.big) errors.push('fire: spend-to-zero refused');
     if (drain.empty) errors.push('fire: spend allowed at 0 stamina');
     if (drain.end !== 0) errors.push(`fire: end stamina ${drain.end} != 0`);
@@ -478,7 +478,7 @@ try {
     if (s.athXp !== 25) errors.push(`quests: athXp ${s.athXp} != 25`);
     if (s.streak !== 1) errors.push(`quests: streak ${s.streak} != 1`);
     if (!s.done) errors.push('quests: daily not completed');
-    if (s.stamina !== 120) errors.push(`quests: stamina ${s.stamina} != 120`);
+    if (s.stamina !== 480) errors.push(`quests: stamina ${s.stamina} != 480`);
     if (s.history !== 1) errors.push(`quests: history ${s.history} != 1`);
 
     // weekly bounty: post, complete, train Wisdom (+100 XP -> level 2 with 0 spare)
@@ -580,7 +580,7 @@ try {
     console.log('dummy:', JSON.stringify(afterDummy));
     if (afterDummy.athXp !== 4) errors.push(`combat: dummy athXp ${afterDummy.athXp} != 4`);
     if (afterDummy.hits !== 2) errors.push(`combat: dummyHits ${afterDummy.hits} != 2`);
-    if (afterDummy.stamina !== 50) errors.push(`combat: stamina ${afterDummy.stamina} != 50`);
+    if (afterDummy.stamina !== 230) errors.push(`combat: stamina ${afterDummy.stamina} != 230`);
 
     // 2) rats: walk into the granary yard, get bitten, then slay one
     await page.evaluate(() => {
@@ -735,6 +735,44 @@ try {
     if (weight.top < 6) errors.push(`body: sprint topped out at ${weight.top.toFixed(2)}`);
     if (!(weight.sliding > 1.5 && weight.sliding < weight.top)) errors.push(`body: 0.1s after letting go he does ${weight.sliding.toFixed(2)}, expected a slide`);
     if (weight.stopped > 0.05) errors.push(`body: still sliding (${weight.stopped.toFixed(2)}) half a second after letting go`);
+    await pause();
+
+    // 1b) the legs' toll: walking wears on the stamina pool, a sprint the more;
+    // a dry pool still walks but will not sprint
+    const toll = await page.evaluate(() => {
+      const b = window.__body;
+      const g = window.__game;
+      const p = g.player;
+      const st = () => g.getState().stamina;
+      const ST = g.CONFIG.stamina;
+      b.stand(-2, -9);
+      p.fatigue = 0;
+      st().current = 100;
+      b.run(1.0); // standing costs nothing
+      const idle = st().current;
+      b.key('KeyW', true);
+      b.run(8);
+      const walked = idle - st().current;
+      b.key('ShiftLeft', true);
+      p.fatigue = 0;
+      const before = st().current;
+      b.run(4);
+      const sprinted = before - st().current;
+      st().current = 0;
+      b.run(1.5);
+      const dryPace = b.speed();
+      b.key('ShiftLeft', false);
+      b.key('KeyW', false);
+      b.run(0.6);
+      st().current = 240;
+      return { idle, walked, sprinted, dryPace, end: st().current, walkDrain: ST.walkDrain, sprintDrain: ST.sprintDrain, walkSpeed: g.CONFIG.player.walkSpeed };
+    });
+    console.log('toll:', JSON.stringify(toll));
+    if (toll.idle !== 100) errors.push(`body: standing still drained stamina (${toll.idle})`);
+    if (Math.abs(toll.walked - toll.walkDrain * 8) > 1) errors.push(`body: 8s of walking drained ${toll.walked}, expected ~${toll.walkDrain * 8}`);
+    if (Math.abs(toll.sprinted - toll.sprintDrain * 4) > 1) errors.push(`body: 4s of sprinting drained ${toll.sprinted}, expected ~${toll.sprintDrain * 4}`);
+    if (toll.dryPace > toll.walkSpeed * 1.05) errors.push(`body: sprinted at ${toll.dryPace.toFixed(2)} on an empty pool`);
+    if (toll.dryPace < toll.walkSpeed * 0.5) errors.push(`body: could not walk on an empty pool (${toll.dryPace.toFixed(2)})`);
     await pause();
 
     // 2) knees: nearly straight standing, folded in a crouch — with the sole still planted
@@ -1058,7 +1096,7 @@ try {
     if (boon.again) errors.push('house: boon granted twice in one day');
     if (boon.dCoins !== 10) errors.push(`house: boon coins ${boon.dCoins} != 10`);
     if (boon.dWis !== 10) errors.push(`house: boon wis xp ${boon.dWis} != 10`);
-    if (boon.stamina !== 70) errors.push(`house: stamina ${boon.stamina} != 70 (60 + rested cap)`);
+    if (boon.stamina !== 280) errors.push(`house: stamina ${boon.stamina} != 280 (240 + rested cap)`);
     if (boon.histType !== 'sleep') errors.push(`house: history type ${boon.histType} != sleep`);
     if (!boon.rested) errors.push('house: wellRestedDate not set');
 

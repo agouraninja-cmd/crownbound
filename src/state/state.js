@@ -347,6 +347,15 @@ export function staminaCap() {
   return base + rested;
 }
 
+// the legs' toll: takes what it can, down to nought, and never refuses
+export function drainStamina(n) {
+  const take = Math.min(n, state.stamina.current);
+  if (take <= 0) return;
+  state.stamina.current -= take;
+  save();
+  emit('stamina');
+}
+
 export function spendStamina(cost) {
   if (state.stamina.current < cost) return false;
   state.stamina.current -= cost;

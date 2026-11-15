@@ -20,10 +20,15 @@ export const CONFIG = {
   },
 
   stamina: {
-    baseCap: 60,
-    questCap: 120, // cap for the rest of the day once the daily quest is done
+    baseCap: 240,
+    questCap: 480, // cap for the rest of the day once the daily quest is done
     attackCost: 5,
     dodgeCost: 8,
+    // the legs draw on the pool too, per second of moving on the ground
+    // (a crouched shuffle counts as walking). Spent dry he can still walk —
+    // no one is stranded far from the board — but he cannot sprint.
+    walkDrain: 0.25,
+    sprintDrain: 1,
   },
 
   // The cot marks a bedtime; the next game load judges it against the dawn.
@@ -33,7 +38,7 @@ export const CONFIG = {
     wakeByHour: 8, // back at the game by 08:00 local to count as rising with the dawn
     wisXp: 10,
     coins: 10,
-    staminaBonus: 10, // extra cap (and pool) for the rest of the day
+    staminaBonus: 40, // extra cap (and pool) for the rest of the day
   },
 
   // The Chapman's Cart. The sacred rule: coins buy comfort and swagger,

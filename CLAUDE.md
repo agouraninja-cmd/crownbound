@@ -132,8 +132,11 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 - Campfire tiers by streak: 0 embers / 1–6 small flame / 7–29 healthy fire / 30+ roaring blaze.
   Until today's daily is done the fire gutters (45% size/light, unsteady flicker) as a living
   reminder; it swells to full tier the moment the deed is logged.
-- Stamina: base cap 60 (attack 5, dodge 8). Daily completion → refill + cap 120 for that day.
-  Empty stamina blocks combat only: "Your arms are spent. Earn your strength — the board awaits."
+- Stamina: base cap 240 (attack 5, dodge 8). Daily completion → refill + cap 480 for that day.
+  The legs draw on it too: 0.25/s walking (crouched included), 1/s sprinting, on the ground
+  only — a leap and standing still are free (`walkDrain`/`sprintDrain`). Empty stamina blocks
+  combat and the sprint, never walking (no one is stranded far from the board): "Your arms are
+  spent. Earn your strength — the board awaits." / a once-per-load "Your legs are spent" toast.
 - Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
@@ -164,7 +167,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 - The hovel is enterable: E opens/closes the hinged door (closed = solid collider), furnished
   one-room peasant interior, indoor camera pulls in close. E on the cot sleeps: fade out, full heal,
   and the bedtime is recorded. On the next load, if ≥7h passed (≤13h, so it was last night) and it is
-  8:00 AM local or earlier → Well-Rested boon: +10 WIS XP, +10 coins, +10 stamina cap for the day,
+  8:00 AM local or earlier → Well-Rested boon: +10 WIS XP, +10 coins, +40 stamina cap for the day,
   history entry type "sleep". Once per day; after 8:00 a grim flavor line and no boon. Honor system —
   "wake time" is when the game is next opened, which doubles as the morning check-in habit.
 - The Sleep Ledger (plank board on the hovel's -z interior wall, E to read): every judged night is
@@ -635,6 +638,15 @@ headlessly; everything else covered by the regression suite below.
   the three work sounds are untested by ear. CROWNBOUND-Guide.docx was NOT updated — it has
   fallen well behind the game (it still speaks of a dated Coronation and no shop). Details:
   "The Miller's Strip" under Noted decisions.
+
+- [x] Post-v1 — "The Long Road" (2026-11-15), at the owner's request ("4 times more stamina but
+  make walking and running drain stamina"): caps ×4 (240 base, 480 after the daily, Well-Rested
+  +40), attack/dodge costs unchanged. Walking costs 0.25/s and sprinting 1/s on the ground,
+  gathered in `player.fatigue` and paid in whole points through `player.tire` →
+  `drainStamina()` (state.js; takes down to 0, never refuses) so a save happens at most once a
+  second. A dry pool refuses the sprint (`player.canSprint`) and combat, never the walk. The
+  Charter's Stamina section lists both drains. `body` smoke scenario checks the toll; seeds
+  and expected numbers in other scenarios were moved to the new caps. No save change.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's

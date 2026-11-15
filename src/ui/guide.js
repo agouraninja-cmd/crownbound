@@ -146,11 +146,14 @@ export function renderGuide(guideBody) {
     </div>
     <div class="sheet-section">
       <h2>Stamina</h2>
-      <p class="muted">A daily pool spent only on arms — walking, sprinting and leaping are ever
-      free. The cap stands at ${ST.baseCap}; complete the daily quest and the pool refills, the cap
-      rising to ${ST.questCap} till nightfall. Spent dry, thy arms refuse until the board is answered.</p>
+      <p class="muted">A daily pool spent by arms and legs alike — every step wears on it, a sprint
+      the more; only a leap is free. The cap stands at ${ST.baseCap}; complete the daily quest and the
+      pool refills, the cap rising to ${ST.questCap} till nightfall. Spent dry, thou canst still walk,
+      but thy legs will not sprint nor thy arms swing until the board is answered.</p>
       <div class="kv"><span>a swing of the stick</span><span class="v">${ST.attackCost} stamina</span></div>
       <div class="kv"><span>a dodge-roll</span><span class="v">${ST.dodgeCost} stamina</span></div>
+      <div class="kv"><span>walking</span><span class="v">${ST.walkDrain} stamina a breath (each second)</span></div>
+      <div class="kv"><span>sprinting</span><span class="v">${ST.sprintDrain} stamina a breath (each second)</span></div>
     </div>
     <div class="sheet-section">
       <h2>Arms &amp; the Yard</h2>

@@ -6,7 +6,7 @@ import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, placePrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
-import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
+import { loadState, getState, onChange, staminaCap, spendStamina, drainStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
 import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
@@ -56,6 +56,15 @@ applyPurchases();
 
 // combat actions draw from the daily stamina pool
 player.trySpend = (cost) => spendStamina(cost);
+// walking and running draw on it too; a dry pool forbids only the sprint
+player.tire = (n) => {
+  const had = getState().stamina.current;
+  drainStamina(n);
+  if (had > 0 && getState().stamina.current === 0) {
+    toast('Your legs are spent — no more running today. Earn your strength — the board awaits.', 'grim');
+  }
+};
+player.canSprint = () => getState().stamina.current > 0;
 player.onActionBlocked = () =>
   toast('Your arms are spent. Earn your strength — the board awaits.', 'grim');
 
