@@ -422,8 +422,10 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   smiths, longbows and crossbows, chainmail, timber-and-thatch, silver pennies, hand-copied
   books are in; guns, printing, mechanical clocks, full plate armour, potatoes, coffee, tea
   and forks are not. Glass windows exist but are a luxury (hence the shop's price). The
-  Chronicler's charge names the year and forbids those anachronisms; the Sage's prompt names
-  it too (it only classifies, so the line is for consistency). The thee/thy voice and the
+  setting is a design guide ONLY — the owner does not want the period mentioned in the game
+  (corrected the same day): no year, century or country in any in-game text or AI prompt.
+  The Chronicler is told to name no year, century or country and to avoid those
+  anachronisms; the Sage's prompt just says "medieval". The thee/thy voice and the
   IM Fell font are later (1600s) but stay — the style, not the history.
 
 ## Roadmap (do NOT build before its phase)

@@ -10,7 +10,7 @@ import { CONFIG } from '../state/config.js';
 const KEY_STORAGE = 'crownbound_sage_key';
 const VIRTUES = ['ath', 'int', 'wis', 'inf'];
 
-const JUDGMENT = `A player in a medieval life-RPG (set in England around 1250) completed a real-world deed and logged it as a quest. Classify the deed into exactly one of four virtues:
+const JUDGMENT = `A player in a medieval life-RPG completed a real-world deed and logged it as a quest. Classify the deed into exactly one of four virtues:
 ath — Athleticism: lifting, gym work, sport (tennis, running, climbing), physical labor, endurance, mobility
 int — Intelligence: planning, strategy, discipline and good habits, sound judgment, personal finance
 wis — Wisdom: learning, studying, coursework, reading, writing, coding
