@@ -490,7 +490,7 @@ try {
       const copy = JSON.parse(g.exportSave());
       copy.coins = 777;
       copy.history = [
-        { date: '2026-06-10', questText: 'Bench press session', statTrained: 'str', type: 'daily' },
+        { date: '2026-06-10', questText: 'Bench press session', statTrained: 'ath', type: 'daily' },
         { date: '2026-06-11', questText: 'Ship the proposal', statTrained: 'wis', type: 'weekly' },
         { date: '2026-06-12', questText: 'Become Crowned', statTrained: null, type: 'epic', progressPct: 40 },
       ];
@@ -507,9 +507,11 @@ try {
     const deeds = await page.evaluate(() => ({
       count: document.querySelectorAll('.deed').length,
       firstTag: document.querySelector('.deed .deed-tag')?.textContent ?? '',
+      lastTag: [...document.querySelectorAll('.deed .deed-tag')].pop()?.textContent ?? '',
     }));
     console.log(`chronicle: ${deeds.count} deeds, newest tagged "${deeds.firstTag}"`);
     if (deeds.count !== 3) errors.push(`chronicle: ${deeds.count} deed rows != 3`);
+    if (!deeds.lastTag.includes('Athleticism')) errors.push(`chronicle: oldest deed tagged "${deeds.lastTag}", no virtue named`);
     if (!deeds.firstTag.includes('40%')) errors.push('chronicle: newest deed not first');
   } else if (scenario === 'combat') {
     // 1) dummy: teleport beside it, two swings -> 4 Athleticism XP, wobble
