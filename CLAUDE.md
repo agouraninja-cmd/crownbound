@@ -361,9 +361,10 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   Wisdom-based alternate solutions, militia, the Coronation ceremony (the trigger already
   fires at King; v5 builds the event around it).
 
-Ideas not yet on this roadmap live in `IDEAS.md` (substats under the virtues; multiplayer
-"Kingdoms"). They are the owner's notes, not plans — never build from that file unasked, and
-add new loose ideas there rather than here.
+Ideas not yet on this roadmap live in `IDEAS.md`, each under its own name (The Finer Virtues —
+substats; Kingdoms — multiplayer, in two rival shapes, The Homelands and The Four Crowns).
+They are the owner's notes, not plans — never build from that file unasked, and add new loose
+ideas there, named, rather than here.
 
 ## Working agreement
 - Ask before adding any feature not in the spec. Scope discipline is a feature.
