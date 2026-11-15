@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 9, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest
+  saveVersion: 10, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed
 
   xpPerLevel: 100, // next level costs 100 × current level
 
@@ -133,7 +133,7 @@ export const CONFIG = {
   },
 
   dummy: {
-    // STR XP per hit by hits-so-far-today: heavily diminishing, hard cap
+    // Athleticism XP per hit by hits-so-far-today: heavily diminishing, hard cap
     xpForHit(hitsToday) {
       if (hitsToday < 10) return 2;
       if (hitsToday < 25) return 1;

@@ -221,7 +221,7 @@ try {
   if (scenario === 'sage') {
     // appoint the sage and stub the Anthropic API at the fetch layer: the
     // verdict comes from the quest text, so the wiring is tested end-to-end
-    // without network or tokens ('tennis' → agi; 'garble' → nonsense)
+    // without network or tokens ('tennis' → ath; 'garble' → nonsense)
     await page.evaluateOnNewDocument(() => {
       localStorage.setItem('crownbound_sage_key', 'sk-ant-smoke-test');
       const realFetch = window.fetch.bind(window);
@@ -232,7 +232,7 @@ try {
         const req = JSON.parse(bodyText);
         const deed = String(req.messages?.[0]?.content ?? '');
         let verdict = 'wis';
-        if (deed.includes('tennis')) verdict = 'agi';
+        if (deed.includes('tennis')) verdict = 'ath';
         if (deed.includes('garble')) verdict = 'the moon knows no virtue';
         return new Response(
           JSON.stringify({
@@ -350,7 +350,7 @@ try {
         dummyHits: st.counters.dummyHits,
         daysPlayed: st.daysPlayed,
         coins: st.coins,
-        strLevel: st.stats.str.level,
+        athLevel: st.stats.ath.level,
         epicText: st.quests.epic.text,
         gutter: window.__game.campfire.getGutter(),
       };
@@ -367,7 +367,7 @@ try {
     if (s1.dummyHits !== 0) errors.push('rollover: day counters not reset');
     if (s1.daysPlayed !== 4) errors.push(`rollover: daysPlayed ${s1.daysPlayed} != 4`);
     if (s1.coins !== 42) errors.push('rollover: coins not preserved');
-    if (s1.strLevel !== 2) errors.push('rollover: stat levels not preserved');
+    if (s1.athLevel !== 2) errors.push('rollover: stat levels not preserved');
     if (s1.epicText !== 'Become Crowned') errors.push('rollover: epic quest not preserved');
 
     // round trip: post a quest, reload, expect it back
@@ -415,12 +415,12 @@ try {
     await page.type('[data-input]', 'Bench press session');
     await page.click('[data-post]');
     await page.click('[data-complete]');
-    await page.click('[data-pick="str"]');
+    await page.click('[data-pick="ath"]');
     const s = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
         coins: st.coins,
-        strXp: st.stats.str.xp,
+        athXp: st.stats.ath.xp,
         streak: st.streak.current,
         done: st.quests.daily.completed,
         stamina: st.stamina.current,
@@ -432,7 +432,7 @@ try {
     if (gutterBefore >= 1) errors.push('fire-warn: campfire not guttering before the daily');
     if (s.gutter !== 1) errors.push(`fire-warn: campfire still guttering (${s.gutter}) after the daily`);
     if (s.coins !== 10) errors.push(`quests: coins ${s.coins} != 10`);
-    if (s.strXp !== 25) errors.push(`quests: strXp ${s.strXp} != 25`);
+    if (s.athXp !== 25) errors.push(`quests: athXp ${s.athXp} != 25`);
     if (s.streak !== 1) errors.push(`quests: streak ${s.streak} != 1`);
     if (!s.done) errors.push('quests: daily not completed');
     if (s.stamina !== 120) errors.push(`quests: stamina ${s.stamina} != 120`);
@@ -490,7 +490,7 @@ try {
       const copy = JSON.parse(g.exportSave());
       copy.coins = 777;
       copy.history = [
-        { date: '2026-06-10', questText: 'Bench press session', statTrained: 'str', type: 'daily' },
+        { date: '2026-06-10', questText: 'Bench press session', statTrained: 'ath', type: 'daily' },
         { date: '2026-06-11', questText: 'Ship the proposal', statTrained: 'wis', type: 'weekly' },
         { date: '2026-06-12', questText: 'Become Crowned', statTrained: null, type: 'epic', progressPct: 40 },
       ];
@@ -507,12 +507,14 @@ try {
     const deeds = await page.evaluate(() => ({
       count: document.querySelectorAll('.deed').length,
       firstTag: document.querySelector('.deed .deed-tag')?.textContent ?? '',
+      lastTag: [...document.querySelectorAll('.deed .deed-tag')].pop()?.textContent ?? '',
     }));
     console.log(`chronicle: ${deeds.count} deeds, newest tagged "${deeds.firstTag}"`);
     if (deeds.count !== 3) errors.push(`chronicle: ${deeds.count} deed rows != 3`);
+    if (!deeds.lastTag.includes('Athleticism')) errors.push(`chronicle: oldest deed tagged "${deeds.lastTag}", no virtue named`);
     if (!deeds.firstTag.includes('40%')) errors.push('chronicle: newest deed not first');
   } else if (scenario === 'combat') {
-    // 1) dummy: teleport beside it, two swings -> 4 STR XP, wobble
+    // 1) dummy: teleport beside it, two swings -> 4 Athleticism XP, wobble
     await page.evaluate(() => {
       const g = window.__game;
       g.player.pos.x = g.dummy.x + 1.1;
@@ -526,14 +528,14 @@ try {
     const afterDummy = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
-        strXp: st.stats.str.xp,
+        athXp: st.stats.ath.xp,
         hits: st.counters.dummyHits,
         stamina: st.stamina.current,
         wobble: Math.abs(window.__game.dummy ? 1 : 0),
       };
     });
     console.log('dummy:', JSON.stringify(afterDummy));
-    if (afterDummy.strXp !== 4) errors.push(`combat: dummy strXp ${afterDummy.strXp} != 4`);
+    if (afterDummy.athXp !== 4) errors.push(`combat: dummy athXp ${afterDummy.athXp} != 4`);
     if (afterDummy.hits !== 2) errors.push(`combat: dummyHits ${afterDummy.hits} != 2`);
     if (afterDummy.stamina !== 50) errors.push(`combat: stamina ${afterDummy.stamina} != 50`);
 
@@ -1419,7 +1421,7 @@ try {
         const st = window.__game.getState();
         return {
           done: st.quests.daily.completed,
-          agiXp: st.stats.agi.xp,
+          athXp: st.stats.ath.xp,
           picker: !!document.querySelector('[data-pick]'),
           toast: document.getElementById('toasts').textContent,
         };
@@ -1427,7 +1429,7 @@ try {
     }
     console.log('sage daily:', JSON.stringify(daily));
     if (!daily.done) errors.push('sage: daily never completed');
-    if (daily.agiXp !== 25) errors.push(`sage: agi xp ${daily.agiXp} != 25 (verdict not honored)`);
+    if (daily.athXp !== 25) errors.push(`sage: ath xp ${daily.athXp} != 25 (verdict not honored)`);
     if (daily.picker) errors.push('sage: picker shown despite a verdict');
     if (!daily.toast.includes('sage')) errors.push(`sage: no verdict toast ("${daily.toast}")`);
 
@@ -1445,7 +1447,7 @@ try {
     }
     console.log('sage fallback:', JSON.stringify(fallback));
     if (!fallback.picker) errors.push('sage: no picker after a nonsense verdict');
-    await page.click('[data-pick="str"]');
+    await page.click('[data-pick="ath"]');
     const weeklyDone = await page.evaluate(() => window.__game.getState().quests.weekly.completed);
     if (!weeklyDone) errors.push('sage: manual fallback did not complete the weekly');
     await page.screenshot({ path: 'scripts/smoke-sage.png' });
@@ -1475,6 +1477,7 @@ try {
           latest: window.__game.CONFIG.saveVersion,
           texts: st.chronicle.map((e) => e.text),
           weeks: st.chronicle.map((e) => e.week),
+          trained: st.history.map((h) => h.statTrained).filter(Boolean),
           calls: Number(sessionStorage.getItem('smoke-calls') || 0),
         };
       });
@@ -1487,6 +1490,8 @@ try {
     const first = await read();
     console.log('chronicle load 1 (API fails):', JSON.stringify(first));
     if (first.version !== first.latest) errors.push(`chronicle: saveVersion ${first.version} != current ${first.latest}`);
+    if (first.trained.some((v) => v === 'str' || v === 'agi') || !first.trained.includes('ath'))
+      errors.push(`chronicle: old deeds not re-read as athletic (${first.trained.join()})`);
     if (first.calls !== 1) errors.push(`chronicle: ${first.calls} API calls on a failing load != 1`);
     if (first.texts.length !== 0) errors.push('chronicle: an entry was written despite the failure');
 
@@ -1690,7 +1695,7 @@ try {
     const migrated = await page.evaluate(() => {
       const st = window.__game.getState();
       // migration must land on the CURRENT version, whatever it is by now
-      return { version: st.saveVersion, latest: window.__game.CONFIG.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt, chest: st.chest, damage: window.__game.player.attackDamage };
+      return { version: st.saveVersion, latest: window.__game.CONFIG.saveVersion, hasDeadline: 'deadline' in st.quests.epic, at: st.coronationAt, chest: st.chest, damage: window.__game.player.attackDamage, stats: st.stats };
     });
     console.log('migrated:', JSON.stringify(migrated));
     if (migrated.version !== migrated.latest)
@@ -1700,13 +1705,18 @@ try {
     if (migrated.chest?.wielded !== 'quarterstaff' || migrated.chest?.loaves !== 0)
       errors.push(`crown: migrated chest ${JSON.stringify(migrated.chest)} != quarterstaff in hand, empty larder`);
     if (migrated.damage !== 3) errors.push(`crown: migrated attackDamage ${migrated.damage} != 3 (the staff)`);
+    // v9→v10: Strength's seat is Athleticism's, Agility's is Intelligence's
+    if (Object.keys(migrated.stats).join() !== 'ath,int,wis,inf')
+      errors.push(`crown: migrated virtues ${Object.keys(migrated.stats).join()} != ath,int,wis,inf`);
+    if (migrated.stats.ath?.level !== 24 || migrated.stats.int?.level !== 15)
+      errors.push(`crown: migrated levels ath ${migrated.stats.ath?.level} / int ${migrated.stats.int?.level} != 24 / 15`);
 
-    // complete the last daily: str 24 -> 25, total levels 70 -> the Coronation
+    // complete the last daily: ath 24 -> 25, total levels 70 -> the Coronation
     await page.evaluate(() => window.__game.openPanel('board'));
     await page.type('[data-input]', 'The final deed');
     await page.click('[data-post]');
     await page.click('[data-complete]');
-    await page.click('[data-pick="str"]');
+    await page.click('[data-pick="ath"]');
     await new Promise((r) => setTimeout(r, 400));
     const crowned = await page.evaluate(() => {
       const st = window.__game.getState();

@@ -8,14 +8,14 @@ import Anthropic from '@anthropic-ai/sdk';
 import { CONFIG } from '../state/config.js';
 
 const KEY_STORAGE = 'crownbound_sage_key';
-const VIRTUES = ['str', 'agi', 'wis', 'inf'];
+const VIRTUES = ['ath', 'int', 'wis', 'inf'];
 
 const JUDGMENT = `A player in a medieval life-RPG completed a real-world deed and logged it as a quest. Classify the deed into exactly one of four virtues:
-str — Strength: lifting, gym work, physical labor, endurance
-agi — Agility: sport played for speed and coordination (tennis, running, climbing), mobility
-wis — Wisdom: learning, reading, studying, writing, planning, personal finance
+ath — Athleticism: lifting, gym work, sport (tennis, running, climbing), physical labor, endurance, mobility
+int — Intelligence: studying, coursework, reading, learning a skill, coding, problem-solving
+wis — Wisdom: planning, reflection, discipline and good habits, sound judgment, personal finance
 inf — Influence: business, clients, outreach, networking, leadership, family and social bonds
-Reply with exactly one word: str, agi, wis, or inf.`;
+Reply with exactly one word: ath, int, wis, or inf.`;
 
 export function sageEnabled() {
   return !!localStorage.getItem(KEY_STORAGE);
@@ -31,7 +31,7 @@ export function setSageKey(key) {
   else localStorage.removeItem(KEY_STORAGE);
 }
 
-// { virtue: 'str'|'agi'|'wis'|'inf'|null, keyTrouble: boolean }.
+// { virtue: 'ath'|'int'|'wis'|'inf'|null, keyTrouble: boolean }.
 // virtue null = the picker takes over; keyTrouble true = the key itself was
 // refused (invalid, or an API account without credits) so the player should
 // be told to fix the key, not blame the weather.

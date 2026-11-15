@@ -2,8 +2,8 @@ import { CONFIG, rankForTotalLevels } from './config.js';
 import { todayStr, yesterdayStr, weekStartStr, monthStartStr, prevMonthKey, nextMonthKey } from './dates.js';
 
 export const STAT_NAMES = {
-  str: 'Strength',
-  agi: 'Agility',
+  ath: 'Athleticism',
+  int: 'Intelligence',
   wis: 'Wisdom',
   inf: 'Influence',
 };
@@ -68,8 +68,8 @@ function defaultState(now = new Date()) {
     lastQuestDate: null,
     rank: 'Peasant',
     stats: {
-      str: { level: 1, xp: 0 },
-      agi: { level: 1, xp: 0 },
+      ath: { level: 1, xp: 0 },
+      int: { level: 1, xp: 0 },
       wis: { level: 1, xp: 0 },
       inf: { level: 1, xp: 0 },
     },
@@ -122,6 +122,16 @@ function migrate(s) {
   }
   if (s.saveVersion === 8) {
     s.saveVersion = 9; // v9: the chest — keep wielding the best weapon owned, as before
+  }
+  if (s.saveVersion === 9) {
+    s.saveVersion = 10; // v10: Strength became Athleticism; Agility made way for Intelligence
+    // Levels keep their seats, so no rank is lost: Strength's standing is
+    // Athleticism's, and Intelligence starts from what Agility had won.
+    s.stats = { ath: s.stats.str, int: s.stats.agi, wis: s.stats.wis, inf: s.stats.inf };
+    // Old deeds of either bodily virtue (lifting, tennis) were athletic ones.
+    for (const h of s.history ?? []) {
+      if (h.statTrained === 'str' || h.statTrained === 'agi') h.statTrained = 'ath';
+    }
   }
   // hand-edited or restored saves may miss fields regardless of version
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
