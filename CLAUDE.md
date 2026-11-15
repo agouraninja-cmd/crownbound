@@ -1,7 +1,7 @@
 # CROWNBOUND — Medieval Productivity RPG
 
 ## Vision
-A third-person, low-poly 3D medieval life RPG that is also the owner's personal goal tracker.
+A third-person, low-poly 3D medieval life RPG — set in **England, around 1250** — that is also the owner's personal goal tracker.
 **Real life levels you up; the game is where you feel it.** The player completes real-world goals
 (lifting, tennis, business, learning, saving), logs them as quests at the in-game Quest Board, and
 the character grows. Sessions are short (10–15 min daily). Honor system — no verification.
@@ -417,6 +417,14 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     handful of golds; a stook is four sheaves leaned together. What grows on a ridge under a
     look is built once and cached, so a redraw is ~4ms after the first (~19ms).
     About 4 draw calls; ~20k triangles when the whole field stands in wheat.
+- The Setting (2026-11-15), the owner's choice: Crownbound takes place in **England, around
+  1250** — the High Middle Ages. Everything new should fit that year: watermills and windmills,
+  smiths, longbows and crossbows, chainmail, timber-and-thatch, silver pennies, hand-copied
+  books are in; guns, printing, mechanical clocks, full plate armour, potatoes, coffee, tea
+  and forks are not. Glass windows exist but are a luxury (hence the shop's price). The
+  Chronicler's charge names the year and forbids those anachronisms; the Sage's prompt names
+  it too (it only classifies, so the line is for consistency). The thee/thy voice and the
+  IM Fell font are later (1600s) but stay — the style, not the history.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
