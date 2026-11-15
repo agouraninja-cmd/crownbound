@@ -839,6 +839,31 @@ try {
     if (feet.skate > 0.25) errors.push(`body: planted feet skate ${(feet.skate * 100).toFixed(0)}% of the ground covered`);
     if (!feet.sound) errors.push('body: a joint went non-finite');
 
+    // 7) the swings chain: chop, backhand, sweep, round again — and a pause starts over.
+    // Each one still counts its hit (the dummy is out of reach here, so stamina tells).
+    const chain = await page.evaluate(() => {
+      const b = window.__body;
+      const g = window.__game;
+      const p = g.player;
+      b.stand(-2, -9);
+      const before = g.getState().stamina.current;
+      const kinds = [];
+      for (let i = 0; i < 4; i++) {
+        p.attack();
+        kinds.push(p.swing);
+        b.run(0.45);
+      }
+      b.run(1.2); // the chain goes cold
+      p.attack();
+      kinds.push(p.swing);
+      b.run(0.6);
+      return { kinds, spent: before - g.getState().stamina.current, mode: p.mode };
+    });
+    console.log('chain:', JSON.stringify(chain));
+    if (chain.kinds.join() !== '0,1,2,0,0') errors.push(`body: swings ran ${chain.kinds.join()}, expected 0,1,2,0 then 0 after a pause`);
+    if (chain.spent !== 25) errors.push(`body: five swings spent ${chain.spent} stamina, expected 25`);
+    if (chain.mode !== 'normal') errors.push(`body: left in mode ${chain.mode} after the swings`);
+
     // mid-stride, side-on, for eyeballing
     await page.evaluate(() => {
       window.__body.stand(-2, -9);

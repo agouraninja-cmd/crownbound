@@ -67,6 +67,8 @@ export function createPlayer(scene, spawn) {
     hp: P.maxHp,
     maxHp: P.maxHp,
     lastHurtAt: -99,
+    swing: 0, // which swing the last attack was: 0 chop, 1 backhand, 2 sweep
+    lastSwingAt: -99,
     onHpChange: () => {},
     onDeath: () => {},
     onHurt: () => {},
@@ -111,6 +113,11 @@ export function createPlayer(scene, spawn) {
       player.onActionBlocked();
       return;
     }
+    // swings thrown in quick succession chain: chop, backhand, sweep, and
+    // round again; a pause starts over with the chop. Looks only — every
+    // swing costs, reaches and hits the same.
+    player.swing = player.time - player.lastSwingAt < P.comboWindow ? (player.swing + 1) % 3 : 0;
+    player.lastSwingAt = player.time;
     player.mode = 'attack';
     player.modeT = 0;
     player.swungThisAttack = false;
