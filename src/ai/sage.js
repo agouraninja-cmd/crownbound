@@ -12,8 +12,8 @@ const VIRTUES = ['ath', 'int', 'wis', 'inf'];
 
 const JUDGMENT = `A player in a medieval life-RPG completed a real-world deed and logged it as a quest. Classify the deed into exactly one of four virtues:
 ath — Athleticism: lifting, gym work, sport (tennis, running, climbing), physical labor, endurance, mobility
-int — Intelligence: studying, coursework, reading, learning a skill, coding, problem-solving
-wis — Wisdom: planning, reflection, discipline and good habits, sound judgment, personal finance
+int — Intelligence: planning, strategy, discipline and good habits, sound judgment, personal finance
+wis — Wisdom: learning, studying, coursework, reading, writing, coding
 inf — Influence: business, clients, outreach, networking, leadership, family and social bonds
 Reply with exactly one word: ath, int, wis, or inf.`;
 

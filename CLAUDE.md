@@ -16,12 +16,12 @@ happens the moment the character reaches King** (70 total virtue levels).
   No model files and no image files — the one texture is a soft round dot drawn on a canvas at
   load (sprites.js).
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 10`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 11`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
   v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle;
   v8→v9 the chest — weapon in hand + loaf larder; v9→v10 the virtues renamed —
-  str→ath, agi→int).
+  str→ath, agi→int; v10→v11 Intelligence reset to level 1, rank recounted).
 - Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
   one shadow-casting directional light, cheap particles, no post-processing.
 
@@ -70,7 +70,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 10,
+  saveVersion: 11,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
   stats: { ath|int|wis|inf: { level, xp } },     // Athleticism, Intelligence, Wisdom, Influence;
@@ -109,8 +109,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 
 ## Core rules (tuned in config.js)
 - The four virtues (keys in `STAT_NAMES`, state.js): Athleticism `ath` (lifting, sport,
-  labour), Intelligence `int` (study, coursework, coding), Wisdom `wis` (planning, discipline,
-  judgment, money — and the sleep boon), Influence `inf` (business, people).
+  labour), Intelligence `int` (planning, strategy, discipline, judgment, money), Wisdom `wis`
+  (learning, study, coursework, reading, coding — and the sleep boon), Influence `inf`
+  (business, people).
 - Stats start level 1. Next level = 100 × level XP. Rank by total stat levels:
   Peasant (4+) → Squire (12) → Knight (25) → Lord (45) → King (70). v1 renders only Peasant visuals.
 - The Coronation fires in `addXp()` the moment rank first reaches King: `coronationAt` is set,
@@ -336,14 +337,18 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 
 - The Virtues Renamed (2026-11-15), at the owner's request: Strength became Athleticism and
   Agility made way for Intelligence. The save keys changed with the names (`str`→`ath`,
-  `agi`→`int`) so the code never says one thing and shows another. The v9→v10 migration keeps
-  every level in its seat — Athleticism takes Strength's, Intelligence starts from what
-  Agility had won — so no rank is lost; old history deeds tagged `str` OR `agi` both become
-  `ath` (lifting and tennis are athletic under the new names), so the Tome and the Chronicler
-  never call an old tennis match Intelligence. The Sage's prompt now splits the mind in two:
-  Intelligence is learning (study, coursework, reading, coding), Wisdom is conduct (planning,
-  discipline, judgment, personal finance). The smoke suite's old-version seeds still carry
-  `str`/`agi` on purpose — they are what exercises the migration.
+  `agi`→`int`) so the code never says one thing and shows another. Athleticism takes Strength's level;
+  old history deeds tagged `str` OR `agi` both become `ath` (lifting and tennis are athletic
+  under the new names), so the Tome and the Chronicler never call an old tennis match
+  Intelligence. The smoke suite's old-version seeds still carry `str`/`agi` on purpose — they
+  are what exercises the migration. Two things the owner corrected the same day (do not undo):
+  - Intelligence begins at level 1. v10 first seated it at Agility's old level to spare the
+    rank; the owner wanted a new virtue to start like any other, so v10→v11 resets it to
+    level 1 / 0 XP and recounts `rank`. Agility's levels are gone for good.
+  - Wisdom is LEARNING, Intelligence is CONDUCT. The Sage's prompt gives Wisdom the study,
+    coursework, reading, writing and coding (what Wisdom always held), and Intelligence the
+    planning, strategy, discipline, judgment and personal finance. The first draft had these
+    the other way round (the tabletop-RPG convention) and the owner reversed it.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -537,9 +542,11 @@ headlessly; everything else covered by the regression suite below.
 
 - [x] Post-v1 — "The Virtues Renamed" (2026-11-15): Strength → Athleticism (`ath`), Agility →
   Intelligence (`int`); Wisdom and Influence unchanged. Stat keys renamed throughout (state,
-  dummy, Sage prompt, Charter, CROWNBOUND-Guide.docx); v9→v10 migration carries levels across
-  seat for seat and re-tags old str/agi deeds as athletic. saveVersion 10. Details: "The
-  Virtues Renamed" under Noted decisions.
+  dummy, Sage prompt, Charter, CROWNBOUND-Guide.docx); v9→v10 migration moves Strength's level to
+  Athleticism and re-tags old str/agi deeds as athletic; v10→v11 starts Intelligence at
+  level 1 (Agility's levels dropped, rank recounted). The Sage reads Wisdom as learning and
+  Intelligence as planning/discipline/judgment/money. saveVersion 11. Details: "The Virtues
+  Renamed" under Noted decisions.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
@@ -572,8 +579,8 @@ headlessly; everything else covered by the regression suite below.
   `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
   damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
-  `crown` v5→current migration (incl. best owned weapon → chest.wielded, and str/agi levels
-  landing as ath/int)
+  `crown` v5→current migration (incl. best owned weapon → chest.wielded, str's level
+  landing on ath, and int reset to level 1 with the rank recounted)
   + last-level daily completion → King + coronation once-only · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
   `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat) + conquest & next
