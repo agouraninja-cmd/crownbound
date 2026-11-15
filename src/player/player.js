@@ -72,6 +72,8 @@ export function createPlayer(scene, spawn) {
     onHpChange: () => {},
     onDeath: () => {},
     onHurt: () => {},
+    onFootstep: () => {}, // (weight 0..1) each time a foot comes down in a stride
+    onLand: () => {}, // (downward speed) at a touchdown
     // wired up by later systems (stamina M5, combat M6)
     trySpend: () => true,
     onAttackSwing: null, // called once at the active frame of a swing
@@ -402,6 +404,7 @@ export function createPlayer(scene, spawn) {
       // down onto the ground — or the ground, on a climb, up into the feet
       if (player.pos.y < groundY || (player.vy <= 0 && player.pos.y <= groundY)) {
         anim.land(Math.max(-player.vy, 0)); // the knees take the fall...
+        player.onLand(Math.max(-player.vy, 0));
         player.vel.multiplyScalar(P.landKeep); // ...and some of the pace goes with it
         player.pos.y = groundY;
         player.vy = 0;

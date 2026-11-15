@@ -839,7 +839,43 @@ try {
     if (feet.skate > 0.25) errors.push(`body: planted feet skate ${(feet.skate * 100).toFixed(0)}% of the ground covered`);
     if (!feet.sound) errors.push('body: a joint went non-finite');
 
-    // 7) the swings chain: chop, backhand, sweep, round again — and a pause starts over.
+    // 7) feet are heard: a run reports each footfall, standing reports none, a leap reports one landing
+    const heard = await page.evaluate(() => {
+      const b = window.__body;
+      const p = window.__game.player;
+      const stepWas = p.onFootstep;
+      const landWas = p.onLand;
+      const steps = [];
+      const lands = [];
+      p.onFootstep = (w) => steps.push(w);
+      p.onLand = (v) => lands.push(v);
+      b.stand(-2, -9);
+      b.run(1.0);
+      const standing = steps.length;
+      b.key('KeyA', true);
+      b.run(0.5);
+      steps.length = 0;
+      b.run(2.0);
+      const running = steps.length;
+      const weights = [Math.min(...steps), Math.max(...steps)];
+      b.key('KeyA', false);
+      b.run(0.6);
+      steps.length = 0;
+      b.key('Space', true);
+      b.run(1.0);
+      b.key('Space', false);
+      p.onFootstep = stepWas;
+      p.onLand = landWas;
+      return { standing, running, weights, inAir: steps.length, lands };
+    });
+    console.log('heard:', JSON.stringify(heard));
+    if (heard.standing !== 0) errors.push(`body: ${heard.standing} footfalls while standing still`);
+    if (!(heard.running >= 6 && heard.running <= 10)) errors.push(`body: ${heard.running} footfalls in 2s of running, expected ~8`);
+    if (!(heard.weights[0] > 0 && heard.weights[1] <= 1)) errors.push(`body: footfall weights ${heard.weights} out of range`);
+    if (heard.lands.length !== 1 || !(heard.lands[0] > 3)) errors.push(`body: landings heard ${JSON.stringify(heard.lands)}, expected one hard one`);
+    await pause();
+
+    // 8) the swings chain: chop, backhand, sweep, round again — and a pause starts over.
     // Each one still counts its hit (the dummy is out of reach here, so stamina tells).
     const chain = await page.evaluate(() => {
       const b = window.__body;

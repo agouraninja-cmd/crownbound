@@ -300,7 +300,12 @@ export function createPlayerAnimator(m) {
     const cycle = 2 / (2.8 + 0.3 * speed); // seconds for both feet to step: short legs, quick steps
     const duty = 0.62 - 0.36 * run - 0.06 * sprint; // share of the cycle each foot is planted
     const lead = lerp(0.5, 0.36, run); // a runner lands nearly under himself and pushes off far behind
+    const stepWas = Math.floor(phase * 2); // foot 0 lands as the phase comes round, foot 1 at the half
     phase = (phase + dt / cycle) % 1;
+    // a foot has just come down: tell whoever is listening how hard (0 a creep … 1 a sprint)
+    if (Math.floor(phase * 2) !== stepWas && g > 0.6 && !pl.airborne && pl.mode !== 'roll' && lie < 0.01) {
+      pl.onFootstep(clamp(0.35 + 0.35 * run + 0.3 * sprint - 0.2 * crouch, 0.1, 1));
+    }
 
     const ahead = Math.max(dirF, 0); // toes only roll when the stride goes forward
     const toeOff = g * ahead * lerp(0.5, 0.85, run);

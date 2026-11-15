@@ -83,5 +83,16 @@ export const sfx = {
     tone({ freq: 160, to: 70, type: 'sawtooth', dur: 0.3, gain: 0.12 });
     noise({ dur: 0.12, gain: 0.08, freq: 600 });
   },
+  // a footfall on earth: a short low scuff, never quite the same twice
+  step: (weight = 0.5) => {
+    noise({ dur: 0.05 + 0.02 * weight, gain: 0.05 + 0.1 * weight, freq: 260 + Math.random() * 180 });
+    tone({ freq: 95 + Math.random() * 25, to: 55, dur: 0.05, gain: 0.04 + 0.08 * weight });
+  },
+  // both feet down out of a leap: a thump with some grit in it
+  land: (weight = 1) => {
+    tone({ freq: 110, to: 42, dur: 0.13, gain: 0.3 * weight });
+    noise({ dur: 0.1, gain: 0.22 * weight, freq: 320 });
+    noise({ dur: 0.06, gain: 0.1 * weight, freq: 900, when: 0.02 });
+  },
   hurt: () => tone({ freq: 200, to: 90, type: 'sawtooth', dur: 0.15, gain: 0.3 }),
 };

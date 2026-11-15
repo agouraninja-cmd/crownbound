@@ -63,7 +63,7 @@ src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact promp
 src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
-src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
+src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing)
 ```
 
 ## Data model (localStorage `crownbound_save`)
@@ -323,6 +323,11 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
     cost, reach, arc, damage and the 55% hit moment are the same for all three. Each is three
     held poses in playerAnim.js (`SWINGS`); a fourth is one more row there and a bigger modulus
     in player.js `startAttack`.
+  - Footfalls and landings are heard (2026-11-15, asked for by the owner). The animator knows
+    when a foot comes down (the stride's phase crossing 0 or ½) and calls `player.onFootstep(weight)`
+    — never while standing, airborne, rolling or abed; a touchdown calls `player.onLand(speed)`.
+    main.js wires both to `sfx.step` / `sfx.land` (audio.js): synthesized like every other
+    sound, pitched a little differently each step, quieter crouched and louder sprinting.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -509,6 +514,11 @@ headlessly; everything else covered by the regression suite below.
   costs, reaches and hits as before. `body` smoke scenario extended; `body` and `combat` pass
   (cloud container). No save change.
 
+- [x] Post-v1 — "The Tread" (2026-11-15): footsteps and landings have sound — a soft scuff
+  per footfall in time with the stride, a thump coming down from a leap. `body` smoke scenario
+  checks the events fire (it cannot hear them); the sounds themselves are untested by ear.
+  No save change.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -530,7 +540,8 @@ headlessly; everything else covered by the regression suite below.
   sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole
   planted, the leap's wind-up + height + landing fold, a wall taking his speed, the roll's
   reach and upright finish, planted feet skating under 25%, no NaN joint, the three swings
-  chaining 0→1→2→0 and starting over after a pause (mid-stride screenshot →
+  chaining 0→1→2→0 and starting over after a pause, footfalls reported while running (none
+  standing) and one landing per leap (mid-stride screenshot →
   scripts/smoke-body.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
