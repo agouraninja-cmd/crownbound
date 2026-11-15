@@ -125,13 +125,20 @@ function migrate(s) {
   }
   if (s.saveVersion === 9) {
     s.saveVersion = 10; // v10: Strength became Athleticism; Agility made way for Intelligence
-    // Levels keep their seats, so no rank is lost: Strength's standing is
-    // Athleticism's, and Intelligence starts from what Agility had won.
+    // Strength's standing is Athleticism's; Agility's seat passes to Intelligence
+    // (and is emptied by v11, below).
     s.stats = { ath: s.stats.str, int: s.stats.agi, wis: s.stats.wis, inf: s.stats.inf };
     // Old deeds of either bodily virtue (lifting, tennis) were athletic ones.
     for (const h of s.history ?? []) {
       if (h.statTrained === 'str' || h.statTrained === 'agi') h.statTrained = 'ath';
     }
+  }
+  if (s.saveVersion === 10) {
+    s.saveVersion = 11; // v11: Intelligence is a new virtue — it begins at level 1 like any other
+    // v10 had seated it at Agility's old level; those levels were never won by
+    // the mind, so they are dropped and the rank is counted afresh.
+    s.stats.int = { level: 1, xp: 0 };
+    s.rank = rankForTotalLevels(Object.values(s.stats).reduce((a, st) => a + st.level, 0));
   }
   // hand-edited or restored saves may miss fields regardless of version
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };

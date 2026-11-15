@@ -1,6 +1,6 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
-  saveVersion: 10, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed
+  saveVersion: 11,// v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1
 
   xpPerLevel: 100, // next level costs 100 × current level
 
