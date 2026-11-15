@@ -64,7 +64,7 @@ src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact promp
 src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
-src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
+src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing)
 ```
 
 ## Data model (localStorage `crownbound_save`)
@@ -321,6 +321,18 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page)
     dives in fast and tumbles out slow around the same average `dodgeSpeed`.
   - He faces where he is steered, not where he is moving: a rat's bite shoves him back still
     facing the rat (velocity-facing used to spin him away from it).
+  - Three swings (2026-11-15, the owner: "make the stick hit more than just one animation"):
+    the chop, a backhand whipped out level to the stick side, and a sweep scythed back across.
+    A swing begun within `CONFIG.player.comboWindow` (0.9s) of the last chains to the next
+    kind (`player.swing`: 0 → 1 → 2 → 0); a pause starts over with the chop. Looks only —
+    cost, reach, arc, damage and the 55% hit moment are the same for all three. Each is three
+    held poses in playerAnim.js (`SWINGS`); a fourth is one more row there and a bigger modulus
+    in player.js `startAttack`.
+  - Footfalls and landings are heard (2026-11-15, asked for by the owner). The animator knows
+    when a foot comes down (the stride's phase crossing 0 or ½) and calls `player.onFootstep(weight)`
+    — never while standing, airborne, rolling or abed; a touchdown calls `player.onLand(speed)`.
+    main.js wires both to `sfx.step` / `sfx.land` (audio.js): synthesized like every other
+    sound, pitched a little differently each step, quieter crouched and louder sprinting.
 
 - The Virtues Renamed (2026-11-15), at the owner's request: Strength became Athleticism and
   Agility made way for Intelligence. The save keys changed with the names (`str`→`ath`,
@@ -513,6 +525,16 @@ headlessly; everything else covered by the regression suite below.
   stalled frame outran a fixed wait — see Session notes). Details: "The Living Body" under
   Noted decisions.
 
+- [x] Post-v1 — "The Three Blows" (2026-11-15): the stick has three swings instead of one —
+  chop, backhand, sweep — chained when swung in quick succession. Animation only: every swing
+  costs, reaches and hits as before. `body` smoke scenario extended; `body` and `combat` pass
+  (cloud container). No save change.
+
+- [x] Post-v1 — "The Tread" (2026-11-15): footsteps and landings have sound — a soft scuff
+  per footfall in time with the stride, a thump coming down from a leap. `body` smoke scenario
+  checks the events fire (it cannot hear them); the sounds themselves are untested by ear.
+  No save change.
+
 - [x] Post-v1 — "The Virtues Renamed" (2026-11-15): Strength → Athleticism (`ath`), Agility →
   Intelligence (`int`); Wisdom and Influence unchanged. Stat keys renamed throughout (state,
   dummy, Sage prompt, Charter, CROWNBOUND-Guide.docx); v9→v10 migration carries levels across
@@ -539,8 +561,10 @@ headlessly; everything else covered by the regression suite below.
   `walk` movement · `body` the player's weight and limbs, stepped by hand at a fixed rate:
   sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole
   planted, the leap's wind-up + height + landing fold, a wall taking his speed, the roll's
-  reach and upright finish, planted feet skating under 25%, no NaN joint (mid-stride
-  screenshot → scripts/smoke-body.png) ·
+  reach and upright finish, planted feet skating under 25%, no NaN joint, the three swings
+  chaining 0→1→2→0 and starting over after a pause, footfalls reported while running (none
+  standing) and one landing per leap (mid-stride screenshot →
+  scripts/smoke-body.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +

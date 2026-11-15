@@ -841,6 +841,67 @@ try {
     if (feet.skate > 0.25) errors.push(`body: planted feet skate ${(feet.skate * 100).toFixed(0)}% of the ground covered`);
     if (!feet.sound) errors.push('body: a joint went non-finite');
 
+    // 7) feet are heard: a run reports each footfall, standing reports none, a leap reports one landing
+    const heard = await page.evaluate(() => {
+      const b = window.__body;
+      const p = window.__game.player;
+      const stepWas = p.onFootstep;
+      const landWas = p.onLand;
+      const steps = [];
+      const lands = [];
+      p.onFootstep = (w) => steps.push(w);
+      p.onLand = (v) => lands.push(v);
+      b.stand(-2, -9);
+      b.run(1.0);
+      const standing = steps.length;
+      b.key('KeyA', true);
+      b.run(0.5);
+      steps.length = 0;
+      b.run(2.0);
+      const running = steps.length;
+      const weights = [Math.min(...steps), Math.max(...steps)];
+      b.key('KeyA', false);
+      b.run(0.6);
+      steps.length = 0;
+      b.key('Space', true);
+      b.run(1.0);
+      b.key('Space', false);
+      p.onFootstep = stepWas;
+      p.onLand = landWas;
+      return { standing, running, weights, inAir: steps.length, lands };
+    });
+    console.log('heard:', JSON.stringify(heard));
+    if (heard.standing !== 0) errors.push(`body: ${heard.standing} footfalls while standing still`);
+    if (!(heard.running >= 6 && heard.running <= 10)) errors.push(`body: ${heard.running} footfalls in 2s of running, expected ~8`);
+    if (!(heard.weights[0] > 0 && heard.weights[1] <= 1)) errors.push(`body: footfall weights ${heard.weights} out of range`);
+    if (heard.lands.length !== 1 || !(heard.lands[0] > 3)) errors.push(`body: landings heard ${JSON.stringify(heard.lands)}, expected one hard one`);
+    await pause();
+
+    // 8) the swings chain: chop, backhand, sweep, round again — and a pause starts over.
+    // Each one still counts its hit (the dummy is out of reach here, so stamina tells).
+    const chain = await page.evaluate(() => {
+      const b = window.__body;
+      const g = window.__game;
+      const p = g.player;
+      b.stand(-2, -9);
+      const before = g.getState().stamina.current;
+      const kinds = [];
+      for (let i = 0; i < 4; i++) {
+        p.attack();
+        kinds.push(p.swing);
+        b.run(0.45);
+      }
+      b.run(1.2); // the chain goes cold
+      p.attack();
+      kinds.push(p.swing);
+      b.run(0.6);
+      return { kinds, spent: before - g.getState().stamina.current, mode: p.mode };
+    });
+    console.log('chain:', JSON.stringify(chain));
+    if (chain.kinds.join() !== '0,1,2,0,0') errors.push(`body: swings ran ${chain.kinds.join()}, expected 0,1,2,0 then 0 after a pause`);
+    if (chain.spent !== 25) errors.push(`body: five swings spent ${chain.spent} stamina, expected 25`);
+    if (chain.mode !== 'normal') errors.push(`body: left in mode ${chain.mode} after the swings`);
+
     // mid-stride, side-on, for eyeballing
     await page.evaluate(() => {
       window.__body.stand(-2, -9);

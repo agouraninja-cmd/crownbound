@@ -71,10 +71,14 @@ function mixFeet(feet, layer, w) {
 const SPRUNG = ['chestPitch', 'chestYaw', 'chestRoll', 'headPitch', 'headYaw',
   'swing0', 'spread0', 'elbow0', 'swing1', 'spread1', 'elbow1', 'grip'];
 
-// ---------- the overhead swing, in three held moments ----------
+// ---------- the swings, each in three held moments ----------
 // Arm angles: swing is the shoulder fore-and-aft (negative forward, -π
 // straight up), elbow bends the same way, spread lifts the arm out from the
 // side (side 0 negative, side 1 positive), grip turns the stick in the fist.
+// With the arm swung level (swing ≈ -1.5), spread is where it points: out to
+// his side when positive, across his body when negative.
+
+// 0 — the chop: hauled up over the shoulder and brought straight down
 const WINDUP = { // stick hauled up and back over the shoulder, chest wound open
   drop: 0.02, hipYaw: 0.18, chestPitch: -0.14, chestYaw: 0.5, headPitch: 0.05, headYaw: -0.4,
   swing0: -0.55, spread0: -0.2, elbow0: -0.7,
@@ -90,6 +94,44 @@ const FOLLOW = { // carried on down across the body
   swing0: 0.4, spread0: -0.22, elbow0: -0.8,
   swing1: -0.45, spread1: -0.35, elbow1: -0.55, grip: 0.5,
 };
+
+// 1 — the backhand: from low across the body, whipped out level to the stick side
+const BACK_WINDUP = { // coiled: fist by the far hip, shoulders turned away
+  drop: 0.05, hipYaw: -0.2, chestPitch: 0.15, chestYaw: -0.75, headPitch: -0.05, headYaw: 0.55,
+  swing0: 0.3, spread0: -0.25, elbow0: -0.9,
+  swing1: -1.15, spread1: -0.95, elbow1: -1.3, grip: 0.5,
+};
+const BACK_IMPACT = { // uncoiled: arm long and level out in front
+  drop: 0.05, hipYaw: 0.1, chestPitch: 0.12, chestYaw: 0.25, headPitch: -0.05, headYaw: -0.15,
+  swing0: -0.3, spread0: -0.3, elbow0: -0.8,
+  swing1: -1.45, spread1: 0.35, elbow1: -0.2, grip: 0.1,
+};
+const BACK_FOLLOW = { // flung wide, chest thrown open
+  drop: 0.03, hipYaw: 0.2, chestPitch: 0.02, chestYaw: 0.7, headPitch: 0, headYaw: -0.5,
+  swing0: -0.5, spread0: -0.35, elbow0: -0.9,
+  swing1: -1.4, spread1: 1.3, elbow1: -0.45, grip: 0.0,
+};
+
+// 2 — the sweep: from wide on the stick side, scythed level back across
+const SWEEP_WINDUP = { // arm drawn out and back, chest wound open
+  drop: 0.04, hipYaw: 0.25, chestPitch: 0.04, chestYaw: 0.8, headPitch: 0, headYaw: -0.6,
+  swing0: -0.6, spread0: -0.3, elbow0: -0.8,
+  swing1: -1.4, spread1: 1.5, elbow1: -0.9, grip: -0.3,
+};
+const SWEEP_IMPACT = { // through the front, arm long, hips driving
+  drop: 0.07, hipYaw: -0.15, chestPitch: 0.16, chestYaw: -0.3, headPitch: -0.06, headYaw: 0.2,
+  swing0: 0.35, spread0: -0.25, elbow0: -0.7,
+  swing1: -1.45, spread1: 0.1, elbow1: -0.25, grip: 0.15,
+};
+const SWEEP_FOLLOW = { // wrapped across the body
+  drop: 0.07, hipYaw: -0.25, chestPitch: 0.22, chestYaw: -0.75, headPitch: -0.08, headYaw: 0.5,
+  swing0: 0.5, spread0: -0.3, elbow0: -0.8,
+  swing1: -1.3, spread1: -0.85, elbow1: -0.7, grip: 0.3,
+};
+
+// player.js names the swing (pl.swing); a chain runs chop → backhand → sweep,
+// each ending where the next winds up
+const SWINGS = [[WINDUP, IMPACT, FOLLOW], [BACK_WINDUP, BACK_IMPACT, BACK_FOLLOW], [SWEEP_WINDUP, SWEEP_IMPACT, SWEEP_FOLLOW]];
 
 // ---------- the leap: pushed off, afloat, reaching for the ground ----------
 // Feet here are in the body's own frame, measured from each hip joint.
@@ -147,6 +189,7 @@ export function createPlayerAnimator(m) {
   let wBlow = 0;
   let load = 0; // knees loading before a leap
   let blowT = 1; // how far through the swing, held at the end while it fades
+  let blowKind = 0; // which swing: 0 chop, 1 backhand, 2 sweep
   let lastVx = 0;
   let lastVz = 0;
 
@@ -245,7 +288,10 @@ export function createPlayerAnimator(m) {
     wRoll = ease(wRoll, pl.mode === 'roll' ? 1 : 0, pl.mode === 'roll' ? 30 : 11, dt);
     wBlow = ease(wBlow, pl.mode === 'attack' ? 1 : 0, pl.mode === 'attack' ? 45 : 9, dt);
     load = ease(load, pl.jumpIn > 0 ? 1 : 0, pl.jumpIn > 0 ? 35 : 20, dt);
-    if (pl.mode === 'attack') blowT = Math.min(pl.modeT / P.attackDuration, 1);
+    if (pl.mode === 'attack') {
+      blowT = Math.min(pl.modeT / P.attackDuration, 1);
+      blowKind = pl.swing % SWINGS.length;
+    }
 
     // ---- the stride ----
     const g = smooth(speed, 0.15, 1.1); // 0 standing … 1 in stride
@@ -254,7 +300,12 @@ export function createPlayerAnimator(m) {
     const cycle = 2 / (2.8 + 0.3 * speed); // seconds for both feet to step: short legs, quick steps
     const duty = 0.62 - 0.36 * run - 0.06 * sprint; // share of the cycle each foot is planted
     const lead = lerp(0.5, 0.36, run); // a runner lands nearly under himself and pushes off far behind
+    const stepWas = Math.floor(phase * 2); // foot 0 lands as the phase comes round, foot 1 at the half
     phase = (phase + dt / cycle) % 1;
+    // a foot has just come down: tell whoever is listening how hard (0 a creep … 1 a sprint)
+    if (Math.floor(phase * 2) !== stepWas && g > 0.6 && !pl.airborne && pl.mode !== 'roll' && lie < 0.01) {
+      pl.onFootstep(clamp(0.35 + 0.35 * run + 0.3 * sprint - 0.2 * crouch, 0.1, 1));
+    }
 
     const ahead = Math.max(dirF, 0); // toes only roll when the stride goes forward
     const toeOff = g * ahead * lerp(0.5, 0.85, run);
@@ -327,15 +378,16 @@ export function createPlayerAnimator(m) {
       // the springs carry the arm a few hundredths late, so the pose lands at
       // 50% for the blow to arrive as player.js counts the hit, at 55%
       const strike = (blowT - 0.26) / 0.24;
+      const [windup, impact, follow] = SWINGS[blowKind];
       if (strike <= 0) {
-        mix(blow, WINDUP, 1);
+        mix(blow, windup, 1);
       } else if (strike < 1) {
-        mix(blow, WINDUP, 1);
-        mix(blow, IMPACT, strike * strike); // gathering pace into the blow
+        mix(blow, windup, 1);
+        mix(blow, impact, strike * strike); // gathering pace into the blow
       } else {
         const through = (blowT - 0.5) / 0.5;
-        mix(blow, IMPACT, 1);
-        mix(blow, FOLLOW, 1 - (1 - through) * (1 - through));
+        mix(blow, impact, 1);
+        mix(blow, follow, 1 - (1 - through) * (1 - through));
       }
       const dropWas = pose.drop;
       mix(pose, blow, wBlow);

@@ -83,6 +83,10 @@ player.onAttackSwing = () => {
   }
 };
 
+// feet on the ground: a soft thud per step, a heavier one coming down from a leap
+player.onFootstep = (weight) => sfx.step(weight);
+player.onLand = (impact) => sfx.land(Math.min(impact / CONFIG.player.jumpSpeed, 1.3));
+
 player.onHurt = () => {
   sfx.hurt();
   orbitCam.shake(0.24);
