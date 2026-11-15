@@ -68,6 +68,7 @@ export function renderGuide(guideBody) {
     ['left click', `swing thy stick (${ST.attackCost} stamina)`],
     ['mouse &amp; wheel', 'turn the eye, draw it near'],
     ['E', 'the one key — the nearest thing in reach answers'],
+    ['M', `the map of ${CONFIG.realm.kingdom}, with ${CONFIG.realm.village} upon it`],
     ['Esc', 'close a panel, free the mouse'],
   ]
     .map(([k, v]) => `<div class="kv"><span><b>${k}</b></span><span class="v">${v}</span></div>`)

@@ -320,5 +320,8 @@ export function buildWorld(scene, marketToday = false) {
     ambient.update(dt, camera);
   }
 
-  return { colliders, interactables, campfire, dummy, door, chest, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, update };
+  // the village plan on the map draws the real trees and boulders
+  const mapMarks = { trees: scatter.trees, rocks: scatter.rocks };
+
+  return { colliders, interactables, campfire, dummy, door, chest, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
 }

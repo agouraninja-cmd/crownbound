@@ -7,7 +7,7 @@ import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, placePrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
 import { loadState, getState, onChange, staminaCap, spendStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
-import { initPanels, openPanel, isPanelOpen } from './ui/panels.js';
+import { initPanels, openPanel, closePanel, openPanelId, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
 import { keepChronicle } from './ai/chronicler.js';
@@ -162,8 +162,26 @@ initPanels(
       player.hp = player.maxHp;
       player.onHpChange(player.hp, player.maxHp);
     },
+    // what the village plan on the map needs to know, read as it opens
+    mapView: () => ({
+      x: player.pos.x,
+      z: player.pos.z,
+      facing: player.facing,
+      trees: world.mapMarks.trees,
+      rocks: world.mapMarks.rocks,
+      market: !!world.cart,
+      looks: farmRowLooks(),
+    }),
   }
 );
+
+// M unrolls the map of the kingdom, and rolls it up again. Like E, it does
+// nothing while asleep, dead or under another panel.
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyM' || e.repeat) return;
+  if (openPanelId() === 'map') closePanel();
+  else if (!isPanelOpen() && player.isEnabled()) openPanel('map');
+});
 
 function syncHud() {
   const s = getState();
@@ -371,7 +389,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {

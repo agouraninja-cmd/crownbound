@@ -29,14 +29,15 @@ import { CONFIG } from '../state/config.js';
 import { mouseFeelId, setMouseFeel } from '../state/prefs.js';
 import { todayStr } from '../state/dates.js';
 import { renderGuide } from './guide.js';
+import { renderMap } from './map.js';
 import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, mapPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody, mapBody;
 let open = null;
 let onOpenChange = () => {};
-let shopActions = { isWounded: () => false, onPurchase: () => {}, onEat: () => {}, onWield: () => {} }; // wired by main.js
+let shopActions = { isWounded: () => false, onPurchase: () => {}, onEat: () => {}, onWield: () => {}, mapView: null }; // wired by main.js
 let statPickFor = null; // 'daily' | 'weekly' | 'monthly'
 let judgingFor = null; // quest kind awaiting the sage's verdict
 let judgeSeq = 0; // bumped to orphan any in-flight verdict (cancel, close, dismiss)
@@ -846,7 +847,15 @@ function close() {
   shopPanel.classList.add('hidden');
   guidePanel.classList.add('hidden');
   chestPanel.classList.add('hidden');
+  mapPanel.classList.add('hidden');
   onOpenChange(false);
+}
+
+export { close as closePanel };
+
+// which panel is open ('board', 'map', …), or null
+export function openPanelId() {
+  return open;
 }
 
 export function openPanel(id) {
@@ -860,12 +869,14 @@ export function openPanel(id) {
   shopPanel.classList.toggle('hidden', id !== 'shop');
   guidePanel.classList.toggle('hidden', id !== 'guide');
   chestPanel.classList.toggle('hidden', id !== 'chest');
+  mapPanel.classList.toggle('hidden', id !== 'map');
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
   else if (id === 'treasury') renderTreasury();
   else if (id === 'shop') renderShop();
   else if (id === 'guide') renderGuide(guideBody);
   else if (id === 'chest') renderChest();
+  else if (id === 'map') renderMap(mapBody, shopActions.mapView());
   else renderTome();
   onOpenChange(true);
 }
@@ -885,6 +896,7 @@ export function initPanels(openChangeCallback, shopHooks) {
   shopPanel = document.getElementById('shop-panel');
   guidePanel = document.getElementById('guide-panel');
   chestPanel = document.getElementById('chest-panel');
+  mapPanel = document.getElementById('map-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
   ledgerBody = document.getElementById('ledger-body');
@@ -892,6 +904,7 @@ export function initPanels(openChangeCallback, shopHooks) {
   shopBody = document.getElementById('shop-body');
   guideBody = document.getElementById('guide-body');
   chestBody = document.getElementById('chest-body');
+  mapBody = document.getElementById('map-body');
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && open) close();
