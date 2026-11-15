@@ -304,8 +304,9 @@ const FIELD_WAITS = {
 
 // The strip's prompt hangs on the nearest ridge that still wants today's job
 // (any ridge, once the job is done). Called every step; beyond FIELD_REACH of
-// the strip's middle no ridge is in reach, so the spot is left where it lies.
-const FIELD_REACH = 9;
+// the strip's middle (its far corner, and a little) no ridge is in reach, so
+// the spot is left where it lies.
+const FIELD_REACH = Math.hypot(LAYOUT.field.length / 2, (CONFIG.farm.rows * LAYOUT.field.spacing) / 2) + 3;
 function aimFieldSpot() {
   const px = player.pos.x;
   const pz = player.pos.z;

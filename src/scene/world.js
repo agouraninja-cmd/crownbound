@@ -124,7 +124,7 @@ export function buildWorld(scene, marketToday = false) {
   // stands. main.js draws its ridges from the save and aims its prompt.
   const field = buildField();
   scene.add(field.group);
-  colliders.push(field.collider);
+  colliders.push(...field.colliders);
 
   // the chapman's cart parks by the path on market days only — no cart, no
   // collider, no prompt on other days (his wheel ruts stay painted year-round)

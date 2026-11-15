@@ -3,11 +3,12 @@ import { LAYOUT, FIELD, fieldToWorld, worldToField } from './layout.js';
 import { terrainHeight } from './terrain.js';
 import { makeRng, makeBatch, soup, tintFaces, mesh, bake, tone, hash2 } from './meshUtils.js';
 import { withWind } from './wind.js';
-import { box, cyl, WOOD, WOOD_DARK, STRAW, THATCH_PALE, ROPE, EYE } from './kit.js';
+import { box, cyl, sack, WOOD, WOOD_DARK, WOOD_PALE, STRAW, THATCH, THATCH_DARK, THATCH_PALE, ROPE, EYE } from './kit.js';
 
-// The miller's strip: a few ridges of ploughland that change with the work
-// done on them. state.js decides how each ridge looks (farmRowLooks); this
-// file only knows how to draw the seven looks:
+// The miller's strip: ridges of ploughland that change with the work done on
+// them, inside a rail fence with a gate, a hayrick and a scarecrow. state.js
+// decides how each ridge looks (farmRowLooks); this file only knows how to
+// draw the seven looks:
 //
 //   stubble  cut straw on flat, dry ground — fallow, wanting the hoe
 //   furrow   a freshly turned ridge
@@ -15,12 +16,13 @@ import { box, cyl, WOOD, WOOD_DARK, STRAW, THATCH_PALE, ROPE, EYE } from './kit.
 //   weedy    green shoots, and weeds come up among them
 //   tended   the shoots alone, taller, the earth dark with water
 //   ripe     standing wheat
-//   stook    stubble again, the sheaves stood up to dry
+//   stook    stubble again, the sheaves stood up together to dry
 //
-// The whole field is two meshes — the earth (bed, ridges, sheaves) and what
-// grows from it (straw, shoots, weeds, wheat, all leaning with the wind) —
-// rebuilt from nothing whenever a ridge changes, which is a few times a day.
-// Everything is built in world coordinates, as the wind shader expects.
+// The crop is two meshes — the earth (bed, ridges, sheaves) and what grows
+// from it (straw, shoots, weeds, wheat, all leaning with the wind) — put
+// together again whenever a ridge changes, which is a few times a day. What
+// grows on one ridge under one look is worked out once and kept. Everything
+// is built in world coordinates, as the wind shader expects.
 
 const TAU = Math.PI * 2;
 const HL = FIELD.halfLength;
@@ -28,8 +30,8 @@ const HW = FIELD.halfWidth;
 const SPACING = LAYOUT.field.spacing;
 
 // heights above the ground
-const LIP = 0.3; // the bed's edge slopes into the ground this far out
-const SUNK = -0.1; // ...ending this far under it
+const LIP = 0.45; // the bed's ragged edge runs out about this far
+const SUNK = -0.1; // ...ending this far under the ground
 const TROUGH = 0.06; // between ridges
 const CREST = 0.19; // a ridge's top
 const FLAT = 0.085; // unploughed ground
@@ -44,11 +46,11 @@ const EARTH = {
   tended: 0x3d2c1f, // watered
   ripe: 0x5d4830,
 };
-const HEADLAND = 0x6b553b; // the trodden edge
+const HEADLAND = 0x6e5940; // the bed's edge: the same trodden earth the ground is painted with
 
-const rgb = (hex) => {
+const rgb = (hex, k = 1) => {
   const c = new THREE.Color(hex);
-  return [c.r, c.g, c.b];
+  return [c.r * k, c.g * k, c.b * k];
 };
 const STRAW_ROOT = rgb(0xa08a52);
 const STRAW_TIP = rgb(0xdcc680);
@@ -58,10 +60,10 @@ const SHOOT_TIP = rgb(0xa2cc5e);
 const WEED_ROOT = rgb(0x2f4c26);
 const WEED_TIP = rgb(0x6c8a3a);
 const WEED_FLOWER = rgb(0xe6cb3c);
-const STALK_ROOT = rgb(0x9a8a3e);
-const STALK_TIP = rgb(0xd9b550);
-const EAR = rgb(0xe2bf55);
-const EAR_TIP = rgb(0xf3de8e);
+// no two stalks of wheat quite the same gold: a few shades to draw from,
+// each [root, tip, ear, ear's tip]
+const WHEAT = [0.86, 0.94, 1, 1.06, 1.12].map((k) => [rgb(0x9a8a3e, k), rgb(0xd9b550, k), rgb(0xe2bf55, k), rgb(0xf3de8e, k)]);
+WHEAT.push([rgb(0x7f9040), rgb(0xc9b452), rgb(0xd6c05a), rgb(0xeedc8c)]); // a late one, still a little green
 
 // ---------- the earth ----------
 
@@ -76,6 +78,8 @@ function earthRise(looks, u, v) {
 }
 
 // The bed as a faceted heightfield laid over the ground, one colour a facet.
+// Its outermost ring of points is pushed out by uneven amounts and sunk into
+// the ground, so the ploughland ends in a ragged edge, not a ruled line.
 function earthGeometry(looks) {
   const us = [-HL - LIP];
   for (let u = -HL; u < HL + 1e-3; u += 0.4) us.push(u);
@@ -83,13 +87,18 @@ function earthGeometry(looks) {
   const vs = [-HW - LIP];
   for (let v = -HW; v < HW + 1e-3; v += SPACING / 4) vs.push(v);
   vs.push(HW + LIP);
+  const lastI = us.length - 1;
+  const lastJ = vs.length - 1;
 
   // every grid point once, in the world
   const pts = us.map((u, i) =>
     vs.map((v, j) => {
-      const w = fieldToWorld(u, v);
-      const onBed = i > 0 && i < us.length - 1 && j > 0 && j < vs.length - 1;
-      const rough = onBed ? (hash2(i * 7 + 3, j * 11 + 5) - 0.5) * 0.035 : 0; // worked by hand, not by rule
+      const onBed = i > 0 && i < lastI && j > 0 && j < lastJ;
+      const ragged = LIP * (hash2(i * 5 + 1, j * 3 + 7) * 1.5 - 0.6); // further out here, tucked in there
+      const pu = i === 0 ? u - ragged : i === lastI ? u + ragged : u;
+      const pv = j === 0 ? v - ragged : j === lastJ ? v + ragged : v;
+      const w = fieldToWorld(pu, pv);
+      const rough = onBed ? (hash2(i * 7 + 3, j * 11 + 5) - 0.5) * 0.04 : 0; // worked by hand, not by rule
       return [w.x, terrainHeight(w.x, w.z) + earthRise(looks, u, v) + rough, w.z];
     })
   );
@@ -107,14 +116,14 @@ function earthGeometry(looks) {
       c.set(EARTH[looks[row]]);
       if (RIDGED.has(looks[row])) c.multiplyScalar(t > 0.5 ? 0.8 : 1.08); // dark in the trough, lit on the crest
     }
-    c.multiplyScalar(0.88 + hash2(key, key * 3 + 1) * 0.24);
+    c.multiplyScalar(0.86 + hash2(key, key * 3 + 1) * 0.28);
     for (const p of [a, b, d]) {
       position.push(p[0], p[1], p[2]);
       color.push(c.r, c.g, c.b);
     }
   };
-  for (let i = 0; i < us.length - 1; i++) {
-    for (let j = 0; j < vs.length - 1; j++) {
+  for (let i = 0; i < lastI; i++) {
+    for (let j = 0; j < lastJ; j++) {
       const uc = (us[i] + us[i + 1]) / 2;
       const vc = (vs[j] + vs[j + 1]) / 2;
       const key = i * 53 + j;
@@ -129,24 +138,30 @@ function earthGeometry(looks) {
   return geo;
 }
 
-// A bound sheaf stood on end: a straw skirt, and a head of ears flaring above the tie.
+// A stook: four bound sheaves leaned head to head, the way they were stood to dry.
 function addStook(batch, rng, u, v) {
   const w = fieldToWorld(u, v);
-  const place = { x: w.x, y: terrainHeight(w.x, w.z) + FLAT - 0.02, z: w.z, ry: rng() * TAU, rz: (rng() - 0.5) * 0.16, s: 1.25 };
-  const skirt = soup(new THREE.CylinderGeometry(0.075, 0.2, 0.44, 6));
-  skirt.translate(0, 0.22, 0);
-  const head = soup(new THREE.CylinderGeometry(0.19, 0.075, 0.24, 6));
-  head.translate(0, 0.56, 0);
-  const shade = 0.9 + rng() * 0.2;
-  for (const [geo, hex] of [[skirt, STRAW], [head, THATCH_PALE]]) {
-    tintFaces(geo, (x, y, z, ny, out) => out.set(hex).multiplyScalar(shade * (0.86 + hash2(Math.round(x * 90 + y * 40), Math.round(z * 90)) * 0.26)));
-    batch.add(geo, place);
+  const y = terrainHeight(w.x, w.z) + FLAT - 0.03;
+  const turn = rng() * TAU;
+  for (let k = 0; k < 4; k++) {
+    const lean = 0.3 + rng() * 0.08;
+    const shade = 0.88 + rng() * 0.24;
+    const skirt = soup(new THREE.CylinderGeometry(0.06, 0.15, 0.62, 5, 1, true)); // butt on the ground, bound near the top
+    skirt.translate(0, 0.31, 0);
+    const ears = soup(new THREE.CylinderGeometry(0.15, 0.06, 0.26, 5)); // the heads, flaring above the tie
+    ears.translate(0, 0.74, 0);
+    for (const [geo, hex] of [[skirt, STRAW], [ears, THATCH_PALE]]) {
+      geo.rotateZ(lean); // tipped in toward the others...
+      geo.translate(0.24, 0, 0); // ...from where its butt stands
+      tintFaces(geo, (fx, fy, fz, ny, out) => out.set(hex).multiplyScalar(shade * (0.86 + hash2(Math.round(fx * 90 + fy * 40), Math.round(fz * 90)) * 0.26)));
+      batch.add(geo, { x: w.x, y, z: w.z, ry: turn + k * (TAU / 4) });
+    }
   }
 }
 
 // ---------- what grows ----------
 
-// Collects blades for one mesh: plain triangles carrying a colour and a wind weight.
+// Collects blades: plain triangles carrying a colour and a wind weight.
 function makeGrowth() {
   const position = [];
   const color = [];
@@ -157,6 +172,9 @@ function makeGrowth() {
     sway.push(s);
   };
   return {
+    position,
+    color,
+    sway,
     // one blade rooted at (x, y, z): `h` tall, `w` to each side of its root,
     // its tip leaning `lean` off the upright. ang turns it about the upright.
     blade(x, y, z, ang, w, h, lean, root, tip, free) {
@@ -186,16 +204,6 @@ function makeGrowth() {
       vert(ex, y + h, ez, to, free);
       vert(mx - ax, my, mz - az, from, free * 0.95);
     },
-    build() {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
-      geo.setAttribute('color', new THREE.Float32BufferAttribute(color, 3));
-      geo.setAttribute('sway', new THREE.Float32BufferAttribute(sway, 1));
-      return geo;
-    },
-    get count() {
-      return sway.length;
-    },
   };
 }
 
@@ -212,8 +220,9 @@ function alongRidge(rng, looks, row, offsets, step, jostle, plant) {
   }
 }
 
-// ...and at `count` spots strewn anywhere across it.
-function acrossRidge(rng, looks, row, count, reach, plant) {
+// ...and at spots strewn anywhere across it, `perUnit` of them to each unit of its length.
+function acrossRidge(rng, looks, row, perUnit, reach, plant) {
+  const count = Math.round(perUnit * HL * 2);
   for (let n = 0; n < count; n++) {
     const uu = (rng() * 2 - 1) * (HL - 0.3);
     const vv = FIELD.rowV(row) + (rng() * 2 - 1) * reach;
@@ -223,12 +232,12 @@ function acrossRidge(rng, looks, row, count, reach, plant) {
 }
 
 const stubs = (g, rng, looks, row) =>
-  alongRidge(rng, looks, row, [-0.26, 0, 0.26], 0.17, 0.05, (x, y, z) => {
+  alongRidge(rng, looks, row, [-0.34, -0.12, 0.1, 0.32], 0.16, 0.06, (x, y, z) => {
     g.blade(x, y, z, rng() * TAU, 0.017, 0.07 + rng() * 0.08, (rng() - 0.5) * 0.05, STRAW_ROOT, STRAW_TIP, 0.15);
   });
 
 const shoots = (g, rng, looks, row, height, blades) =>
-  alongRidge(rng, looks, row, [-0.1, 0.1], 0.1, 0.035, (x, y, z) => {
+  alongRidge(rng, looks, row, [-0.24, -0.08, 0.08, 0.24], 0.1, 0.04, (x, y, z) => {
     const turn = rng() * TAU;
     for (let b = 0; b < blades; b++) {
       g.blade(x, y, z, turn + (b / blades) * Math.PI, 0.022, height * (0.75 + rng() * 0.5), (rng() - 0.5) * 0.1, SHOOT_ROOT, SHOOT_TIP, 0.55);
@@ -240,7 +249,7 @@ const GROWS = {
   stubble(g, rng, looks, row) {
     stubs(g, rng, looks, row);
     // a fallow strip does not stay clean
-    acrossRidge(rng, looks, row, 5, 0.42, (x, y, z) => {
+    acrossRidge(rng, looks, row, 0.9, 0.45, (x, y, z) => {
       const turn = rng() * TAU;
       for (let b = 0; b < 4; b++) g.blade(x, y, z, turn + b * 0.9, 0.03, 0.1 + rng() * 0.1, (rng() - 0.5) * 0.16, WEED_ROOT, WEED_TIP, 0.5);
     });
@@ -248,13 +257,13 @@ const GROWS = {
   furrow() {},
   sown(g, rng, looks, row) {
     // seed lying where it fell: flecks too small to stand
-    acrossRidge(rng, looks, row, 60, 0.3, (x, y, z) => {
+    acrossRidge(rng, looks, row, 10, 0.34, (x, y, z) => {
       g.blade(x, y + 0.04, z, rng() * TAU, 0.022, 0.004, 0.045, SEED, SEED, 0);
     });
   },
   weedy(g, rng, looks, row) {
     shoots(g, rng, looks, row, 0.17, 2);
-    acrossRidge(rng, looks, row, 15, 0.45, (x, y, z) => {
+    acrossRidge(rng, looks, row, 2.6, 0.47, (x, y, z) => {
       const turn = rng() * TAU;
       let tip = null;
       for (let b = 0; b < 5; b++) tip = g.blade(x, y, z, turn + b * 1.3, 0.04, 0.17 + rng() * 0.15, (rng() - 0.5) * 0.24, WEED_ROOT, WEED_TIP, 0.6);
@@ -265,17 +274,122 @@ const GROWS = {
     shoots(g, rng, looks, row, 0.3, 3);
   },
   ripe(g, rng, looks, row) {
-    alongRidge(rng, looks, row, [-0.27, -0.09, 0.09, 0.27], 0.12, 0.045, (x, y, z) => {
+    // sown thick enough that the ridges close over into one standing crop
+    alongRidge(rng, looks, row, [-0.4, -0.24, -0.08, 0.08, 0.24, 0.4], 0.13, 0.06, (x, y, z) => {
+      const [root, tip, ear, earTip] = WHEAT[Math.floor(rng() * WHEAT.length)];
       const ang = rng() * TAU;
-      const lean = (rng() - 0.5) * 0.22;
-      const tip = g.blade(x, y, z, ang, 0.026, 0.72 + rng() * 0.24, lean, STALK_ROOT, STALK_TIP, 0.85);
-      g.kite(tip, ang, 0.034, 0.17, lean * 0.5, EAR, EAR_TIP, 1);
+      const lean = (rng() - 0.5) * 0.24;
+      const top = g.blade(x, y, z, ang, 0.027, 0.7 + rng() * 0.28, lean, root, tip, 0.85);
+      g.kite(top, ang, 0.034, 0.17, lean * 0.5, ear, earTip, 1);
     });
   },
   stook(g, rng, looks, row) {
     stubs(g, rng, looks, row);
   },
 };
+const LOOKS = Object.keys(GROWS);
+
+// ---------- the yard: fence, gate, hayrick ----------
+
+// A timber from a to b (Vector3s in the world), `w` wide and `d` deep.
+function timber(g, a, b, w, d, color) {
+  const m = mesh(box(a.distanceTo(b), w, d), color);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), b.clone().sub(a).normalize());
+  g.add(m);
+}
+
+// a point in the yard, by field coordinates, `up` above the ground there
+function yardPoint(u, v, up = 0) {
+  const w = fieldToWorld(u, v);
+  return new THREE.Vector3(w.x, terrainHeight(w.x, w.z) + up, w.z);
+}
+
+// The rail fence round the headland, with a gap for the gate in the middle
+// of its village-ward side. Returns the circles that keep the player out:
+// rails cannot collide as boxes (the field is turned on the map), so each
+// run is a string of small circles too close together to pass between.
+function buildFence(g, rng) {
+  const X = HL + FIELD.margin;
+  const Y = HW + FIELD.margin;
+  const G = FIELD.gateHalf;
+  const colliders = [];
+  const posted = new Set();
+
+  const post = (u, v) => {
+    const key = `${u.toFixed(2)},${v.toFixed(2)}`;
+    if (posted.has(key)) return;
+    posted.add(key);
+    const p = yardPoint(u, v, 0.4);
+    g.add(mesh(cyl(0.045, 0.062, 1.1, 5), tone(WOOD_DARK, 0.9 + rng() * 0.3), { x: p.x, y: p.y, z: p.z, rx: (rng() - 0.5) * 0.08, rz: (rng() - 0.5) * 0.08 }));
+  };
+
+  // one straight run of fence: posts a couple of strides apart, two rails between
+  const run = (u0, v0, u1, v1) => {
+    const len = Math.hypot(u1 - u0, v1 - v0);
+    const bays = Math.max(1, Math.round(len / 1.7));
+    for (let k = 0; k <= bays; k++) {
+      const t = k / bays;
+      post(u0 + (u1 - u0) * t, v0 + (v1 - v0) * t);
+      if (k === bays) break;
+      const t1 = (k + 1) / bays;
+      for (const h of [0.36, 0.74]) {
+        // split rails: none quite level, none quite the same wood
+        const a = yardPoint(u0 + (u1 - u0) * t, v0 + (v1 - v0) * t, h + (rng() - 0.5) * 0.07);
+        const b = yardPoint(u0 + (u1 - u0) * t1, v0 + (v1 - v0) * t1, h + (rng() - 0.5) * 0.07);
+        timber(g, a, b, 0.07, 0.045, tone(rng() < 0.5 ? WOOD : WOOD_PALE, 0.85 + rng() * 0.3));
+      }
+    }
+    for (let d = 0; d <= len; d += 0.4) {
+      const w = fieldToWorld(u0 + ((u1 - u0) * d) / len, v0 + ((v1 - v0) * d) / len);
+      colliders.push({ x: w.x, z: w.z, r: 0.22 });
+    }
+  };
+
+  run(-X, -Y, -G, -Y); // the village-ward side, either hand of the gate
+  run(G, -Y, X, -Y);
+  run(X, -Y, X, Y);
+  run(X, Y, -X, Y);
+  run(-X, Y, -X, -Y);
+
+  // the gate: a hurdle hung on the left-hand post, standing open into the yard
+  const swing = 1.25; // how far it stands open
+  const far = [-G + Math.cos(swing) * (G * 2 - 0.15), -Y + Math.sin(swing) * (G * 2 - 0.15)];
+  const hinge = (up) => yardPoint(-G, -Y, up);
+  const latch = (up) => yardPoint(far[0], far[1], up);
+  const GATE_WOOD = tone(WOOD_PALE, 0.95);
+  timber(g, latch(0.12), latch(0.95), 0.06, 0.06, GATE_WOOD); // the far stile
+  for (const h of [0.22, 0.5, 0.82]) timber(g, hinge(h), latch(h), 0.06, 0.035, tone(GATE_WOOD, 0.9 + rng() * 0.2));
+  timber(g, hinge(0.22), latch(0.82), 0.05, 0.03, tone(GATE_WOOD, 0.85)); // the brace
+  for (let d = 0.5; d < G * 2; d += 0.45) {
+    const w = fieldToWorld(-G + Math.cos(swing) * d, -Y + Math.sin(swing) * d);
+    colliders.push({ x: w.x, z: w.z, r: 0.2 });
+  }
+
+  // a couple of seed sacks set down inside the gate
+  const s1 = yardPoint(G + 0.55, -Y + 0.5);
+  sack(g, { x: s1.x, y: s1.y, z: s1.z, r: 0.26 });
+  const s2 = yardPoint(G + 1.1, -Y + 0.42);
+  sack(g, { x: s2.x, y: s2.y, z: s2.z, r: 0.22, color: tone(STRAW, 0.88), lean: 0.3 });
+  return colliders;
+}
+
+// Last year's straw, ricked outside the fence by the gate: a round stack
+// under a thatched cap, a pole through the top to hold it against the wind.
+function buildHayrick(g, rng) {
+  const at = yardPoint(4.6, -(HW + FIELD.margin) - 2.1);
+  const body = mesh(cyl(1.05, 0.95, 1.15, 9), tone(STRAW, 0.95), { x: at.x, y: at.y + 0.5, z: at.z, ry: rng() });
+  const eave = mesh(cyl(1.22, 1.12, 0.14, 9), tone(THATCH_DARK, 0.95), { x: at.x, y: at.y + 1.12, z: at.z });
+  const cap = mesh(new THREE.ConeGeometry(1.2, 1.05, 9), THATCH, { x: at.x, y: at.y + 1.7, z: at.z, ry: 0.2 });
+  g.add(body, eave, cap);
+  g.add(mesh(cyl(0.025, 0.03, 0.5, 5), WOOD_DARK, { x: at.x, y: at.y + 2.35, z: at.z }));
+  // straw pulled from its foot and left lying
+  for (let k = 0; k < 5; k++) {
+    const a = rng() * TAU;
+    g.add(mesh(box(0.5 + rng() * 0.3, 0.06, 0.2), tone(STRAW, 0.85 + rng() * 0.3), { x: at.x + Math.cos(a) * 1.15, y: at.y + 0.04, z: at.z + Math.sin(a) * 1.15, ry: rng() * TAU }));
+  }
+  return { x: at.x, z: at.z, r: 1.08 };
+}
 
 // ---------- the scarecrow ----------
 
@@ -323,19 +437,42 @@ export function buildField() {
   growth.visible = false; // nothing to show until the first draw()
   group.add(growth);
 
-  // the scarecrow stands past the far end of the ridges, looking back at the village
+  // fence, gate, sacks and hayrick: placed piece by piece in the world, then baked to a couple of draw calls
+  const yard = new THREE.Group();
+  const yardRng = makeRng(8128);
+  const colliders = buildFence(yard, yardRng);
+  colliders.push(buildHayrick(yard, yardRng));
+  group.add(bake(yard));
+
+  // the scarecrow stands on the far headland, looking back down the ridges toward the village
   const scarecrow = buildScarecrow();
-  const at = fieldToWorld(HL + 0.95, 0.8);
+  const at = fieldToWorld(HL + 0.7, 1.5);
   scarecrow.position.set(at.x, terrainHeight(at.x, at.z), at.z);
   scarecrow.rotation.y = LAYOUT.field.rotY - Math.PI / 2;
   group.add(scarecrow);
+  colliders.push({ x: at.x, z: at.z, r: 0.2 }); // his stake
+
+  // what grows on ridge `row` under `look`: worked out once, then kept. Each
+  // ridge-and-look has its own stream, so working one never reshuffles another.
+  const grown = new Map();
+  function growthOf(look, row) {
+    const key = row * LOOKS.length + LOOKS.indexOf(look);
+    if (!grown.has(key)) {
+      const g = makeGrowth();
+      const one = Array.from({ length: FIELD.rows }, () => look); // only this ridge's own look matters to it
+      GROWS[look](g, makeRng(4100 + row * 97 + LOOKS.indexOf(look) * 13), one, row);
+      grown.set(key, { position: new Float32Array(g.position), color: new Float32Array(g.color), sway: new Float32Array(g.sway) });
+    }
+    return grown.get(key);
+  }
 
   let drawn = [];
 
   return {
     group,
     rows: FIELD.rows,
-    collider: { x: at.x, z: at.z, r: 0.2 }, // the scarecrow's stake
+    at: { x: LAYOUT.field.x, z: LAYOUT.field.z }, // the strip's middle
+    colliders,
 
     // Redraw the strip: one look name per ridge, first to last.
     draw(looks) {
@@ -343,14 +480,11 @@ export function buildField() {
 
       const solid = makeBatch();
       solid.add(earthGeometry(looks));
-      const sprouting = makeGrowth();
       looks.forEach((look, row) => {
-        // each ridge and look has its own stream, so working one ridge never reshuffles another
-        const rng = makeRng(4100 + row * 97 + Object.keys(GROWS).indexOf(look) * 13);
-        GROWS[look](sprouting, rng, looks, row);
-        if (look === 'stook') for (const u of [-HL * 0.5, HL * 0.42]) addStook(solid, rng, u + (rng() - 0.5) * 0.5, FIELD.rowV(row));
+        if (look !== 'stook') return;
+        const rng = makeRng(5200 + row * 31);
+        for (let u = -HL + 1.6 + rng() * 0.8; u < HL - 0.8; u += 3 + rng() * 0.8) addStook(solid, rng, u, FIELD.rowV(row) + (rng() - 0.5) * 0.2);
       });
-
       if (earth) {
         group.remove(earth);
         earth.geometry.dispose();
@@ -358,9 +492,26 @@ export function buildField() {
       earth = solid.build(earthMat);
       group.add(earth);
 
+      // the ridges' growth, laid end to end in one geometry
+      const parts = looks.map((look, row) => growthOf(look, row));
+      const total = parts.reduce((n, p) => n + p.sway.length, 0);
+      const position = new Float32Array(total * 3);
+      const color = new Float32Array(total * 3);
+      const sway = new Float32Array(total);
+      let o = 0;
+      for (const p of parts) {
+        position.set(p.position, o * 3);
+        color.set(p.color, o * 3);
+        sway.set(p.sway, o);
+        o += p.sway.length;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(position, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(color, 3));
+      geo.setAttribute('sway', new THREE.BufferAttribute(sway, 1));
       growth.geometry.dispose();
-      growth.geometry = sprouting.build();
-      growth.visible = sprouting.count > 0;
+      growth.geometry = geo;
+      growth.visible = total > 0;
     },
 
     // what is drawn now (the smoke suite reads this)

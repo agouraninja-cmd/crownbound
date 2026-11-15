@@ -157,7 +157,7 @@ export const CONFIG = {
   // sow, tend, reap — so the crop grows only across the days you turn up.
   // It pays the purse and never a virtue: no XP is earned in the field.
   farm: {
-    rows: 5, // ridges in the strip; a day's job is every one of them
+    rows: 10, // ridges in the strip; a day's job is every one of them
     wage: 4, // coins for a finished day of tilling, sowing or weeding
     harvestPay: 20, // coins when the wheat is brought in
     strokes: 3, // blows of the hoe (casts of seed, cuts of the sickle) to work one ridge

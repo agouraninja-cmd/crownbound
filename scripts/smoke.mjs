@@ -1763,13 +1763,13 @@ try {
     const standAt = (row) =>
       page.evaluate((r) => {
         const g = window.__game;
-        const p = g.field.nearestOnRow(r, 11, -9);
+        const p = g.field.nearestOnRow(r, g.field.at.x, g.field.at.z);
         g.player.pos.x = p.x + 0.35;
         g.player.pos.z = p.z + 0.3;
       }, row);
     const until = (fn, arg, ms = 15000) => page.waitForFunction(fn, { timeout: ms, polling: 100 }, arg).then(() => true, () => false);
-    const all = (looks, name) => looks.length === 5 && looks.every((l) => l === name);
     const rows = await page.evaluate(() => window.__game.CONFIG.farm.rows);
+    const all = (looks, name) => looks.length === rows && looks.every((l) => l === name);
     const wage = await page.evaluate(() => window.__game.CONFIG.farm.wage);
     const harvestPay = await page.evaluate(() => window.__game.CONFIG.farm.harvestPay);
 
@@ -1810,7 +1810,7 @@ try {
       errors.push(`farm: prompt "${one.prompt}" on ridge ${one.promptRow} — should offer a ridge still untilled`);
 
     // 4) the other ridges: the last one finishes the job and the miller pays, once
-    for (const row of [0, 1, 3, 4]) {
+    for (const row of Array.from({ length: rows }, (_, r) => r).filter((r) => r !== 2)) {
       await standAt(row);
       await until((r) => window.__game.field.spot.row === r, row, 5000);
       await page.keyboard.press('KeyE');
@@ -1935,14 +1935,14 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
-    // for the eye: a strip half brought in, the sickle mid-cut
+    // for the eye: a strip part brought in, the sickle mid-cut, seen from the gate side
     await page.evaluate(() => {
       const g = window.__game;
-      g.field.draw(['stook', 'stook', 'ripe', 'ripe', 'ripe']);
-      const p = g.field.nearestOnRow(2, 10.2, -8.2);
-      g.player.pos.x = p.x - 0.24; // in the stubble, facing the standing wheat
-      g.player.pos.z = p.z - 0.66;
-      g.orbitCam.setView(-2.45, 0.32, 4.2); // from the reaped side
+      g.field.draw(g.field.looks().map((_, r) => (r < 3 ? 'stook' : 'ripe')));
+      const p = g.field.nearestOnRow(3, g.field.at.x - 2, g.field.at.z);
+      g.player.pos.x = p.x - 0.4; // in the stubble, facing the standing wheat
+      g.player.pos.z = p.z - 0.58;
+      g.orbitCam.setView(-2.75, 0.36, 6.5);
       g.CONFIG.farm.strokeTime = 4; // hold the pose for the camera
       g.player.startWork('reap', p.x, p.z);
     });
