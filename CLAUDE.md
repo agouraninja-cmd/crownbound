@@ -438,6 +438,10 @@ ideas there, named, rather than here.
 - Ask before adding any feature not in the spec. Scope discipline is a feature.
 - Readable code over clever code — this will be iterated on for a year.
 - Commit after each milestone. Keep the Build status below current so any session can resume instantly.
+- Publish without asking (the owner, 2026-11-15: "commit, push, merge and deploy whatever I tell
+  you to do to save time"). When requested work is done and the smoke suite passes: commit,
+  push `main` (merge `origin/main` first if the push is refused — never force-push `main`),
+  and deploy to Pages by the recipe in Session notes. Say plainly if a step failed.
 
 ## Build status
 - [x] M1 — Scaffold + world scene (terrain, lighting, trees, structures), camera orbiting idle character
