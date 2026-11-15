@@ -13,6 +13,7 @@ Each entry has a name, the idea as the owner gave it, then the questions it leav
 | **The Homelands** | Kingdoms shape A: kingdoms are real-life places |
 | **The Four Crowns** | Kingdoms shape B: four kingdoms you choose between, for good |
 | **The Four Realms** | Each kingdom has its own map — and its own kind, era or species |
+| **The Trials** | Challenges set by the Crownbound devs, with groups anyone can join |
 
 The Homelands and The Four Crowns are two different answers to the same question — what a
 kingdom *is*. They are alternatives; the owner has not picked one.
@@ -122,3 +123,30 @@ Open questions:
 - Whether the differences are looks only, or change how a kingdom plays.
 - The art cost: today everything is one hand-built low-poly medieval village. Four distinct
   realms is four times the world, and another era or species means new buildings and figures.
+
+---
+
+## The Trials — challenges set by the devs, with groups to join
+
+*Noted 2026-11-15.*
+
+- **Challenges created by the Crownbound devs** — for example, a set number of hours playing
+  or practising tennis.
+- Completing a challenge **gives rewards**.
+- Players can **join the groups** that take on a challenge, so it is done alongside others.
+
+Open questions:
+- What the rewards are — coins, gear, a title or trophy, a look for the hovel — and how they
+  keep the sacred rule: coins buy comfort, never virtue. Does the deed itself still earn its
+  XP through the Quest Board as usual, with the challenge reward on top?
+- How a challenge is measured: hours logged by hand (honor system), a count of deeds, or the
+  Sage reading the quest text? Today a quest records a deed, not how long it took.
+- Is a group just people on the same challenge, or something more — a shared tally, a group
+  goal everyone fills, a leaderboard, chat?
+- How often new challenges appear (weekly, monthly, seasonal) and how long each runs.
+- Can players make their own challenges too, or only the devs?
+- How this relates to Kingdoms — could a kingdom field a group, or a challenge feed the
+  yearly war in The Four Crowns?
+- Everything technical, as with Kingdoms: the devs publishing challenges to every player and
+  players joining groups both need a server and accounts; today the game lives only in the
+  player's own browser.
