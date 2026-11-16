@@ -16,7 +16,7 @@ happens the moment the character reaches King** (70 total virtue levels).
   v2's villagers will reuse this plumbing. Model + tuning in CONFIG.sage.
 - All art is procedural low-poly geometry, flat-shaded, warm earth tones under a painterly sky.
   No model files and no image files — the one texture is a soft round dot drawn on a canvas at
-  load (sprites.js).
+  load (sprites.js). Pictures in the UI (the Map, the shop's wares) are SVG built in code.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
 - Persistence: localStorage key `crownbound_save`, `saveVersion: 12`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
@@ -69,6 +69,7 @@ src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest, Map panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
+src/ui/wares.js       pictures of the chapman's wares: one small ink-and-wash SVG per shop item, drawn in code
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
 ```
 
@@ -227,6 +228,15 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   outgrows one cart-load — all nine items show every market day. Market-day status is fixed per
   load, like rollover. On non-market days the cart, its colliders, and its prompt don't exist;
   only the wheel-rut dirt patch remains.
+- The wares have pictures (2026-11-16, the owner: "Add pictures of each item in the chapman's
+  cart"). Each shop row shows a 60px ink-and-wash drawing beside its name — the Map's style, an
+  SVG string from `warePicture(id)` in src/ui/wares.js, no image file. The washes are the
+  colours the item wears in the 3D world (the cudgel's dark oak, the rug's madder and gold, the
+  oxblood door), so the picture matches what turns up in the hand or the hovel. A ware above
+  the player's rank is shown faded. The pictures carry no ids or gradients (nine share one
+  page). A new item in `shop.items` still sells without a picture (warePicture returns '');
+  give it one by adding a drawing to `PICTURES` under its id. Only the shop shows them — the
+  Chest panel still lists its weapons and loaves as text.
 - The miller lives in his granary yard, home post (9.0, 9.3) — the rat bounty's flavor text made
   flesh. Third mute villager, v2 NPC candidate alongside the clerk and chapman. E opens no panel:
   it toasts a one-line tally of today's ratsKilled (`millerGreeting()` in main.js).
@@ -696,6 +706,13 @@ headlessly; everything else covered by the regression suite below.
   21 scenarios pass (cloud container, headless Chromium, run on top of The Long Road). Not yet seen on the owner's machine.
   Details: "The Map of the Kingdom" under Noted decisions.
 
+- [x] Post-v1 — "The Chapman's Pictures" (2026-11-16): every ware on the cart has a picture —
+  an ink-and-wash drawing beside its row in the shop (the cudgel, the quarterstaff, the rug,
+  the door paint, the glass pane, the garden plot, the loaf, the mounted rat, the candle
+  lantern), drawn in code like the Map; wares above the player's rank are faded. No save
+  change. `market` smoke scenario checks each ware has its picture and screenshots the panel.
+  Details: "The wares have pictures" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -724,7 +741,8 @@ headlessly; everything else covered by the regression suite below.
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
-  `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
+  `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture drawn (shop
+  panel → scripts/smoke-shop.png) + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
   damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
   `crown` v5→current migration (incl. best owned weapon → chest.wielded, str's level

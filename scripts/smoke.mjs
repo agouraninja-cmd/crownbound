@@ -1732,6 +1732,16 @@ try {
     if (await page.evaluate(() => document.getElementById('shop-panel').classList.contains('hidden')))
       errors.push('market: E by the cart did not open the shop');
 
+    // 2b) every ware in the catalogue has its picture drawn beside it
+    const pictures = await page.evaluate(() =>
+      window.__game.CONFIG.shop.items.map((item) => {
+        const svg = document.querySelector(`#shop-body .ware-pic[title="${item.name}"] svg`);
+        return { id: item.id, drawn: svg ? svg.querySelectorAll('path, rect, circle, ellipse').length : 0 };
+      })
+    );
+    console.log('pictures:', JSON.stringify(pictures));
+    for (const p of pictures) if (p.drawn < 5) errors.push(`market: ${p.id} has no picture in the shop`);
+
     // 3) buy the rug: coins drop, ownership sticks, the hovel shows it
     await page.click('[data-buy="rug"]');
     await new Promise((r) => setTimeout(r, 200));
@@ -1757,6 +1767,8 @@ try {
     console.log('staff gate:', JSON.stringify(staff));
     if (staff.buyable) errors.push('market: quarterstaff sold to a Peasant');
     if (!staff.gated) errors.push('market: quarterstaff gate not shown');
+    // the shop with its pictures: the rug owned, the quarterstaff faded behind its gate
+    await (await page.$('#shop-panel')).screenshot({ path: 'scripts/smoke-shop.png' });
 
     // 5) the cudgel arms the player
     await page.click('[data-buy="cudgel"]');

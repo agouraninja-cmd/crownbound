@@ -30,6 +30,7 @@ import { mouseFeelId, setMouseFeel } from '../state/prefs.js';
 import { todayStr } from '../state/dates.js';
 import { renderGuide } from './guide.js';
 import { renderMap } from './map.js';
+import { warePicture } from './wares.js';
 import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
@@ -733,7 +734,8 @@ function renderShop() {
         else
           action = `<button data-buy="${item.id}" ${s.coins < item.price || larderFull ? 'disabled' : ''}
             title="${larderFull ? 'Thy chest&#8217;s larder is full.' : ''}">${item.price}c</button>`;
-        return `<div class="deed">
+        return `<div class="deed ware${locked ? ' locked' : ''}">
+          <span class="ware-pic" title="${item.name}">${warePicture(item.id, item.name)}</span>
           <span class="deed-text"><b>${item.name}</b> — <span class="muted">${item.flavor}</span></span>
           ${action}
         </div>`;

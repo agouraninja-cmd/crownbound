@@ -508,6 +508,22 @@ button:disabled {
 /* the chapman's price buttons sit at the end of a deed row */
 .deed button { flex-shrink: 0; padding: 3px 12px; font-size: 14px; align-self: center; }
 
+/* the chapman's wares, each with its picture (ink and wash, drawn in wares.js) */
+.deed.ware { align-items: center; padding: 5px 0; }
+.deed.ware .deed-tag { align-self: center; }
+.ware-pic {
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
+  border: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  background: rgba(255, 248, 220, 0.35);
+  box-shadow: inset 0 0 8px rgba(140, 105, 50, 0.18);
+}
+.ware-svg { display: block; width: 100%; height: 100%; }
+/* a ware above thy rank is shown, but faded, like a thing behind the chapman's counter */
+.deed.ware.locked .ware-pic { opacity: 0.55; filter: grayscale(0.6) sepia(0.25); }
+
 /* ---------- the Weekly Chronicle (the Chronicler's journal) ---------- */
 
 .deed-list.journal { max-height: 240px; }
