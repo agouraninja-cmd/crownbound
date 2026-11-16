@@ -1055,7 +1055,11 @@ headlessly; everything else covered by the regression suite below.
   `nextday` lets a night pass, `time 7:30` sets the hour. The owner makes commands of his own
   with `make fresh = stamina full; heal`. No rule, reward or save shape changed; the true
   world gains only the Tome's door. CROWNBOUND-Guide.docx has a section (build-guide.py).
-  New smoke scenario `proving`, which passes (cloud container, headless Chromium).
+  New smoke scenario `proving`; all 25 scenarios pass, first time (cloud container, headless
+  Chromium), and `proving`, `spent`, `tome` and the render again on the final build. Seen only
+  there, not yet on the owner's screen. Untested, because headless Chromium grants no pointer
+  lock: the mouse being freed as the command line opens, and taken back by the next
+  movement key.
   Details: "The Proving Ground" under Noted decisions.
 
 ### Session notes

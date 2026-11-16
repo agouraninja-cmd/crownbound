@@ -2894,6 +2894,7 @@ try {
     await cmd('coins 5; coins 6');
     want((await st()).coins === 6, 'two commands on one line did not both run');
     want((await cmd('abracadabra')).bad, 'an unknown command was not refused');
+    want((await cmd('constructor')).bad, 'a word every object answers to was taken for an own command');
     await cmd('help');
     await page.screenshot({ path: 'scripts/smoke-proving.png' });
     const helped = await page.evaluate(() => document.querySelector('#proving-console .pc-log').textContent);
