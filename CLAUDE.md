@@ -777,8 +777,10 @@ headlessly; everything else covered by the regression suite below.
   thee, numbers live from config. No save change. `market` smoke scenario checks each ware
   has its picture and its read-more in the shop and the chest, and screenshots the shop. All
   21 scenarios pass (cloud container, headless Chromium; `house` and `exchequer` each only on
-  a re-run alone — the fixed-wait stalls described in Session notes). Not yet seen on the
-  owner's machine.
+  a re-run alone — the fixed-wait stalls described in Session notes); after merging The Cot
+  Within Reach, The Hearthside and The Honest Grip (the read-mores now send the player to
+  stand at the chest, where the cot fix moved its E), all 22 pass on the merge, first time.
+  Not yet seen on the owner's machine.
   Details: "The wares have pictures" under Noted decisions.
 
 ### Session notes
