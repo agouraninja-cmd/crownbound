@@ -13,7 +13,8 @@ import { todayStr, weekStartStr } from '../state/dates.js';
 // a week with an empty ledger costs no API call — the blank page IS the entry
 const SILENT_WEEK = 'The ledger holds no deeds for this week; the chronicler left the page blank.';
 
-const CHRONICLE_CHARGE = `You are the chronicler of a small medieval village in a life-RPG. Each week you write one short journal entry about one villager, whose real-world deeds (training, study, labor, trade, thrift) are recorded in the ledger you are given. Write 60-110 words of period prose: third person, past tense, a single paragraph. Render modern deeds in medieval terms — a gym becomes the training yard, office or computer work a guild labor, savings coin laid in the hoard. Chronicle only what the ledger shows; if it is thin, be brief. Never name a year, century or country, and mention nothing a medieval village would not know — no clocks, guns, printing, potatoes, coffee or tea. No headings, no lists, no quotation marks around the entry, no modern words.`;
+// built when asked, so the names come from CONFIG.realm
+const chronicleCharge = () => `You are the chronicler of ${CONFIG.realm.village}, a small medieval village in the kingdom of ${CONFIG.realm.kingdom}, in a life-RPG. Each week you write one short journal entry about one villager, whose real-world deeds (training, study, labor, trade, thrift) are recorded in the ledger you are given. Write 60-110 words of period prose: third person, past tense, a single paragraph. Render modern deeds in medieval terms — a gym becomes the training yard, office or computer work a guild labor, savings coin laid in the hoard. Name the village, ${CONFIG.realm.village}, at least once in every entry. Chronicle only what the ledger shows; if it is thin, be brief. Never name a year, century or country, and mention nothing a medieval village would not know — no clocks, guns, printing, potatoes, coffee or tea. No headings, no lists, no quotation marks around the entry, no modern words.`;
 
 function shiftWeek(weekStart, days) {
   const [y, m, d] = weekStart.split('-').map(Number);
@@ -74,7 +75,7 @@ async function writeProse(material) {
     const response = await client.messages.create({
       model: CONFIG.chronicler.model,
       max_tokens: CONFIG.chronicler.maxTokens,
-      system: CHRONICLE_CHARGE,
+      system: chronicleCharge(),
       messages: [{ role: 'user', content: ledgerText(material) }],
     });
     const block = response.content?.[0];

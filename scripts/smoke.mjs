@@ -353,6 +353,7 @@ try {
         }
         const bodyText = init?.body ?? (typeof input !== 'string' ? await input.clone().text() : '');
         const req = JSON.parse(bodyText);
+        sessionStorage.setItem('smoke-charge', String(req.system ?? ''));
         const ledger = String(req.messages?.[0]?.content ?? '');
         const prose = ledger.includes('tennis') ? 'He strove at the ball court.' : 'He laboured in the yard.';
         return new Response(
@@ -1215,7 +1216,11 @@ try {
       g.player.pos.x = 1.2;
       g.player.pos.z = 1.4; // by the charter post, out of the quest board's reach
     });
-    await new Promise((r) => setTimeout(r, 400));
+    // the prompt is set on the next sim step — at ~3fps in a cloud container
+    // that can be well past a fixed wait, so wait for it (up to 3s)
+    await page
+      .waitForFunction(() => document.getElementById('interact-prompt').textContent !== '', { timeout: 3000 })
+      .catch(() => {});
     const prompt = await page.evaluate(
       () => document.getElementById('interact-prompt').textContent
     );
@@ -1268,6 +1273,7 @@ try {
           plan: !!body.querySelector('svg.m-plan'),
           kingdom: body.textContent.includes(C.realm.kingdom),
           village: body.textContent.includes(C.realm.village),
+          lake: body.textContent.includes(C.realm.lake),
           home: !!body.querySelector('.m-place[data-place="home"] .m-home-ring'),
           places: body.querySelectorAll('.m-place').length,
           view: body.querySelector('.map-views button.on')?.dataset.view,
@@ -1282,6 +1288,7 @@ try {
     if (!m1.opened || m1.which !== 'map') errors.push('map: M did not open the map');
     if (!m1.realm || !m1.plan) errors.push('map: realm or village plan missing');
     if (!m1.kingdom || !m1.village) errors.push('map: the kingdom or village is not named');
+    if (!m1.lake) errors.push('map: the lake is not named');
     if (!m1.home) errors.push('map: the home village is not ringed');
     if (m1.places < 8) errors.push(`map: only ${m1.places} places on the realm`);
     if (m1.view !== 'green') errors.push(`map: plan opened on "${m1.view}" though he stands on the green`);
@@ -1672,6 +1679,12 @@ try {
     if (second.texts.length !== 1 || !second.texts[0].includes('yard'))
       errors.push(`chronicle: load 2 wrote ${JSON.stringify(second.texts)}, wanted the oldest week only`);
     if (second.calls !== 2) errors.push(`chronicle: ${second.calls} API calls by load 2 != 2`);
+    const charge = await page.evaluate(() => ({
+      text: sessionStorage.getItem('smoke-charge') || '',
+      village: window.__game.CONFIG.realm.village,
+    }));
+    if (!charge.text.includes(`Name the village, ${charge.village}`))
+      errors.push('chronicle: the chronicler is not told to name the village');
 
     // 3) then the silent week for free and the last week in prose, in order
     await reload();

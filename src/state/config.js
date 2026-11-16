@@ -5,7 +5,8 @@ export const CONFIG = {
   // player walks; the kingdom around it is drawn on the map only.
   realm: {
     kingdom: 'Aldermere',
-    village: 'Brackenley',
+    village: 'Brackenley', // the Chronicler is told to name it in every entry
+    lake: 'Lake Laney', // the great lake at the kingdom's heart
   },
   saveVersion: 12, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip
 

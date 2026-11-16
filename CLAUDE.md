@@ -439,8 +439,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   closes). No save change, no world change — the walkable world is exactly as it was. What a
   future session must know:
   - Names. The village is **Brackenley** ("the clearing among the bracken" — the flora has
-    ferns), the kingdom **Aldermere**, after the Alder Mere at its heart. Both live in
-    `CONFIG.realm`; the Charter's key list reads them. Every other place name on the map
+    ferns), the kingdom **Aldermere**, the great lake at its heart **Lake Laney** (named by the
+    owner, 2026-11-16; it was first "the Alder Mere"). All three live in `CONFIG.realm`; the
+    Charter's key list reads the first two. Every other place name on the map
     (Kingsholt the royal seat, Hollin Cross, Saltmouth, Edricminster, Wendham, Coldbrook,
     Whitwold Abbey, Fellgate; the Grimfells, the Brackenwood, Blackmoor, the King's Chase, the
     Marches, the Whale's Road) is fixed art in map.js, with a hover note each. All fictional —
@@ -459,6 +460,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     Hollin Cross and west-south-west for the Marches.
   - Wiring: panels.js `openPanel('map')` calls `renderMap(body, mapView())`; `mapView` is a hook
     main.js passes to initPanels. panels.js now exports `closePanel` and `openPanelId`.
+  - The Chronicler knows the village (2026-11-16, the owner's ask): his charge names Brackenley
+    and the kingdom from `CONFIG.realm` and tells him to name the village in every entry. The
+    `chronicle` smoke scenario checks the charge it was sent (the stub can't judge real prose).
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -688,12 +692,14 @@ headlessly; everything else covered by the regression suite below.
   and expected numbers in other scenarios were moved to the new caps. No save change.
 
 - [x] Post-v1 — "The Map of the Kingdom" (2026-11-15): M unrolls a hand-drawn map of the
-  Kingdom of Aldermere — coast and sea, the Grimfells, the Alder Mere, rivers, woods, roads,
-  the royal seat of Kingsholt and seven more places, each read aloud on hover — with the home
+  Kingdom of Aldermere — coast and sea, the Grimfells, the lake, rivers, woods, roads,
+  the royal seat of Kingsholt and seven more places, Lake Laney at its heart, each read aloud on hover — with the home
   village, Brackenley, ringed in wax. Beside it, a plan of Brackenley drawn live from the game's
   layout (buildings, real trees, today's crop on the strip, the bounds, the player's arrow), in
   two zooms. The walkable world is unchanged. No save change. New smoke scenario `map`; all
   21 scenarios pass (cloud container, headless Chromium, run on top of The Long Road). Not yet seen on the owner's machine.
+  Since then (2026-11-16): the lake renamed Lake Laney, and the Chronicler names Brackenley in
+  every entry. `map` and `chronicle` pass.
   Details: "The Map of the Kingdom" under Noted decisions.
 
 ### Session notes
