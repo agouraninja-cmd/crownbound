@@ -1020,13 +1020,24 @@ try {
     if (!open.open) errors.push('house: E near the door did not open it');
     if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
 
-    // 3) sleep: tuck-in animation plays, wounds mend, the night is marked,
-    //    you stand up by the cot
+    // 3) sleep: standing beside the cot offers it, E tucks him in (the cot's
+    //    middle can't be reached, so this once never offered sleep at all);
+    //    tuck-in animation plays, wounds mend, the night is marked, you stand
+    //    up by the cot
     await page.evaluate(() => {
       const g = window.__game;
       g.player.takeDamage(9, 0, 0);
-      g.sleepAtCot();
+      g.player.pos.x = -9.2; // local (-0.2, -0.4): the open floor at the cot's corner
+      g.player.pos.z = 1.6;
     });
+    let cotPrompt = '';
+    for (let i = 0; i < 30 && !cotPrompt.includes('straw cot'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      cotPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    }
+    console.log('cot prompt:', JSON.stringify(cotPrompt));
+    if (!cotPrompt.includes('straw cot')) errors.push(`house: cot prompt "${cotPrompt}"`);
+    await page.keyboard.press('KeyE');
     // mid-nap: poll until he lies flat — the eased pose runs on frame dt, which
     // lags wall-clock under the software renderer, so a fixed delay is flaky
     let nap = { mode: '?', lying: 0 };
@@ -1138,8 +1149,8 @@ try {
     //     covers what the chest holds)
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.4; // local (-0.4, -0.5): between chest and cot
-      g.player.pos.z = 1.5;
+      g.player.pos.x = -9.2; // local (-0.2, -0.95): the chest's corner, against the -z wall
+      g.player.pos.z = 1.05;
       g.orbitCam.setView(0, 0.6, 2); // looking past him at the chest
     });
     // poll: the software renderer can stall past a fixed wait on a fresh view
@@ -1807,8 +1818,8 @@ try {
     //     and the cudgel trade places in hand; a loaf mends the wounded
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.4; // inside the hovel, at the chest's corner
-      g.player.pos.z = 1.5;
+      g.player.pos.x = -9.2; // inside the hovel, at the chest's corner against the -z wall
+      g.player.pos.z = 1.05;
       g.player.takeDamage(6, 0, 0);
     });
     await new Promise((r) => setTimeout(r, 400));
