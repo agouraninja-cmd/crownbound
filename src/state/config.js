@@ -5,7 +5,8 @@ export const CONFIG = {
   // player walks; the kingdom around it is drawn on the map only.
   realm: {
     kingdom: 'Aldermere',
-    village: 'Brackenley',
+    village: 'Brackenley', // the Chronicler is told to name it in every entry
+    lake: 'Lake Laney', // the great lake at the kingdom's heart
   },
   saveVersion: 12, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip
 
@@ -32,10 +33,11 @@ export const CONFIG = {
     attackCost: 5,
     dodgeCost: 8,
     // the legs draw on the pool too, per second of moving on the ground
-    // (a crouched shuffle counts as walking). Spent dry he can still walk —
-    // no one is stranded far from the board — but he cannot sprint.
+    // (a crouched shuffle counts as walking). Spent dry, he is done for the
+    // day: he walks himself home to his cot and play resumes on the morrow.
     walkDrain: 0.25,
     sprintDrain: 1,
+    homewardPace: 0.8, // the weary walk home, as a share of walkSpeed
   },
 
   // The cot marks a bedtime; the next game load judges it against the dawn.
@@ -142,6 +144,13 @@ export const CONFIG = {
     attackArcDeg: 110,
     attackDuration: 0.34,
     comboWindow: 0.9, // a swing begun within this of the last one chains to the next kind of blow
+    // Standing still by the campfire, he sits down to warm himself. Looks only:
+    // no rule or reward hangs on it. Any key or click stands him up again.
+    sitDelay: 2, // seconds standing still near the fire before he sits
+    sitNear: 2.0, // ...near meaning within this of the fire's middle (the spawn, 2.2 away, is just outside)
+    sitSeat: 1.45, // where he settles from the fire's middle; nearer than this and he shuffles back
+    sitDown: 0.9, // seconds to lower himself to the ground
+    sitUp: 0.45, // seconds to get back on his feet
   },
 
   dummy: {

@@ -150,7 +150,7 @@ function realmPlaces() {
 
 const REGION_NOTES = {
   fells: 'The Grimfells — bare fells where wolves are said to run in the hard winters.',
-  mere: 'The Alder Mere — the great lake the kingdom of {K} takes its name from.',
+  mere: '{L} — the great lake at the heart of {K}, fed by the Wend off the fells.',
   brackenwood: 'The Brackenwood — oak, pine and birch over a sea of bracken. The village lies in its clearing.',
   moor: 'Blackmoor — heather and bog. Travellers keep to the road.',
   chase: 'The King’s Chase — the royal hunting forest. Its deer are the King’s, and poachers pay dearly.',
@@ -199,7 +199,7 @@ const ROADS = [
 ];
 
 const RIVERS = [
-  // the Wend: off the fells, through the mere, past Kingsholt to the sea
+  // the Wend: off the fells, through the lake, past Kingsholt to the sea
   { pts: [[500, 108], [512, 150], [530, 190]], w: 1.6 },
   { pts: [[594, 222], [636, 258], [672, 300], [705, 345], [740, 388], [790, 430], [846, 452]], w: 2.4 },
   // the Brack: out of the Brackenwood, past Coldbrook and Edricminster to the south shore
@@ -251,7 +251,7 @@ function drawRealm() {
   out.push(`<path d="${smooth([...march, [-5, 705], [-5, 112]], true)}" fill="url(#m-unknown)" data-place="marches"/>`);
   out.push(`<path d="${smooth(march)}" fill="none" stroke="${FADED}" stroke-width="1.4" stroke-dasharray="7 4 2 4"/>`);
 
-  // the Alder Mere, with its own engraved rings
+  // the great lake, with its own engraved rings
   const mereD = smooth(blobPts(...MERE, rng, 16, 0.14), true);
   out.push(`<path d="${mereD}" fill="${WATER}" fill-opacity="0.16" stroke="${INK}" stroke-width="1.3" data-place="mere"/>`);
   for (const k of [0.8, 0.6]) {
@@ -331,7 +331,7 @@ function drawRealm() {
   const region = (id, x, y, text, cls = 'm-region', extra = '') =>
     `<text x="${x}" y="${y}" class="${cls}" data-place="${id}" ${extra}>${text}</text>`;
   out.push(`<text class="m-region m-fells" data-place="fells"><textPath href="#m-fells-arc" startOffset="50%">The Grimfells</textPath></text>`);
-  out.push(region('mere', 540, 219, 'the Alder Mere', 'm-region m-water'));
+  out.push(region('mere', 540, 219, CONFIG.realm.lake, 'm-region m-water'));
   out.push(region('brackenwood', 292, 520, 'the Brackenwood'));
   out.push(region('moor', 226, 610, 'Blackmoor'));
   out.push(region('chase', 744, 176, 'the King’s Chase'));
@@ -607,7 +607,7 @@ function defaultCaption() {
 function notesById() {
   const notes = { ...siteNotes() };
   for (const p of realmPlaces()) notes[p.id] = p.note;
-  for (const [id, n] of Object.entries(REGION_NOTES)) notes[id] = n.replace('{K}', CONFIG.realm.kingdom);
+  for (const [id, n] of Object.entries(REGION_NOTES)) notes[id] = n.replace('{K}', CONFIG.realm.kingdom).replace('{L}', CONFIG.realm.lake);
   return notes;
 }
 

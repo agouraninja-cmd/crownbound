@@ -124,7 +124,7 @@ export function renderGuide(guideBody) {
     </div>
     <div class="sheet-section">
       <h2>Rewards of the Realm</h2>
-      <div class="kv"><span>Daily Quest</span><span class="v">+${R.daily.xp} XP · +${R.daily.coins} coins · refills stamina · feeds the fire</span></div>
+      <div class="kv"><span>Daily Quest</span><span class="v">+${R.daily.xp} XP · +${R.daily.coins} coins · refills stamina (unless already abed, spent) · feeds the fire</span></div>
       <div class="kv"><span>Weekly Bounty</span><span class="v">+${R.weekly.xp} XP · +${R.weekly.coins} coins · resets Monday</span></div>
       <div class="kv"><span>Monthly Campaign</span><span class="v">+${R.monthly.xp} XP · +${R.monthly.coins} coins · resets the 1st</span></div>
       <div class="kv"><span>The Epic Quest</span><span class="v">the year&#8217;s great work, reckoned by thy hand</span></div>
@@ -142,15 +142,19 @@ export function renderGuide(guideBody) {
       <h2>The Streak &amp; the Fire</h2>
       <p class="muted">Completing the daily quest claims the day. Miss a full day and the fire
       dies in the night — the streak returns to nought. Until today&#8217;s deed is done the flame
-      gutters low, a living reminder; it swells the moment the deed is logged.</p>
+      gutters low, a living reminder; it swells the moment the deed is logged.
+      Stand still beside it ${CONFIG.player.sitDelay} heartbeats and thou sittest down to warm thy
+      hands; any step raises thee again.</p>
       ${fireRows()}
     </div>
     <div class="sheet-section">
       <h2>Stamina</h2>
       <p class="muted">A daily pool spent by arms and legs alike — every step wears on it, a sprint
       the more; only a leap is free. The cap stands at ${ST.baseCap}; complete the daily quest and the
-      pool refills, the cap rising to ${ST.questCap} till nightfall. Spent dry, thou canst still walk,
-      but thy legs will not sprint nor thy arms swing until the board is answered.</p>
+      pool refills, the cap rising to ${ST.questCap} till nightfall. Spend it to the last and thy day
+      is done: thy legs carry thee home to thy cot, and thou mayst play again on the morrow. From thy
+      bed the Quest Board, the Tome and the Exchequer stay open — a deed may still be posted, though
+      it will not raise thee again till dawn.</p>
       <div class="kv"><span>a swing of the stick</span><span class="v">${ST.attackCost} stamina</span></div>
       <div class="kv"><span>a dodge-roll</span><span class="v">${ST.dodgeCost} stamina</span></div>
       <div class="kv"><span>walking</span><span class="v">${ST.walkDrain} stamina a breath (each second)</span></div>
