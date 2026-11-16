@@ -807,7 +807,9 @@ headlessly; everything else covered by the regression suite below.
   a re-run alone — the fixed-wait stalls described in Session notes); after merging The Cot
   Within Reach, The Hearthside and The Honest Grip (the read-mores now send the player to
   stand at the chest, where the cot fix moved its E), all 22 pass on the merge, first time.
-  Not yet seen on the owner's machine.
+  After merging To Bed, Spent: `market`, `spent`, `fire`, render and `house` pass on the merge
+  (`house`'s closed-door check failed twice straight after a busy run, then passed three
+  times alone — plain `main` behaved the same). Not yet seen on the owner's machine.
   Details: "The wares have pictures" under Noted decisions.
 
 ### Session notes
