@@ -16,7 +16,7 @@ happens the moment the character reaches King** (70 total virtue levels).
   v2's villagers will reuse this plumbing. Model + tuning in CONFIG.sage.
 - All art is procedural low-poly geometry, flat-shaded, warm earth tones under a painterly sky.
   No model files and no image files — the one texture is a soft round dot drawn on a canvas at
-  load (sprites.js).
+  load (sprites.js). Pictures in the UI (the Map, the shop's wares) are SVG built in code.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
 - Persistence: localStorage key `crownbound_save`, `saveVersion: 12`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
@@ -71,6 +71,7 @@ src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
+src/ui/wares.js       the wares pictured and explained: an ink-and-wash SVG per shop item + the stick, and each one's "read more" (shop + chest)
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
 ```
 
@@ -238,6 +239,27 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   outgrows one cart-load — all nine items show every market day. Market-day status is fixed per
   load, like rollover. On non-market days the cart, its colliders, and its prompt don't exist;
   only the wheel-rut dirt patch remains.
+- The wares have pictures (2026-11-16, the owner: "Add pictures of each item in the chapman's
+  cart"). Each shop row shows a 60px ink-and-wash drawing beside its name — the Map's style, an
+  SVG string from `warePicture(id)` in src/ui/wares.js, no image file. The washes are the
+  colours the item wears in the 3D world (the cudgel's dark oak, the rug's madder and gold, the
+  oxblood door), so the picture matches what turns up in the hand or the hovel. A ware above
+  the player's rank is shown faded. The pictures carry no ids or gradients (nine share one
+  page). A new item in `shop.items` still sells without a picture (warePicture returns '');
+  give it one by adding a drawing to `PICTURES` under its id. The Chest panel shows them too
+  (asked for the same day): each weapon row (the stick has its own drawing, as it is never
+  sold) and the larder's loaf, faded when the larder is empty.
+- Each ware reads more (2026-11-16, the owner: "a description of the item and how they can use
+  it in the game and how it benefits them … something they can click and read more of").
+  Clicking a ware's picture, or the "Read more ▾" after its flavor line, unfolds a box under
+  its row: a large picture, a line of what it is, "How to use it" and "What it does for thee".
+  Same in the Chest, where the cart's talk of buying (the Squire gate, "goes straight to thy
+  hand") is left out. The prose is `LORE` in wares.js; like the Charter, every number in it
+  (damage, reach, blows to fell a rat, stamina per swing, larder cap, max HP, the rank gate)
+  is read from config.js as it is shown. Every comfort says plainly it earns no XP, streak or
+  stamina — the sacred rule, told at the point of sale. Unfolded boxes stay open across a
+  purchase or a swap (panels.js `openWares`) and all fold when the panel closes. A new item
+  without a `LORE` entry still sells — its picture is just not a button.
 - The miller lives in his granary yard, home post (9.0, 9.3) — the rat bounty's flavor text made
   flesh. Third mute villager, v2 NPC candidate alongside the clerk and chapman. E opens no panel:
   it toasts a one-line tally of today's ratsKilled (`millerGreeting()` in main.js).
@@ -773,6 +795,23 @@ headlessly; everything else covered by the regression suite below.
   bedtime ("Retire for the night" does). New smoke scenario `spent`; `fire` now spends to 1.
   No saveVersion bump (absent `spent` = false).
 
+- [x] Post-v1 — "The Chapman's Pictures" (2026-11-16): every ware on the cart has a picture —
+  an ink-and-wash drawing beside its row in the shop (the cudgel, the quarterstaff, the rug,
+  the door paint, the glass pane, the garden plot, the loaf, the mounted rat, the candle
+  lantern), drawn in code like the Map; wares above the player's rank are faded. The Chest
+  panel shows them too — each weapon (the stick drawn for it) and the larder's loaf. Click a
+  picture (or "Read more") to unfold what the ware is, how to use it and what it does for
+  thee, numbers live from config. No save change. `market` smoke scenario checks each ware
+  has its picture and its read-more in the shop and the chest, and screenshots the shop. All
+  21 scenarios pass (cloud container, headless Chromium; `house` and `exchequer` each only on
+  a re-run alone — the fixed-wait stalls described in Session notes); after merging The Cot
+  Within Reach, The Hearthside and The Honest Grip (the read-mores now send the player to
+  stand at the chest, where the cot fix moved its E), all 22 pass on the merge, first time.
+  After merging To Bed, Spent: `market`, `spent`, `fire`, render and `house` pass on the merge
+  (`house`'s closed-door check failed twice straight after a busy run, then passed three
+  times alone — plain `main` behaved the same). Not yet seen on the owner's machine.
+  Details: "The wares have pictures" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -805,7 +844,10 @@ headlessly; everything else covered by the regression suite below.
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
-  `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
+  `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
+  (the cudgel's unfolds with its config damage and folds again; the chest's three pictures and
+  a chest read-more without the buying talk checked later; shop panel →
+  scripts/smoke-shop.png) + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
   damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
   `crown` v5→current migration (incl. best owned weapon → chest.wielded, str's level
@@ -847,8 +889,9 @@ headlessly; everything else covered by the regression suite below.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
-  pushing him out), `combat` (the second dummy swing landing) and `guide` (the charter prompt,
-  read 400ms after he is placed) each failed once that way and passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
+  pushing him out), `combat` (the second dummy swing landing), `guide` (the charter prompt,
+  read 400ms after he is placed) and `exchequer` (the counter's prompt read as empty,
+  2026-11-16) each failed once that way and passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
   the wait, not the game — re-run that scenario alone with nothing else busy on the machine.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
