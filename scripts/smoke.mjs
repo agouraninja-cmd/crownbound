@@ -20,6 +20,9 @@ if (!executablePath) {
 }
 
 const PORT = 5199;
+// Every load holds the sky at one in the afternoon (main.js ?hour=), so the
+// screenshots look the same whatever hour the suite is run.
+const DAY = '&hour=13';
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
   shell: true,
   stdio: 'ignore',
@@ -372,7 +375,7 @@ try {
     }, old);
   }
 
-  await page.goto(`http://localhost:${PORT}/?smoke=${scenario}`, {
+  await page.goto(`http://localhost:${PORT}/?smoke=${scenario}${DAY}`, {
     waitUntil: 'networkidle2',
     timeout: 40000,
   });
@@ -1263,6 +1266,124 @@ try {
       g.player.pos.z = -0.3;
       g.orbitCam.setView(-0.85, 0.18, 4.1);
     });
+  } else if (scenario === 'sky') {
+    // the sky keeps the hour: the pinned clock, the sun's road east → south →
+    // west, the looks of noon, dusk and night, the seasons, the moon's phase,
+    // summer time, and the beam that never lies flat
+    const at = (y, mo, d, h, mi = 0) =>
+      page.evaluate(
+        ([y, mo, d, h, mi]) => {
+          const g = window.__game;
+          g.sky.setClock(new Date(y, mo, d, h, mi));
+          const s = g.sky.state;
+          const key = g.scene.children.find((o) => o.isDirectionalLight);
+          const fog = g.scene.fog.color;
+          const east = g.compass(1, 0, 0);
+          const south = g.compass(0, -1, 0);
+          return {
+            hour: s.hour,
+            sunAlt: s.sunAlt,
+            moonAlt: s.moonAlt,
+            moonLit: s.moonLit,
+            night: s.night,
+            moonlit: s.moonlit,
+            starShow: s.starShow,
+            stars: g.scene.getObjectByName('stars').visible,
+            keyPower: key.intensity,
+            beamUp: s.beamUp, // how steeply the key light falls: the sine of its height
+            fog: (fog.r + fog.g + fog.b) / 3,
+            sunEast: s.sun.dot(east),
+            sunSouth: s.sun.dot(south),
+          };
+        },
+        [y, mo, d, h, mi]
+      );
+    const shot = async (name, body) => {
+      // look toward the sun (or the moon), from the open path south of the green
+      await page.evaluate((body) => {
+        const g = window.__game;
+        g.player.pos.x = -2.9;
+        g.player.pos.z = -14;
+        const b = g.sky.state[body];
+        g.orbitCam.setView(Math.atan2(-b.x, -b.z) + 0.5, -0.08, 9);
+      }, body);
+      await new Promise((r) => setTimeout(r, 2500));
+      await page.screenshot({ path: `scripts/smoke-sky-${name}.png` });
+    };
+
+    // the page was opened with ?hour=13: the sky stands at one o'clock
+    // (by the sun that is noon, where summer time is being kept)
+    const pinnedHour = await page.evaluate(() => {
+      const g = window.__game;
+      const d = new Date();
+      d.setHours(13, 0, 0, 0);
+      return { hour: g.sky.state.hour, want: g.solarHour(d) };
+    });
+    console.log('pinned:', JSON.stringify(pinnedHour));
+    if (Math.abs(pinnedHour.hour - pinnedHour.want) > 0.02) errors.push(`sky: ?hour=13 shows hour ${pinnedHour.hour}, want ${pinnedHour.want}`);
+
+    // an autumn day (no summer time anywhere in the north): morning, noon, evening, midnight
+    const morning = await at(2026, 10, 16, 9);
+    const noon = await at(2026, 10, 16, 12);
+    await shot('noon', 'sun');
+    const evening = await at(2026, 10, 16, 15);
+    const sunset = await at(2026, 10, 16, 16, 35);
+    await shot('sunset', 'sun');
+    const dusk = await at(2026, 10, 16, 17, 10);
+    const midnight = await at(2026, 10, 17, 0, 30);
+    console.log('morning:', JSON.stringify(morning));
+    console.log('noon:', JSON.stringify(noon));
+    console.log('evening:', JSON.stringify(evening));
+    console.log('sunset:', JSON.stringify(sunset));
+    console.log('dusk:', JSON.stringify(dusk));
+    console.log('midnight:', JSON.stringify(midnight));
+    if (!(morning.sunEast > 0.3)) errors.push(`sky: the morning sun is not in the east (${morning.sunEast})`);
+    if (!(evening.sunEast < -0.3)) errors.push(`sky: the evening sun is not in the west (${evening.sunEast})`);
+    if (!(noon.sunSouth > 0.5 && Math.abs(noon.sunEast) < 0.05)) errors.push('sky: the noon sun is not due south');
+    if (!(noon.sunAlt > 20 && noon.sunAlt > morning.sunAlt && noon.sunAlt > evening.sunAlt)) errors.push('sky: the sun is not highest at noon');
+    if (noon.keyPower < 2.5 || noon.night !== 0 || noon.stars) errors.push(`sky: noon is not full day (key ${noon.keyPower}, night ${noon.night}, stars ${noon.stars})`);
+    if (noon.fog < 0.5) errors.push(`sky: the noon haze is dark (${noon.fog})`);
+    if (Math.abs(sunset.sunAlt) > 3) errors.push(`sky: 16:35 in November is not sunset (sun at ${sunset.sunAlt})`);
+    if (!(sunset.keyPower > 0.5 && sunset.keyPower < noon.keyPower)) errors.push(`sky: the setting sun's light (${sunset.keyPower}) is not weaker than noon's`);
+    if (sunset.beamUp < Math.sin((17.5 * Math.PI) / 180)) errors.push(`sky: the beam lies flat at sunset (${sunset.beamUp})`);
+    if (dusk.keyPower > 0.3) errors.push(`sky: the key light still burns at dusk (${dusk.keyPower})`);
+    if (!(midnight.sunAlt < -14 && midnight.night === 1 && midnight.moonlit)) errors.push('sky: midnight is not night');
+    if (!(midnight.stars && midnight.starShow === 1)) errors.push('sky: no stars at midnight');
+    if (!(midnight.keyPower > 0.4 && midnight.keyPower < 1.5)) errors.push(`sky: night's light is ${midnight.keyPower}`);
+    if (midnight.fog > 0.2) errors.push(`sky: the night haze is bright (${midnight.fog})`);
+    if (midnight.beamUp < Math.sin((17.5 * Math.PI) / 180)) errors.push('sky: the beam lies flat at night');
+
+    // the seasons: a high sun and a long evening in June, a low sun and an early dark in December
+    const june = await at(2026, 5, 21, 12);
+    const juneEve = await at(2026, 5, 21, 19);
+    const december = await at(2026, 11, 21, 12);
+    const decemberEve = await at(2026, 11, 21, 17);
+    console.log('seasons:', JSON.stringify({ june: june.sunAlt, juneEve: juneEve.sunAlt, december: december.sunAlt, decemberEve: decemberEve.sunAlt }));
+    if (!(june.sunAlt > december.sunAlt + 40)) errors.push('sky: midsummer noon is no higher than midwinter noon');
+    if (!(juneEve.sunAlt > 0 && decemberEve.sunAlt < 0)) errors.push('sky: the days do not lengthen in summer');
+
+    // the moon: full and high at a winter midnight, dark when new
+    const full = await at(2026, 10, 24, 23, 30);
+    await shot('night', 'moon');
+    const newMoon = await page.evaluate(() => window.__game.skyAt(new Date(Date.UTC(2024, 0, 11, 12)), 45).moonLit);
+    console.log('moon:', JSON.stringify({ fullLit: full.moonLit, fullAlt: full.moonAlt, fullKey: full.keyPower, moonless: midnight.keyPower, newLit: newMoon }));
+    if (!(full.moonLit > 0.95 && full.moonAlt > 30)) errors.push(`sky: the full moon of 24 Nov 2026 is not full and high (${full.moonLit}, ${full.moonAlt})`);
+    if (!(full.keyPower > midnight.keyPower)) errors.push('sky: a full moon lights the night no better than none');
+    if (newMoon > 0.05) errors.push(`sky: the new moon of 11 Jan 2024 is lit (${newMoon})`);
+
+    // summer time: the clocks go forward, the sun does not
+    await page.emulateTimezone('America/New_York');
+    const clocks = await page.evaluate(() => ({
+      july: window.__game.solarHour(new Date(2026, 6, 1, 13, 0)),
+      january: window.__game.solarHour(new Date(2026, 0, 15, 13, 0)),
+    }));
+    await page.emulateTimezone(null);
+    console.log('summer time:', JSON.stringify(clocks));
+    if (clocks.july !== 12 || clocks.january !== 13) errors.push(`sky: summer time misread (${JSON.stringify(clocks)})`);
+
+    // leave the dusk up for the last screenshot
+    await at(2026, 10, 16, 16, 55);
+    await shot('dusk', 'sun');
   } else if (scenario === 'map') {
     // the Map of the Kingdom: M unrolls it, the realm and the village plan
     // both draw, hovering reads a place aloud, the plan's arrow stands where
@@ -1487,7 +1608,7 @@ try {
   } else if (scenario === 'alive') {
     // the villagers breathe, watch, nod, and fidget — force a market day so
     // the chapman is present too
-    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1${DAY}`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 2000));
 
     // 1) breathing is visible: the clerk's sway lean actually moves
@@ -1713,7 +1834,7 @@ try {
     await page.screenshot({ path: 'scripts/smoke-chronicle.png' });
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
-    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1${DAY}`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 2000));
     if (!(await page.evaluate(() => !!window.__game.cart)))
       errors.push('market: cart absent though market=1');
@@ -1856,7 +1977,7 @@ try {
     await page.evaluate(() => window.__game.orbitCam.setView(-1.1, 0.3, 5.5));
     await new Promise((r) => setTimeout(r, 600));
     await page.screenshot({ path: 'scripts/smoke-market.png' });
-    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0${DAY}`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 2000));
     const offDay = await page.evaluate(() => {
       const g = window.__game;

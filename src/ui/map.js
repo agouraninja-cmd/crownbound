@@ -8,7 +8,7 @@
 // The realm is a picture only — the walkable world is the village, as ever.
 // Names live in CONFIG.realm; everything else here is fixed art.
 import { CONFIG } from '../state/config.js';
-import { LAYOUT, pathX, fieldToWorld, FIELD } from '../scene/layout.js';
+import { LAYOUT, NORTH, pathX, fieldToWorld, FIELD } from '../scene/layout.js';
 import { makeRng } from '../scene/meshUtils.js';
 
 const INK = '#2b2014';
@@ -392,10 +392,8 @@ function compassRose(cx, cy, r) {
 
 // ---------- the village plan ----------
 
-// Which way north lies in the village: the Charter puts the miller's strip to
-// the north-east, and the late sun stands in the west. This turn of the world
-// does both (the strip at a bearing of ~25°, the sun ~305°).
-const NORTH = 0.45;
+// The plan is drawn north-up: the world is turned by NORTH (layout.js), which
+// puts the miller's strip at a bearing of ~25°, north-east as the Charter says.
 const SIN_N = Math.sin(NORTH);
 const COS_N = Math.cos(NORTH);
 

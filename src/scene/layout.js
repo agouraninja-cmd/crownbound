@@ -6,6 +6,11 @@ export function pathX(z) {
   return Math.sin(z * 0.045) * 5;
 }
 
+// Which way north lies: the world's +x axis, turned this far toward +z. The
+// Charter puts the miller's strip to the north-east; this turn does that. The
+// map is drawn by it, and the sun rises and sets by it.
+export const NORTH = 0.45;
+
 export const LAYOUT = {
   playerSpawn: { x: -5, z: 4 },
   hovel: { x: -9, z: 2, rotY: 0 }, // door on local +x faces the path

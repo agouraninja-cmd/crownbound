@@ -15,8 +15,8 @@ happens the moment the character reaches King** (70 total virtue levels).
 - @anthropic-ai/sdk (browser-direct, `dangerouslyAllowBrowser`) — the Sage only, so far;
   v2's villagers will reuse this plumbing. Model + tuning in CONFIG.sage.
 - All art is procedural low-poly geometry, flat-shaded, warm earth tones under a painterly sky.
-  No model files and no image files — the one texture is a soft round dot drawn on a canvas at
-  load (sprites.js).
+  No model files and no image files — the few textures are drawn on a canvas at load: a soft
+  round dot (sprites.js), the sun's disc and the moon's face (sky.js).
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
 - Persistence: localStorage key `crownbound_save`, `saveVersion: 12`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
@@ -38,11 +38,12 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/state/prefs.js    device preferences (mouse feel), own localStorage slot outside the save
 src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
 vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
-src/scene/layout.js   where everything stands: LAYOUT positions, the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap)
+src/scene/layout.js   where everything stands: LAYOUT positions, NORTH (the compass), the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap)
 src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() static batching, tint/sway/batch helpers, hit flash
 src/scene/kit.js      the building kit: palette, thatch roofs, boarding, stone footings, villager heads/arms/robes
 src/scene/terrain.js  analytic terrain height fn (gameplay) + the drawn land: faceted vertex-colored ground, dirt path, outer hills, far mountains
-src/scene/sky.js      sky dome + sun + low-poly clouds, fog, lighting, the shadow box that follows the player
+src/scene/daylight.js the hour of the real day: skyAt(date) — where sun and moon stand by the player's own clock (pure), + `daylight`, what unlit things read of it
+src/scene/sky.js      the sky that keeps the hour: dome, sun, moon in her phase, stars, low-poly clouds, fog, the key + fill light, the shadow box that follows the player
 src/scene/scatter.js  merged woodland: pines/oaks/birches, boulders, pebbles, and the backdrop forest beyond the walkable world
 src/scene/flora.js    grass tufts, meadow grass, wildflowers, ferns, bushes — no colliders, all wind-swayed
 src/scene/wind.js     the shared wind clock + the vertex-shader patch that sways foliage and grass
@@ -289,8 +290,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     thing in SwiftShader (the headless tests) and no faster on a real GPU. Blades are lit with
     a constant up-normal on both faces (wind.js `upNormals`), so they shade like the ground.
   - The sky rides the camera with depth off, so camera.far (1000) only has to reach the
-    mountains. Fog is a pale blue haze (HAZE in sky.js), 45→560; the far hills are just fogged
-    terrain. Clouds are a hand-shaded unlit mesh turning slowly about the valley.
+    mountains. Fog runs 45→560 (a pale blue haze by day); the far hills are just fogged
+    terrain. Clouds are a hand-shaded unlit mesh turning slowly about the valley. (Colours
+    and light now follow the hour — see The Turning Sky.)
   - Tone mapping is Neutral (was ACES): the palette's hues survive as painted. Light is a cool
     sky / warm ground hemisphere plus the one shadow-casting sun; the shadow box (±40) follows
     the player in whole-texel steps (`followShadow`), so shadows exist wherever he walks and
@@ -453,12 +455,55 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     market day, the bounds (radius 78) — and the player as a red arrow along `player.facing`.
     Two zooms: The Green (the village's heart) and The Bounds (all the walkable land); the
     first open picks by where he stands, then the choice holds for the session.
-  - North. The plan is drawn north-up with the world turned by `NORTH` (0.45 rad) in map.js:
-    that puts the miller's strip to the north-east, as the Charter says, and the fixed sun in
-    the west-north-west. The realm's roads agree: the village path leaves east-north-east for
+  - North. The plan is drawn north-up with the world turned by `NORTH` (0.45 rad, layout.js
+    since The Turning Sky — the sun rises and sets by it too): that puts the miller's strip
+    to the north-east, as the Charter says. The realm's roads agree: the village path leaves east-north-east for
     Hollin Cross and west-south-west for the Marches.
   - Wiring: panels.js `openPanel('map')` calls `renderMap(body, mapView())`; `mapView` is a hook
     main.js passes to initPanels. panels.js now exports `closePanel` and `openPanelId`.
+
+- The Turning Sky (2026-11-16), asked for by the owner ("make the game know what time zone
+  you are in so it can have a daylight cycle based on what time it is you are playing").
+  Looks only: no rule, reward or save changed. What a future session must know:
+  - The clock is the browser's. `new Date()` is already in the player's time zone, so nothing
+    is asked of him and nothing is stored. daylight.js `skyAt(date, latitude)` is the whole
+    reckoning and is pure: the sun from the hour and the day of the year (so days are long in
+    June and dark by five in December), the moon from her true age (a new moon in 2000 counted
+    forward — her phase in the game is tonight's real phase), summer time taken back off
+    (`solarHour`: the clocks go forward, the sun does not). What it cannot know is WHERE the
+    player is: `CONFIG.sky.latitude` (45°N) sets the length of the days, and his place inside
+    his time zone is unknown, so dawn and dusk can run ~20–30 minutes off the window. Asking
+    the browser for his location would fix that and was deliberately not done (a permission
+    prompt for a few minutes of sunset).
+  - sky.js paints it. `LOOKS` is the whole palette: six rows keyed by the sun's height
+    (night −14°, late dusk −8°, dusk −4°, sunset 0°, golden 6°, day 20°+), every colour and
+    light strength blended between rows; dawn wears dusk's rows. The day row IS the old fixed
+    look. To re-tune a time of day, edit its row.
+  - Repainted on a slow beat, not per frame: `CONFIG.sky.refresh` (5s) → dome vertex colours,
+    cloud facets (~22k vertices relit by hand), sprites, lights, fog. Per frame only the dome
+    riding the camera, the cloud drift and the shadow box.
+  - One key light still (the perf rule holds): the sun by day, the moon by night. Its power
+    is zero between the two dusk rows, and that is when it changes hands (at −6°), so the
+    beam never swings while lit. By night it falls from the moon when she is up, else from a
+    fixed `STARLIGHT` quarter, and a fuller moon lights the night better. The beam never lies
+    flatter than 18° (`LOWEST_BEAM` — raking light speckles the shadow map); the SEEN sun
+    still sinks to the hills. `followShadow`'s axes are re-laid at each re-aim.
+  - Sun, moon and stars are drawn straight after the dome and before any land: additive,
+    no depth, renderOrder −9, and deliberately `transparent: false` (a transparent flag would
+    send them to the late pass, on top of the mountains). So land and clouds cover them for
+    free. Stars are one Points call, hidden by day; the moon's face is a canvas texture drawn
+    at load for the night's phase.
+  - Unlit things read `daylight` (daylight.js): smoke is tinted by `daylight.veil`
+    (particles.js `uVeil`), butterflies too; birds and butterflies are hidden once the sun is
+    4° down; motes dim. The hovel's window shows the sky's colour from within and firelight
+    from without after dark (world.js `sky.onLook`). Fires, the hearth and the lantern were
+    already lights — night is simply when they show.
+  - Night is tuned to be played in (most sessions will be evening ones): about a quarter of
+    day's brightness, blue, with the campfire the brightest thing in the village. If it reads
+    too dark on the owner's screen, raise `hemi` / `keyPower` in the night row.
+  - `?hour=17.5` holds the sky at that hour of today (any hour, for a look); the smoke suite
+    opens every page with `?hour=13` so screenshots do not depend on when it is run.
+    `__game.sky.setClock(date)` pins any moment; `sky.state` is what was last painted.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -706,6 +751,16 @@ headlessly; everything else covered by the regression suite below.
   presses E instead of calling `sleepAtCot()` directly (which is how this slipped by);
   `house` and `market` stand at the chest's new spot. No save change.
 
+- [x] Post-v1 — "The Turning Sky" (2026-11-16): the sky keeps the hour of the player's own
+  clock. The sun rises in the east, crosses the south and sets in the west at the real time
+  of day (long days in summer, early dark in winter); dawn and dusk colour the sky, the
+  clouds and the light; night brings stars, the moon in her true phase, moonlight, a lit
+  window in the hovel and the campfire as the village's light. Birds and butterflies keep
+  the sun's hours. Looks only — no rule or save change. New smoke scenario `sky`.
+  Seen only in a cloud container's software renderer, not yet on the owner's screen — the
+  night's brightness in particular wants his eye. Details: "The Turning Sky" under Noted
+  decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -719,6 +774,8 @@ headlessly; everything else covered by the regression suite below.
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
+- The suite opens every page with `&hour=13` (the sky held at one in the afternoon), so its
+  screenshots are daylit whenever it is run. For a look at another hour: `?hour=21`.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/miller-tally greeting/death
@@ -761,6 +818,11 @@ headlessly; everything else covered by the regression suite below.
   arrow moves north-east when he stands by the strip, the zoom kept for the session, Esc
   closes, M does nothing under the Charter, the Charter lists the key (screenshots →
   scripts/smoke-map.png, scripts/smoke-map-bounds.png) ·
+  `sky` the pinned ?hour=, the sun east in the morning / due south at noon / west in the
+  evening, noon's light and haze, sunset at the right clock time for November, no key light
+  at dusk, stars + moonlight + dark haze at midnight, the beam never flatter than 18°, June
+  against December, a known full moon and new moon, summer time under an emulated New York
+  clock (screenshots → scripts/smoke-sky-noon.png, -sunset.png, -dusk.png, -night.png) ·
   `aerial`/`front` screenshots.
 - If headless Edge quits at once ("Failed to launch the browser process: Code: 0" — seen
   2026-11-13 with Edge already open), point the suite at Chrome:

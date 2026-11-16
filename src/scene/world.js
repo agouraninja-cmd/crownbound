@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { LAYOUT } from './layout.js';
 import { buildTerrain, terrainHeight } from './terrain.js';
-import { buildSky, buildClouds, addLighting } from './sky.js';
+import { createSky } from './sky.js';
+import { daylight } from './daylight.js';
 import { buildScatter } from './scatter.js';
 import { buildFlora } from './flora.js';
 import { windTime } from './wind.js';
@@ -14,11 +15,13 @@ import { createCampfire } from './campfire.js';
 
 export { terrainHeight };
 
-export function buildWorld(scene, marketToday = false) {
-  const sky = buildSky();
-  const clouds = buildClouds();
-  scene.add(sky, clouds);
-  const light = addLighting(scene);
+// the hovel's window from outside: a hint of firelight by day, a lit pane after dark
+const WINDOW_BY_DAY = new THREE.Color(0x4a2c16);
+const WINDOW_BY_NIGHT = new THREE.Color(0xd9822e);
+
+// skyClock: () => Date — the moment the sky shows (main.js: the real clock, or ?hour=)
+export function buildWorld(scene, marketToday = false, skyClock) {
+  const sky = createSky(scene, skyClock);
   scene.add(buildTerrain());
 
   const scatter = buildScatter();
@@ -38,6 +41,14 @@ export function buildWorld(scene, marketToday = false) {
 
   const hovel = buildHovel();
   placeAt(hovel.group, LAYOUT.hovel); // walls collide per-rect below, not as one circle
+
+  // the window keeps the hour: from within it shows the sky's own colour, from
+  // without the hearth shows through it once the light goes
+  sky.onLook = (look) => {
+    hovel.windowLight.material.color.copy(look.horizon);
+    hovel.windowGlow.material.color.lerpColors(WINDOW_BY_DAY, WINDOW_BY_NIGHT, daylight.night);
+  };
+  sky.refresh();
 
   // home upgrades bought from the chapman: meshes pre-built, shown when owned
   const homeUpgrades = hovel.upgrades;
@@ -300,8 +311,8 @@ export function buildWorld(scene, marketToday = false) {
   scene.add(ambient.group);
 
   // Scenery that keeps moving whether or not a panel is open (main.js calls
-  // this every slice of the loop): the hearth, the wind, the drifting clouds,
-  // the sky riding with the camera, the shadow box centred on the player.
+  // this every slice of the loop): the hearth, the wind, and the sky — its
+  // slow turning, its clouds, the shadow box centred on the player.
   let hearthT = 0;
   function update(dt, playerPos, camera) {
     // the hearth indoors: a small unsteady flame and the glow it throws
@@ -314,14 +325,12 @@ export function buildWorld(scene, marketToday = false) {
     fire.halo.material.opacity = 0.4 * flick;
 
     windTime.value += dt;
-    clouds.rotation.y += dt * 0.0035;
-    sky.position.copy(camera.position);
-    light.followShadow(playerPos);
+    sky.update(dt, playerPos, camera);
     ambient.update(dt, camera);
   }
 
   // the village plan on the map draws the real trees and boulders
   const mapMarks = { trees: scatter.trees, rocks: scatter.rocks };
 
-  return { colliders, interactables, campfire, dummy, door, chest, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
+  return { colliders, interactables, sky, campfire, dummy, door, chest, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
 }
