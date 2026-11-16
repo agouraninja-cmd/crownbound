@@ -42,6 +42,7 @@ const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerH
 
 const world = buildWorld(scene, marketToday);
 const player = createPlayer(scene, LAYOUT.playerSpawn);
+player.hearth = LAYOUT.campfire; // stand still by it and he sits to warm himself
 
 // the weapon in hand (chosen at the chest) and the home comforts bought from
 // the chapman, applied on load, on purchase, and when a weapon is taken up
