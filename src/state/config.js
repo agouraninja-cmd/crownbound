@@ -33,10 +33,11 @@ export const CONFIG = {
     attackCost: 5,
     dodgeCost: 8,
     // the legs draw on the pool too, per second of moving on the ground
-    // (a crouched shuffle counts as walking). Spent dry he can still walk —
-    // no one is stranded far from the board — but he cannot sprint.
+    // (a crouched shuffle counts as walking). Spent dry, he is done for the
+    // day: he walks himself home to his cot and play resumes on the morrow.
     walkDrain: 0.25,
     sprintDrain: 1,
+    homewardPace: 0.8, // the weary walk home, as a share of walkSpeed
   },
 
   // The cot marks a bedtime; the next game load judges it against the dawn.

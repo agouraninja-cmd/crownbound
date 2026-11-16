@@ -51,6 +51,67 @@ body {
 
 #fade.show { opacity: 1; }
 
+/* ---------- abed for the day (stamina spent) ---------- */
+
+/* the scene dims toward night while he sleeps out the day */
+body.abed #vignette {
+  background: radial-gradient(ellipse at 50% 40%, rgba(8, 6, 14, 0.25) 30%, rgba(8, 6, 14, 0.7) 100%);
+  transition: background 1.2s ease;
+}
+
+#rest-card {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin: 0 auto; /* centred without a transform: panel-in animates transform */
+  bottom: 6vh;
+  width: min(560px, calc(100vw - 32px));
+  box-sizing: border-box;
+  z-index: 12; /* over the HUD, under the fade and the panels */
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(255, 248, 220, 0.5), transparent 50%),
+    linear-gradient(160deg, var(--parchment) 0%, #e2cf9e 55%, var(--parchment-dark) 100%);
+  border: 3px double var(--ink);
+  outline: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.65), inset 0 0 60px rgba(140, 105, 50, 0.25);
+  padding: 18px 24px 12px;
+  animation: panel-in 0.6s ease-out;
+}
+
+#rest-card .rest-thought {
+  margin: 0 0 10px;
+  font-size: 21px;
+  font-style: italic;
+  line-height: 1.35;
+}
+
+#rest-card h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-variant: small-caps;
+  letter-spacing: 2px;
+  border-top: 1px solid var(--ink-faded);
+  padding-top: 10px;
+}
+
+#rest-card .rest-note { margin: 4px 0; font-size: 16px; color: var(--ink-faded); }
+
+#rest-card .rest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+#rest-card .rest-small { margin: 4px 0 0; font-size: 13px; font-style: italic; color: var(--ink-faded); }
+
+@media (prefers-reduced-motion: reduce) {
+  #rest-card { animation: none; }
+}
+
 /* ---------- HUD ---------- */
 
 #hud {

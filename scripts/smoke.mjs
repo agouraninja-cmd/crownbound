@@ -437,7 +437,7 @@ try {
       const spends = [];
       for (let i = 0; i < 6; i++) spends.push(g.spendStamina(5)); // 480 -> 450
       const mid = g.getState().stamina.current;
-      const big = g.spendStamina(450); // -> 0
+      const big = g.spendStamina(449); // -> 1 (nought would send him home to bed)
       const empty = g.spendStamina(5); // must refuse
       return { spends, mid, big, empty, end: g.getState().stamina.current };
     });
@@ -446,9 +446,9 @@ try {
     if (tended !== 1) errors.push(`fire: blaze guttering (${tended}) though daily is done`);
     if (drain.spends.some((v) => !v)) errors.push('fire: early spends refused');
     if (drain.mid !== 450) errors.push(`fire: mid stamina ${drain.mid} != 450`);
-    if (!drain.big) errors.push('fire: spend-to-zero refused');
-    if (drain.empty) errors.push('fire: spend allowed at 0 stamina');
-    if (drain.end !== 0) errors.push(`fire: end stamina ${drain.end} != 0`);
+    if (!drain.big) errors.push('fire: spend-to-one refused');
+    if (drain.empty) errors.push('fire: spend of 5 allowed at 1 stamina');
+    if (drain.end !== 1) errors.push(`fire: end stamina ${drain.end} != 1`);
   } else if (scenario === 'aerial') {
     await page.evaluate(() => window.__game?.orbitCam?.setView(2.4, 1.1, 14));
   } else if (scenario === 'front') {
@@ -738,8 +738,7 @@ try {
     if (weight.stopped > 0.05) errors.push(`body: still sliding (${weight.stopped.toFixed(2)}) half a second after letting go`);
     await pause();
 
-    // 1b) the legs' toll: walking wears on the stamina pool, a sprint the more;
-    // a dry pool still walks but will not sprint
+    // 1b) the legs' toll: walking wears on the stamina pool, a sprint the more
     const toll = await page.evaluate(() => {
       const b = window.__body;
       const g = window.__game;
@@ -759,21 +758,16 @@ try {
       const before = st().current;
       b.run(4);
       const sprinted = before - st().current;
-      st().current = 0;
-      b.run(1.5);
-      const dryPace = b.speed();
       b.key('ShiftLeft', false);
       b.key('KeyW', false);
       b.run(0.6);
       st().current = 240;
-      return { idle, walked, sprinted, dryPace, end: st().current, walkDrain: ST.walkDrain, sprintDrain: ST.sprintDrain, walkSpeed: g.CONFIG.player.walkSpeed };
+      return { idle, walked, sprinted, end: st().current, walkDrain: ST.walkDrain, sprintDrain: ST.sprintDrain };
     });
     console.log('toll:', JSON.stringify(toll));
     if (toll.idle !== 100) errors.push(`body: standing still drained stamina (${toll.idle})`);
     if (Math.abs(toll.walked - toll.walkDrain * 8) > 1) errors.push(`body: 8s of walking drained ${toll.walked}, expected ~${toll.walkDrain * 8}`);
     if (Math.abs(toll.sprinted - toll.sprintDrain * 4) > 1) errors.push(`body: 4s of sprinting drained ${toll.sprinted}, expected ~${toll.sprintDrain * 4}`);
-    if (toll.dryPace > toll.walkSpeed * 1.05) errors.push(`body: sprinted at ${toll.dryPace.toFixed(2)} on an empty pool`);
-    if (toll.dryPace < toll.walkSpeed * 0.5) errors.push(`body: could not walk on an empty pool (${toll.dryPace.toFixed(2)})`);
     await pause();
 
     // 2) knees: nearly straight standing, folded in a crouch — with the sole still planted
@@ -2330,6 +2324,120 @@ try {
     if (still.at !== again) errors.push('crown: coronationAt changed on a later quest');
     if (still.histType !== 'weekly') errors.push(`crown: second coronation appended (${still.histType})`);
   }
+  if (scenario === 'spent') {
+    // Spent for the day: at nought stamina he walks himself home, lies down on
+    // his cot, and the rest card says play resumes tomorrow.
+    const until = (fn, arg, ms = 15000) => page.waitForFunction(fn, { timeout: ms, polling: 200 }, arg).then(() => true, () => false);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const restCard = () => page.evaluate(() => {
+      const c = document.getElementById('rest-card');
+      return { shown: !c.classList.contains('hidden'), text: c.textContent };
+    });
+
+    // 1) out in the miller's strip, inside its fence: the last of the pool goes
+    const set = await page.evaluate(() => {
+      const g = window.__game;
+      g.player.respawn(27, 33);
+      g.drainStamina(g.getState().stamina.current);
+      return { flag: g.getState().stamina.spent, stamina: g.getState().stamina.current };
+    });
+    await wait(800);
+    const going = await page.evaluate(() => ({ ...window.__game.spent(), enabled: window.__game.player.isEnabled(), route: !!window.__game.player.route }));
+    console.log('spent:', JSON.stringify(set), JSON.stringify(going));
+    if (!set.flag || set.stamina !== 0) errors.push(`spent: pool at ${set.stamina}, spent flag ${set.flag}`);
+    if (!going.homeward || !going.route) errors.push('spent: he did not set off for home');
+    if (going.enabled) errors.push('spent: the keys still steer him on the way home');
+
+    // 2) he walks home — out through the field gate — and lies down abed
+    const home = await until(() => window.__game.spent().resting, null, 90000);
+    const abed = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      return { ...g.spent(), mode: p.mode, lie: p.lie01, enabled: p.isEnabled(), door: g.door.isOpen, x: p.pos.x, z: p.pos.z };
+    });
+    const card = await restCard();
+    console.log('abed:', JSON.stringify(abed), JSON.stringify(card.text.slice(0, 120)));
+    if (!home) errors.push('spent: never reached his cot');
+    if (abed.last !== 'walked') errors.push(`spent: the walk home was ${abed.last}, not walked`);
+    if (abed.mode !== 'sleep' || abed.lie < 0.9) errors.push(`spent: not lying on the cot (mode ${abed.mode}, lie ${abed.lie})`);
+    if (abed.enabled) errors.push('spent: he can be steered abed');
+    if (!abed.door) errors.push('spent: he walked through a shut door');
+    if (!card.shown) errors.push('spent: no rest card');
+    if (!card.text.includes('tomorrow')) errors.push('spent: the card does not say play resumes tomorrow');
+    if (!card.text.includes('can still be posted')) errors.push('spent: the card forgets the deed still owed');
+    await page.screenshot({ path: 'scripts/smoke-spent.png' });
+
+    // 3) the keys have no say abed
+    const before = abed;
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' })));
+    await wait(1000);
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' })));
+    const still = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z, mode: window.__game.player.mode }));
+    if (Math.hypot(still.x - before.x, still.z - before.z) > 0.05 || still.mode !== 'sleep') errors.push('spent: W moved him out of bed');
+
+    // 4) the Quest Board from bed: the deed counts, the pool stays spent
+    await page.click('[data-rest="board"]');
+    await page.type('[data-input]', 'Evening lift');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    await page.click('[data-pick="ath"]');
+    await page.keyboard.press('Escape');
+    await wait(300);
+    const deed = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return { done: st.quests.daily.completed, streak: st.streak.current, xp: st.stats.ath.xp, stamina: st.stamina.current, flag: st.stamina.spent, mode: window.__game.player.mode, enabled: window.__game.player.isEnabled() };
+    });
+    const card2 = await restCard();
+    console.log('deed from bed:', JSON.stringify(deed));
+    if (!deed.done || deed.streak !== 1 || deed.xp !== 25) errors.push('spent: the daily from bed did not count');
+    if (deed.stamina !== 0 || !deed.flag) errors.push(`spent: the daily refilled a spent pool (${deed.stamina})`);
+    if (deed.mode !== 'sleep' || deed.enabled) errors.push('spent: closing the board got him out of bed');
+    if (!card2.shown || card2.text.includes('can still be posted')) errors.push('spent: the card did not come back with the deed done');
+
+    // 5) retire for the night marks a real bedtime
+    await page.click('[data-rest="retire"]');
+    const retired = await page.evaluate(() => Date.now() - new Date(window.__game.getState().sleep.retiredAt).getTime());
+    if (!(retired >= 0 && retired < 60000)) errors.push(`spent: retiring did not mark the bedtime (${retired}ms ago)`);
+
+    // 6) opened again the same day: found abed at once
+    await page.reload({ waitUntil: 'networkidle2' });
+    await until(() => window.__game && window.__game.spent);
+    await wait(1500);
+    const reload = await page.evaluate(() => ({ ...window.__game.spent(), mode: window.__game.player.mode, enabled: window.__game.player.isEnabled() }));
+    const card3 = await restCard();
+    console.log('after reload:', JSON.stringify(reload));
+    if (!reload.resting || reload.mode !== 'sleep' || reload.enabled || !card3.shown) errors.push('spent: a reload got him out of bed');
+
+    // 7) a new day: up and about, strength back
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('crownbound_save'));
+      s.stamina.date = '2000-01-01';
+      localStorage.setItem('crownbound_save', JSON.stringify(s));
+    });
+    await page.reload({ waitUntil: 'networkidle2' });
+    await until(() => window.__game && window.__game.spent);
+    await wait(1000);
+    const morning = await page.evaluate(() => ({ ...window.__game.spent(), enabled: window.__game.player.isEnabled(), stamina: window.__game.getState().stamina }));
+    const card4 = await restCard();
+    console.log('next day:', JSON.stringify(morning));
+    if (morning.resting || !morning.enabled || card4.shown) errors.push('spent: still abed on a new day');
+    if (morning.stamina.spent || morning.stamina.current !== 480) errors.push(`spent: the new day's pool is ${JSON.stringify(morning.stamina)}`);
+
+    // 8) E hurries the walk home
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.respawn(4, -0.5); // by the Quest Board
+      g.drainStamina(g.getState().stamina.current);
+    });
+    await wait(700);
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' })));
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' })));
+    const hurried = await until(() => window.__game.spent().resting, null, 10000);
+    const h = await page.evaluate(() => ({ ...window.__game.spent(), mode: window.__game.player.mode }));
+    console.log('hurried:', JSON.stringify(h));
+    if (!hurried || h.last !== 'hurried' || h.mode !== 'sleep') errors.push(`spent: E did not hurry him home (${JSON.stringify(h)})`);
+  }
+
   await new Promise((r) => setTimeout(r, 1500));
 
   const info = await page.evaluate(() => window.__smoke || null);
