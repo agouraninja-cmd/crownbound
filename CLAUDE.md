@@ -135,7 +135,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   road to the crown ("N of 70 virtue levels won"), then the crowning date ever after. The full
   Coronation ceremony (visuals, the event itself) remains v5 scope.
 - Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day
-  (no refill once spent for the day — see below), feeds streak.
+  (even from bed, spent — it gets him up; see below), feeds streak.
 - Weekly bounty: +100 XP to chosen stat, +50 coins. Monthly campaign: +300 XP, +150 coins.
   Epic: manual progress %, logged to history.
 - Streak: daily completion counts the day. Missing a full day resets to 0 → "The fire died in the night."
@@ -151,9 +151,11 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   home — the keys let go, a path is found round everything (out through the field gate if need
   be), the door opens, he lies down on the cot — and the rest card says play resumes tomorrow,
   with a motivational line he says to himself. E hurries the walk (fade, abed). The Quest Board,
-  Tome and Exchequer open from the card; a daily posted from bed counts (XP, coins, streak) but
-  does NOT refill a spent pool. "Retire for the night" marks the real bedtime (the walk home
-  never does). Opening the game again that day finds him abed; the next day's rollover clears it.
+  Tome and Exchequer open from the card; today's daily posted from bed refills the pool (480),
+  clears `spent` and gets him up beside the cot (`wakeFromRest`, main.js) — once the daily is
+  done, a second emptying is final till tomorrow. "Retire for the night" marks the real bedtime
+  (the walk home never does). Opening the game again that day finds him abed; the next day's
+  rollover clears it.
 - Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
@@ -840,6 +842,11 @@ headlessly; everything else covered by the regression suite below.
   ledgers stay usable from bed, a daily from bed doesn't wake him, the walk home records no
   bedtime ("Retire for the night" does). New smoke scenario `spent`; `fire` now spends to 1.
   No saveVersion bump (absent `spent` = false).
+  Same day, the owner revisited one of those: "make doing the daily from bed refill stamina".
+  completeDaily refills unconditionally again (the fresh pool drops `spent`), and main.js
+  `wakeFromRest` stands him up by the cot with a toast and hands back the keys once the board
+  closes. The card's owed-deed line now promises that. `spent` checks the refill, the rise,
+  and a second emptying (daily done) putting him back abed for good.
 
 - [x] Post-v1 — "The Chapman's Pictures" (2026-11-16): every ware on the cart has a picture —
   an ink-and-wash drawing beside its row in the shop (the cudgel, the quarterstaff, the rug,
@@ -933,7 +940,8 @@ headlessly; everything else covered by the regression suite below.
   order kept, Tome journal newest-first (screenshot → scripts/smoke-chronicle.png) ·
   `spent` stamina to 0 inside the field fence → he walks home through the gate (not hurried),
   door opened, abed, keys dead, rest card says tomorrow + the owed deed; daily posted from bed
-  counts but leaves the pool at 0; retire marks the bedtime; reload finds him abed; a new day
+  counts, refills to 480 and gets him up; emptied again (daily done) he goes back abed and the
+  card offers no refill; retire marks the bedtime; reload finds him abed; a new day
   frees him with a full pool; E hurries a second walk (screenshot → scripts/smoke-spent.png) ·
   `map` M opens the map, both sheets draw, kingdom + village named, home ringed, hover caption,
   plan opens on The Green at the spawn, The Bounds button, M closes and frees the player, the

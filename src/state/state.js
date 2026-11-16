@@ -352,7 +352,8 @@ export function staminaCap() {
 
 // Spent for the day: the pool ran dry, he walked home to his cot, and play
 // resumes on the morrow. Set the moment the pool hits nought; a new day's
-// stamina (rollover) clears it. Nothing refills a spent pool — not even the daily.
+// stamina (rollover) clears it — and so does the daily, posted from his bed.
+// Nothing else refills a spent pool.
 export function staminaSpent() {
   return state.stamina.spent === true;
 }
@@ -402,9 +403,9 @@ export function completeDaily(statKey) {
   state.lastQuestDate = today;
 
   state.coins += CONFIG.rewards.daily.coins;
-  // the refill (with any Well-Rested bonus) — unless he has already gone to
-  // his cot spent: then the deed still counts, but play waits for the morrow
-  if (!state.stamina.spent) state.stamina = { current: staminaCap(), date: today };
+  // the refill (with any Well-Rested bonus) — even from the cot, spent: the
+  // deed gets him up again (a fresh pool carries no `spent` flag)
+  state.stamina = { current: staminaCap(), date: today };
   state.history.push({ date: today, questText: q.text, statTrained: statKey, type: 'daily' });
   const levelUps = addXp(statKey, CONFIG.rewards.daily.xp); // addXp saves + emits
   emit('quests');

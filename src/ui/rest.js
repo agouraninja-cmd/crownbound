@@ -2,7 +2,8 @@
 // himself home to his cot. He speaks a line to himself — meant for the player
 // as much as for him — and the game says plainly that play resumes tomorrow.
 // The real-life ledgers stay open from the bed (the Quest Board, the Tome, the
-// Exchequer), and "Retire for the night" marks a real bedtime for the dawn
+// Exchequer) — today's daily posted from bed refills the pool and gets him up
+// (main.js) — and "Retire for the night" marks a real bedtime for the dawn
 // judgment, since the cot itself can't be reached with E while he lies on it.
 import { CONFIG } from '../state/config.js';
 import { todayStr } from '../state/dates.js';
@@ -15,8 +16,8 @@ const LINES_DONE = [
   'I gave this day all I had. That is how kings are made. Now, sleep.',
 ];
 const LINES_OWED = [
-  'My legs are spent, but the day is not lost. Today’s deed goes on the board, and then I sleep.',
-  'Tired to the bone. Still — one honest deed before I sleep, and the fire lives another day.',
+  'My legs are spent, but the day is not lost. One honest deed on the board, and I rise again.',
+  'Tired to the bone. Still — today’s deed done, and I’ll find my strength once more.',
 ];
 
 // the same line all day: a reload shouldn't make him change his mind
@@ -50,7 +51,7 @@ export function showRest({ dailyDone, bedtimeIso }) {
     <h2>Rest till the morrow</h2>
     <p class="rest-note">Thy stamina is spent for today. Come back tomorrow — thy strength returns
     with the dawn, and thou mayst play again.</p>
-    ${dailyDone ? '' : '<p class="rest-note">Today’s deed can still be posted at the board from thy bed — the fire need not die.</p>'}
+    ${dailyDone ? '' : '<p class="rest-note">Or post today’s deed at the Quest Board — thy strength returns at once, and thou art up again.</p>'}
     <div class="rest-actions">
       <button data-rest="board">The Quest Board</button>
       <button data-rest="tome">The Tome</button>

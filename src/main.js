@@ -240,8 +240,19 @@ function retireForTheNight() {
   drawRest();
 }
 
+// up from the cot: today's deed, posted from bed, refills the pool
+function wakeFromRest() {
+  resting = false;
+  document.body.classList.remove('abed');
+  setRestVisible(false);
+  player.respawn(world.wakeSpot.x, world.wakeSpot.z); // on his feet beside the cot
+  toast('The deed is done — strength floods back. Up, and onward!', 'gold');
+  if (!isPanelOpen()) player.setEnabled(true); // else when the board closes
+}
+
 onChange((reason) => {
   if (reason === 'stamina' && staminaSpent() && !abed()) spentPending = true;
+  if (reason === 'quests' && resting && !staminaSpent()) wakeFromRest();
 });
 
 // E hurries the walk home
