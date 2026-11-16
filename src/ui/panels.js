@@ -8,12 +8,6 @@ import {
   completeMonthly,
   setEpicText,
   setEpicProgress,
-  setTreasury,
-  setSummit,
-  setPledge,
-  fileReckoning,
-  reckoningDue,
-  judgeReckoning,
   buyItem,
   ownedWeapons,
   wieldedWeapon,
@@ -28,9 +22,10 @@ import {
 } from '../state/state.js';
 import { CONFIG } from '../state/config.js';
 import { mouseFeelId, setMouseFeel } from '../state/prefs.js';
-import { todayStr, monthKey, prevMonthKey, nextMonthKey } from '../state/dates.js';
+import { todayStr } from '../state/dates.js';
 import { renderGuide } from './guide.js';
 import { renderMap } from './map.js';
+import { renderTreasury, resetTreasury } from './treasury.js';
 import { warePicture, wareLore, hasWareLore } from './wares.js';
 import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
@@ -535,270 +530,6 @@ function renderLedger() {
     </div>`;
 }
 
-// ---------- The Treasury (the Exchequer's monthly reckoning) ----------
-// Real money, honor system. The flavor stays in the headings; every figure the
-// player types is labelled in plain words (savings, goal, pledge, income,
-// spending) so the ledger reads like the bank statement it stands for.
-
-const ROLL_TAGS = {
-  fat: ['the hoard grew fat', 'tag-gold'],
-  held: ['held the line', ''],
-  bled: ['the purse bled', 'tag-grim'],
-  unreckoned: ['unreckoned', ''],
-};
-
-// what each verdict means, in plain words — the legend and the live preview
-const VERDICT_MEANING = {
-  fat: 'saved at least the pledge',
-  held: 'spent no more than came in',
-  bled: 'spent more than came in',
-};
-
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-function rollMonth(key) {
-  const [y, m] = key.split('-').map(Number);
-  return `${MONTHS[m - 1]} ’${String(y).slice(2)}`;
-}
-
-function monthName(key) {
-  return MONTH_NAMES[Number(key.split('-')[1]) - 1];
-}
-
-const money = (n) => Math.round(n).toLocaleString();
-
-// one labelled figure: what it is on the left (with a line of help), the box on the right
-function ledgerField(attr, label, hint, value = '', type = 'number') {
-  const extra = type === 'number' ? 'min="0" step="any"' : 'maxlength="60"';
-  return `<label class="ledger-field">
-      <span class="lf-text"><span class="lf-label">${label}</span><span class="lf-hint">${hint}</span></span>
-      <input type="${type}" ${attr} ${extra} value="${value}" />
-    </label>`;
-}
-
-function renderTreasury() {
-  const t = getState().treasury;
-  const due = reckoningDue();
-  // a ledger nobody has touched yet: show the how-to open and the terms first
-  const untouched = !t.rolls.length && !t.conquered.length && t.current === 0 && t.pledge === 0 && !t.name;
-
-  // ---- the hoard at a glance: savings, the goal and the pace toward it ----
-  let goalBlock;
-  if (t.goal > 0) {
-    const pct = Math.min(100, Math.floor((t.current / t.goal) * 100));
-    const left = Math.max(0, t.goal - t.current);
-    const pace =
-      left === 0
-        ? ' The goal is reached — the clerk declares it won at the next reckoning.'
-        : t.pledge > 0
-          ? ` At thy pledge of ${money(t.pledge)} a month, about ${Math.ceil(left / t.pledge)} month${Math.ceil(left / t.pledge) === 1 ? '' : 's'} more.`
-          : ' Set a monthly pledge below to see the pace.';
-    goalBlock = `
-      <div class="kv"><span>Goal — ${t.name ? esc(t.name) : '<i>unnamed</i>'}</span><span class="v">${money(t.goal)}</span></div>
-      <div class="xpbar treasury" style="margin:6px 0"><div style="width:${pct}%"></div></div>
-      <p class="muted">${pct}% of the way · ${money(left)} to go.${pace}</p>`;
-  } else {
-    goalBlock = `
-      <p class="muted">No goal is raised. Name the next thing thou art saving for, and how much it needs.</p>
-      ${ledgerField('data-s-name', 'Goal name', 'e.g. “The War Chest”, “A new roof”', '', 'text')}
-      ${ledgerField('data-s-goal', 'Goal amount', 'the total thy savings must reach')}
-      <div class="row right"><button class="primary" data-s-set>Raise the goal</button></div>`;
-  }
-  const glance = `<div class="sheet-section">
-      <h2>The Hoard</h2>
-      <div class="kv"><span>Savings</span><span class="v">${money(t.current)}</span></div>
-      ${goalBlock}
-      <div class="kv"><span>Monthly pledge</span><span class="v">${t.pledge > 0 ? money(t.pledge) : '<i>none set</i>'}</span></div>
-    </div>`;
-
-  const how = `<details class="ledger-how"${untouched ? ' open' : ''}>
-      <summary>How the Exchequer works</summary>
-      <ol>
-        <li>Under <b>The Terms</b>, write thy savings today, the goal thou art saving toward, and a <b>pledge</b> — what thou meanest to put into savings each month.</li>
-        <li>When a month ends, the clerk asks how it went: what came in, what went out, what thou didst put into savings, and what thy savings now stand at.</li>
-        <li>He judges the month by thy pledge — <b>fat</b> if thou ${VERDICT_MEANING.fat}, <b>held</b> if thou ${VERDICT_MEANING.held}, <b>bled</b> if thou ${VERDICT_MEANING.bled} — and enters it on the rolls.</li>
-        <li>When a reckoning shows thy savings at the goal, the goal is won and thou namest the next.</li>
-      </ol>
-      <p class="muted">This is real money, on thy honor. Game coins never enter here, and the Treasury pays no XP or coins — saving is its own reward, and a quest is the place to earn virtue for it.</p>
-    </details>`;
-
-  // ---- the reckoning: last month, four plain figures, judged live as they're typed ----
-  const now = new Date();
-  const thisMonth = monthKey(now);
-  const reckoning = due
-    ? `<div class="sheet-section">
-        <h2>The Reckoning — ${monthName(due)}</h2>
-        <p class="muted">How did ${monthName(due)} go? Real figures for the whole month.
-        Money moved into savings is not spending.</p>
-        ${ledgerField('data-r-earned', 'Income', 'everything that came in')}
-        ${ledgerField('data-r-spent', 'Spending', 'everything that went out, savings aside')}
-        ${ledgerField('data-r-saved', 'Put into savings', 'moved into the hoard this month')}
-        ${ledgerField('data-r-counted', 'Savings now', 'what thy accounts truly show — this becomes thy savings', t.current)}
-        <p class="ledger-preview" data-r-preview></p>
-        <div class="row right"><button class="primary" data-r-file>File the reckoning</button></div>
-      </div>`
-    : `<div class="sheet-section">
-        <h2>The Reckoning</h2>
-        <p class="muted">${monthName(prevMonthKey(now))} is reckoned. ${monthName(thisMonth)} can be
-        reckoned from the 1st of ${monthName(nextMonthKey(thisMonth))}.</p>
-      </div>`;
-
-  // ---- the rolls: last six months, newest first ----
-  const rollRows = [...t.rolls]
-    .slice(-6)
-    .reverse()
-    .map((r) => {
-      const [tagText, tagClass] = ROLL_TAGS[r.verdict] ?? ['—', ''];
-      const line =
-        r.verdict === 'unreckoned'
-          ? 'no statement was heard'
-          : `in ${money(r.earned)} · out ${money(r.spent)} · saved ${money(r.saved)} · savings ${money(r.counted)}`;
-      return `<div class="deed">
-        <span class="deed-date">${rollMonth(r.month)}</span>
-        <span class="deed-text">${line}</span>
-        <span class="deed-tag ${tagClass}">${tagText}</span>
-      </div>`;
-    })
-    .join('');
-  const rolls = t.rolls.length
-    ? `<div class="sheet-section"><h2>The Rolls</h2>
-        <p class="muted">Fat: ${VERDICT_MEANING.fat}. Held: ${VERDICT_MEANING.held}. Bled: ${VERDICT_MEANING.bled}.</p>
-        <div class="deed-list">${rollRows}</div></div>`
-    : '';
-
-  // ---- goals already won ----
-  const conquered = t.conquered.length
-    ? `<div class="sheet-section"><h2>Summits Conquered</h2><div class="deed-list">${[...t.conquered]
-        .reverse()
-        .map(
-          (c) => `<div class="deed">
-            <span class="deed-date">${deedDate(c.conqueredAt.slice(0, 10))}</span>
-            <span class="deed-text">“${esc(c.name)}”</span>
-            <span class="deed-tag tag-gold">${money(c.goal)}</span>
-          </div>`
-        )
-        .join('')}</div></div>`
-    : '';
-
-  // ---- the terms: every standing figure, labelled, editable any time ----
-  const terms = `<div class="sheet-section">
-      <h2>The Terms</h2>
-      ${ledgerField('data-t-current', 'Savings', 'set or correct it any time — a correction never wins a goal', t.current)}
-      ${
-        t.goal > 0
-          ? ledgerField('data-t-name', 'Goal name', 'what thou art saving for', esc(t.name), 'text') +
-            ledgerField('data-t-goal', 'Goal amount', 'the total thy savings must reach', t.goal)
-          : ''
-      }
-      ${ledgerField('data-t-pledge', 'Monthly pledge', 'what thou meanest to put into savings each month', t.pledge)}
-      <div class="row right"><button data-t-set>Keep these terms</button></div>
-    </div>`;
-
-  treasuryBody.innerHTML = untouched
-    ? `${glance}${how}${terms}${reckoning}`
-    : `${glance}${reckoning}${rolls}${conquered}${terms}${how}`;
-
-  // the live judgement under the reckoning's figures
-  const q = (sel) => treasuryBody.querySelector(sel);
-  const preview = q('[data-r-preview]');
-  if (preview) {
-    const counted = q('[data-r-counted]');
-    let countedTouched = false;
-    counted.addEventListener('input', () => (countedTouched = true));
-    const read = (sel) => (q(sel).value.trim() === '' ? null : Number(q(sel).value));
-    const update = () => {
-      const earned = read('[data-r-earned]');
-      const spent = read('[data-r-spent]');
-      const saved = read('[data-r-saved]');
-      // savings now follows "put into savings" until the player types it themself
-      if (!countedTouched) counted.value = saved === null ? t.current : t.current + saved;
-      if (earned === null || spent === null || saved === null) {
-        preview.textContent = 'Fill in all four and the clerk will show his judgement before thou filest.';
-        return;
-      }
-      const verdict = judgeReckoning({ earned, spent, saved }, t.pledge);
-      const change = Number(counted.value) - t.current;
-      preview.innerHTML =
-        `Left over after spending: <b>${money(earned - spent)}</b> · savings ${change >= 0 ? 'up' : 'down'} <b>${money(Math.abs(change))}</b><br>` +
-        `Verdict: <b>${ROLL_TAGS[verdict][0]}</b> — thou ${VERDICT_MEANING[verdict]}` +
-        (t.pledge > 0
-          ? verdict === 'fat'
-            ? ` (${money(t.pledge)} pledged).`
-            : ` (saved ${money(saved)} of the ${money(t.pledge)} pledged).`
-          : '. With no pledge set, held is the best a month can do.');
-    };
-    for (const sel of ['[data-r-earned]', '[data-r-spent]', '[data-r-saved]', '[data-r-counted]']) {
-      q(sel).addEventListener('input', update);
-    }
-    update();
-  }
-
-  q('[data-r-file]')?.addEventListener('click', () => {
-    const fields = ['[data-r-earned]', '[data-r-spent]', '[data-r-saved]', '[data-r-counted]'];
-    if (fields.some((sel) => q(sel).value.trim() === '')) {
-      toast('The clerk taps the blank lines — all four figures, if thou please.', 'grim');
-      return;
-    }
-    const num = (sel) => Number(q(sel).value);
-    const entry = {
-      earned: num('[data-r-earned]'),
-      spent: num('[data-r-spent]'),
-      saved: num('[data-r-saved]'),
-      counted: num('[data-r-counted]'),
-    };
-    if (!Object.values(entry).every((v) => Number.isFinite(v) && v >= 0)) {
-      toast('The clerk squints — those figures are no figures.', 'grim');
-      return;
-    }
-    const res = fileReckoning(entry);
-    if (!res) return;
-    sfx.page();
-    const kept = res.roll.earned - res.roll.spent;
-    const [verdictText] = ROLL_TAGS[res.roll.verdict];
-    toast(
-      res.roll.earned > 0
-        ? `The roll is entered — ${verdictText}. Of every hundred earned, ${Math.max(0, Math.round((kept / res.roll.earned) * 100))} were kept.`
-        : `The roll is entered — ${verdictText}.`,
-      res.roll.verdict === 'fat' ? 'gold' : res.roll.verdict === 'bled' ? 'grim' : ''
-    );
-    if (res.conquered) {
-      sfx.levelUp();
-      toast(`${esc(res.conquered.name)} — conquered! Thy savings stand at ${money(getState().treasury.current)}.`, 'gold');
-    }
-    renderTreasury();
-  });
-
-  q('[data-s-set]')?.addEventListener('click', () => {
-    const name = q('[data-s-name]').value;
-    const goal = Number(q('[data-s-goal]').value);
-    if (!Number.isFinite(goal) || goal < 1) {
-      toast('A goal needs an amount to reach.', 'grim');
-      return;
-    }
-    setSummit(name, goal);
-    toast('A new summit is raised. The climb resumes.', 'gold');
-    renderTreasury();
-  });
-
-  q('[data-t-set]').addEventListener('click', () => {
-    const cur = Number(q('[data-t-current]').value);
-    const pledge = Number(q('[data-t-pledge]').value);
-    if (Number.isFinite(pledge)) setPledge(pledge);
-    const goalEl = q('[data-t-goal]');
-    if (goalEl) {
-      const goal = Number(goalEl.value);
-      setSummit(q('[data-t-name]').value, Number.isFinite(goal) && goal >= 1 ? goal : t.goal);
-    }
-    if (Number.isFinite(cur)) setTreasury(cur, getState().treasury.goal);
-    toast('The terms are entered in the ledger.', 'gold');
-    renderTreasury();
-  });
-
-  for (const inp of treasuryBody.querySelectorAll('input')) {
-    inp.addEventListener('keydown', (e) => e.stopPropagation());
-  }
-}
-
 // ---------- the wares' pictures and their "read more" (shop + chest) ----------
 
 // The wares whose "read more" is unfolded, by id. Kept while the panel is
@@ -988,6 +719,7 @@ function close() {
   editingEpic = false;
   pendingImport = null;
   openWares.clear();
+  resetTreasury();
   overlay.classList.add('hidden');
   boardPanel.classList.add('hidden');
   tomePanel.classList.add('hidden');
@@ -1021,7 +753,7 @@ export function openPanel(id) {
   mapPanel.classList.toggle('hidden', id !== 'map');
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
-  else if (id === 'treasury') renderTreasury();
+  else if (id === 'treasury') renderTreasury(treasuryBody);
   else if (id === 'shop') renderShop();
   else if (id === 'guide') renderGuide(guideBody);
   else if (id === 'chest') renderChest();

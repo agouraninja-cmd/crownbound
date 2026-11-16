@@ -1,5 +1,5 @@
 import { CONFIG, rankForTotalLevels } from './config.js';
-import { todayStr, yesterdayStr, weekStartStr, monthStartStr, prevMonthKey, nextMonthKey } from './dates.js';
+import { todayStr, yesterdayStr, weekStartStr, monthStartStr, monthKey, prevMonthKey, nextMonthKey } from './dates.js';
 
 export const STAT_NAMES = {
   ath: 'Athleticism',
@@ -75,7 +75,7 @@ function defaultState(now = new Date()) {
     },
     coins: 0,
     // real savings: a named cumulative summit plus the monthly reckoning rolls
-    treasury: { name: '', current: 0, goal: 10000, pledge: 0, rolls: [], conquered: [] },
+    treasury: { name: '', current: 0, goal: 10000, pledge: 0, laid: {}, rolls: [], conquered: [] },
     streak: { current: 0, best: 0 },
     quests: {
       daily: { text: '', completed: false, date: today },
@@ -156,6 +156,7 @@ function migrate(s) {
   if (!('pledge' in s.treasury)) s.treasury.pledge = 0;
   if (!s.treasury.rolls) s.treasury.rolls = [];
   if (!s.treasury.conquered) s.treasury.conquered = [];
+  if (!s.treasury.laid) s.treasury.laid = {}; // coin laid in, by month, not yet on a roll
   return s;
 }
 
@@ -641,14 +642,43 @@ export function setPledge(n) {
   emit('treasury');
 }
 
+// Coin laid in between reckonings: the player moved real money into savings
+// and says so. The hoard grows at once, and the month it was laid in
+// remembers the sum (`laid`), so that month's reckoning opens already tallied.
+// Like a correction, it never takes a summit — only a filed reckoning does.
+export function layIn(amount, now = new Date()) {
+  if (!(amount > 0)) return null;
+  const t = state.treasury;
+  const month = monthKey(now);
+  t.current += amount;
+  t.laid[month] = (t.laid[month] ?? 0) + amount;
+  save();
+  emit('treasury');
+  return { month, laid: t.laid[month], current: t.current };
+}
+
+// What the savings stood at when a month was last reckoned (null if never) —
+// the mark a month with no income and spending given is judged against.
+export function lastCounted() {
+  const rolls = state.treasury.rolls;
+  for (let i = rolls.length - 1; i >= 0; i--) {
+    if (Number.isFinite(rolls[i].counted)) return rolls[i].counted;
+  }
+  return null;
+}
+
 // Pure verdict on a month's numbers, judged against the pledge (exported for
 // the smoke suite):
 //   'fat'   laid in the hoard at least the pledged amount (needs a pledge set)
-//   'held'  kept ≥ 0 — spent no more than was earned
-//   'bled'  spent more than was earned
-export function judgeReckoning({ earned, spent, saved }, pledge) {
+//   'held'  lost no ground — spent no more than was earned
+//   'bled'  lost ground — spent more than was earned
+// Income and spending are optional. Without them the month is judged on the
+// savings alone: bled if they stand lower than at the last reckoning
+// (`before`), held otherwise.
+export function judgeReckoning({ earned, spent, saved, counted, before }, pledge) {
   if (pledge > 0 && saved >= pledge) return 'fat';
-  return earned - spent >= 0 ? 'held' : 'bled';
+  if (Number.isFinite(earned) && Number.isFinite(spent)) return earned - spent >= 0 ? 'held' : 'bled';
+  return Number.isFinite(before) && counted < before ? 'bled' : 'held';
 }
 
 // The month a reckoning is owed for — the one that just ended — or null once
@@ -660,12 +690,16 @@ export function reckoningDue(now = new Date()) {
 
 // File the month's statement. Skipped months between the last roll and this
 // one land as 'unreckoned' (like unwitnessed nights) rather than vanishing.
-// `counted` is the reconciliation: what the accounts truly say, and it becomes
-// the new hoard total. Returns { roll, conquered } or null if nothing is due.
+// Two figures are needed: `saved` (put into savings that month) and `counted`
+// — the reconciliation, what the accounts truly say, which becomes the new
+// hoard total. `earned` and `spent` are optional (given together or not at
+// all); a roll filed without them simply does not carry them.
+// Returns { roll, conquered } or null if nothing is due.
 export function fileReckoning({ earned, spent, saved, counted }, now = new Date()) {
   const due = reckoningDue(now);
   if (!due) return null;
   const t = state.treasury;
+  const before = lastCounted();
 
   const last = t.rolls[t.rolls.length - 1];
   if (last) {
@@ -676,16 +710,20 @@ export function fileReckoning({ earned, spent, saved, counted }, now = new Date(
     }
   }
 
+  const full = Number.isFinite(earned) && Number.isFinite(spent);
   const roll = {
     month: due,
-    earned: Math.max(0, earned),
-    spent: Math.max(0, spent),
+    ...(full ? { earned: Math.max(0, earned), spent: Math.max(0, spent) } : {}),
     saved: Math.max(0, saved),
     counted: Math.max(0, counted),
-    verdict: judgeReckoning({ earned, spent, saved }, t.pledge),
+    verdict: judgeReckoning({ earned, spent, saved, counted, before }, t.pledge),
   };
   t.rolls.push(roll);
   t.current = roll.counted;
+  // the coin laid in for that month (and any month before it) is on the rolls now
+  for (const month of Object.keys(t.laid)) {
+    if (month <= due) delete t.laid[month];
+  }
 
   // conquest: the clerk declares a summit taken only at a filing. The fallen
   // summit is archived and the goal cleared until the next one is raised.

@@ -69,7 +69,8 @@ src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep 
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
-src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest, Map panel UIs
+src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Chest panel UIs; opens/closes every panel
+src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, lay in coin, the monthly reckoning, the seals and the climb chart (all SVG built here)
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
@@ -89,8 +90,13 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   treasury: {                                    // real savings, manual, never converts with coins
     name, current, goal,                         // the named cumulative summit (goal 0 = none raised)
     pledge,                                      // standing monthly laid-in commitment (verdict yardstick)
-    rolls: [ { month: "YYYY-MM", earned, spent, saved, counted,   // one reckoning per month, append-only
-               verdict: fat|held|bled|unreckoned } ],             //   (unreckoned rolls carry month+verdict only)
+    laid: { "YYYY-MM": n },                      // coin laid in between reckonings, by the month it was laid
+                                                 //   in; a month's sum is cleared when that month is filed
+                                                 //   (absent on old saves = {} — no version bump)
+    rolls: [ { month: "YYYY-MM", earned, spent, saved, counted,   // one reckoning per month, append-only;
+               verdict: fat|held|bled|unreckoned } ],             //   earned+spent are optional (a roll filed on
+                                                                  //   two figures has neither); unreckoned rolls
+                                                                  //   carry month+verdict only
     conquered: [ { name, goal, conqueredAt } ]   // summits taken; conquests also land in history as "treasury"
   },
   streak: { current, best },
@@ -291,16 +297,52 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   group and gained a nose (plus cap brim / hood lip) because a bare sphere-and-cylinder head
   turns invisibly. update(dt, playerPos) — main.js passes player.pos. All group rotations on
   existing meshes; gesture sfx deliberately omitted (reusing reward chimes would read as income).
+- The Reckoning (2026-07-03): the Treasury is a monthly statement of the player's real money — a
   virtual summarized spreadsheet with NO game value (no XP, no coins, ever; quests reward the
-  deed of saving, the roll only records the fact). Four entered lines per month (earned, spent,
-  laid in the hoard, hoard counted true — the last reconciles `current`); kept and keep-rate are
-  derived; the verdict judges laid-in against the standing `pledge` (fat ≥ pledge / held ≥ 0
-  kept / bled < 0), thresholds pledge-relative, not config numbers. Goals are cumulative
+  deed of saving, the roll only records the fact). Two figures are needed per month (laid in
+  the hoard, hoard counted true — the last reconciles `current`); earned and spent are optional
+  since The Coffer (below), and kept and keep-rate are derived when they are given. The verdict
+  judges laid-in against the standing `pledge` (fat ≥ pledge; else held / bled by earned − spent
+  when given, by whether the savings fell since the last reckoning when not), thresholds
+  pledge-relative, not config numbers. Goals are cumulative
   summits: named, climbed by month, archived to `conquered` on conquest — which fires ONLY at a
   filing (`fileReckoning`), never from goal edits, so a typo can't take a summit. Skipped months
   are backfilled as `unreckoned` rolls at the next filing, sleep-ledger style. One roll per
   month, ever (`reckoningDue` guards). Pure fns `judgeReckoning`/`reckoningDue` exported for the
-  smoke suite. Panel shows last 6 rolls; the full log is kept for the v2 Chronicler.
+  smoke suite. Panel shows the last 12 rolls; the full log is kept for the v2 Chronicler.
+- The Coffer (2026-11-16): the Treasury rebuilt to be used, at the owner's word ("it seems
+  confusing and overwhelming… more fun to use and more pleasant to look at while keeping the
+  idea in mind to have a positive impact on the user's actual life" — the changes were left to
+  Claude). What a future session must know:
+  - The panel is its own file, src/ui/treasury.js (panels.js calls `renderTreasury(body)` and
+    `resetTreasury()` on close). One screen, one job: a coffer drawn in code that heaps with
+    coin by % of the goal, the savings in large numerals, a track with wax-dotted quarter
+    marks and the pace ("about N months at the pledge — around Mon ’YY"), this month's pledge
+    meter — then ONE clerk's card (the three opening questions, or the reckoning owed, or the
+    next goal to name, or last month's seal and what to do next). Months past, goals won, the
+    plan and the how-to are `<details>` folds, shut until asked for.
+  - Lay in coin (`layIn(amount)`, state.js): the between-months action. The player moves real
+    money into savings and says so — `current` grows at once and `laid[thisMonth]` remembers
+    it. That is what makes the Treasury answer the deed on the day it is done instead of once
+    a month. It never wins a goal (only a filed reckoning does — the typo rule stands) and
+    pays nothing. "Recount" is the correction (`setTreasury`): it moves `current`, not `laid`.
+  - The reckoning asks two figures: put into savings (pre-filled from `laid[dueMonth]`) and
+    savings now (pre-filled; it follows what is typed beyond the coin already laid in, until
+    typed over — so nothing is counted twice). Income and spending sit in a fold, given
+    together or not at all. This was the friction that kept the ledger unused: a balance can
+    be read off a bank app, a month's spending has to be added up.
+  - Verdicts are wax seals with a mark each — risen (fat), level (held), fallen (bled), an
+    empty ring (unreckoned) — so the verdict never rests on colour alone. Plain meanings
+    everywhere: pledge kept / no ground lost / ground lost. A bled month is answered with a
+    next step (cut one cost, post it as a quest), never a scolding.
+  - An untouched ledger (no rolls, no conquests, nothing saved, no pledge, no name) opens on
+    three questions, one at a time; sealing them names an unnamed goal "The Hoard", because
+    the name is what marks a ledger as opened.
+  - Inputs are never focused when the panel opens (the E that opened it would be typed into
+    the box) — only after a click inside it. Esc closes the panel from inside a box.
+  - The `data-*` hooks the smoke suite drives (`data-w-*` the questions, `data-lay-*`,
+    `data-count-*`, `data-r-*` the reckoning, `data-s-*` the next goal, `data-t-*` the plan)
+    are the panel's contract with scripts/smoke.mjs.
 - The Renovation (2026-11-13): the whole 3D look rebuilt inside the same art rules. What a
   future session must know:
   - Static batching. Every prop is still assembled from mesh() pieces; the builder then calls
@@ -915,6 +957,19 @@ headlessly; everything else covered by the regression suite below.
   legend and each month's closing savings. The Charter's Two Purses paragraph rewritten to
   match. No save change.
 
+- [x] Post-v1 — "The Coffer" (2026-11-16): the Treasury rebuilt to be glanced at and used in a
+  minute. A coffer that fills with coin, the savings in large numerals, a track to the goal
+  with quarter marks and the date the pledge reaches it, and this month's pledge filling as
+  coin is laid in. One thing asked at a time: three opening questions on a fresh ledger; a
+  reckoning of two figures (income and spending optional); wax seals for the verdicts with a
+  line of what to do next; "Lay in coin" any day real money goes into savings; months past
+  (a bar chart of the climb and the rolls), goals won, the plan and the how-to folded away.
+  New: `treasury.laid`, `layIn()`, rolls without earned/spent, the two-figure verdict — no
+  saveVersion bump (absent `laid` = {}). The Charter's Two Purses paragraph rewritten.
+  `exchequer` and `reckoning` smoke scenarios rewritten for it. Seen only in a cloud
+  container, not yet on the owner's screen; the coin sound on laying in is untested by ear.
+  CROWNBOUND-Guide.docx NOT updated. Details: "The Coffer" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -948,7 +1003,7 @@ headlessly; everything else covered by the regression suite below.
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
-  interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
+  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (chip fills the name, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + coin laid in (savings, the month's tally, pledge kept) + a recount leaves the tally + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
   (the cudgel's unfolds with its config damage and folds again; the chest's three pictures and
   a chest read-more without the buying talk checked later; shop panel →
@@ -964,8 +1019,8 @@ headlessly; everything else covered by the regression suite below.
   and its history deed, back to stubble) + no XP earned + the Charter's section (screenshot →
   scripts/smoke-farm.png) · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
-  `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat, typed: blank figures refused, savings-now follows, live verdict) + conquest & next
-  summit + double-file guard + unreckoned backfill (panel screenshot → scripts/smoke-reckoning.png) ·
+  `reckoning` v6→v7 migration + verdict rules (with and without income/spending) + panel filing (pledge/fat, typed: blank figures refused, savings-now follows, live verdict) + conquest & next
+  summit + double-file guard + the month owed opening already tallied with coin laid in + unreckoned backfill + two-figure months on a pinned clock (held, then bled; laid cleared) + the climb's bars and the seals (months past unfolded → scripts/smoke-reckoning.png) ·
   `alive` villager breathing spread + head-track/greet for all three (off-axis stand, or the
   turn is ~0) + head returns at distance + fidget fires + miller walks his rounds & his prompt
   follows (screenshot → scripts/smoke-alive.png) ·

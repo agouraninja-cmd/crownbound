@@ -183,11 +183,13 @@ export function renderGuide(guideBody) {
       <p class="muted">They never mix. Coins of the realm will never buy back a virtue,
       and thy true hoard answers to no game — the Treasury is real money, kept on thy honor, and
       pays no XP or coins.</p>
-      <p class="muted">At the Exchequer set three terms: thy savings, a goal to save toward, and a
-      monthly pledge (what thou meanest to put into savings). When each month ends, tell the clerk
-      what came in, what went out, what went into savings, and what thy savings now stand at. He
-      judges the month — fat if thou savedst the pledge, held if thou spentest no more than came in,
-      bled if more — and enters the roll. A goal is won when a filed reckoning reaches it.</p>
+      <p class="muted">At the Exchequer the clerk asks three things to open thy ledger: what thou art
+      saving for, what thou hast saved, and a monthly pledge (what thou meanest to set aside). After
+      that, lay in coin there whenever thou movest real money into savings — the coffer fills and the
+      month&#8217;s pledge with it. When each month ends, tell the clerk two figures: what went into
+      savings, and what thy savings now stand at (income and spending as thou wilt). He seals the
+      month — fat if the pledge was kept, held if no ground was lost, bled if it was. A goal is won
+      when a filed reckoning reaches it.</p>
     </div>
     ${farmSection}
     ${marketSection}
