@@ -83,9 +83,11 @@ export function createPlayer(scene, spawn) {
     onWorkDone: () => {}, // (kind) when the ridge is finished
     // wired up by later systems (stamina M5, combat M6)
     trySpend: () => true,
-    canSprint: () => true, // false once the stamina pool is dry
     tire: () => {}, // (whole points) the legs' toll on the stamina pool
     fatigue: 0, // the toll gathered so far, paid in whole points
+    // a walk he takes on his own (spent for the day, the way home):
+    // { points: [{x, z}...], i, onArrive } — the keys have no say meanwhile
+    route: null,
     onAttackSwing: null, // called once at the active frame of a swing
     onActionBlocked: () => {},
     // gear from the chapman (main.js applies ownership on load + purchase)
@@ -148,6 +150,7 @@ export function createPlayer(scene, spawn) {
   // main.js times the fade-out and ends the nap with respawn().
   function startSleep(bed) {
     if (player.mode === 'sleep') return;
+    player.route = null;
     player.sleepTarget = bed; // { x, z, y: mattress top (world), facing }
     player.mode = 'sleep';
     player.modeT = 0;
@@ -367,6 +370,7 @@ export function createPlayer(scene, spawn) {
     player.invulnerable = false;
     player.lie01 = 0;
     player.sitK = player.sit01 = player.stillFor = 0;
+    player.route = null;
     stopWork(); // the stick back in hand — after a nap, or a death in the field
     anim.reset(); // on his feet, no leftover lean or half-finished pose
     player.onHpChange(player.hp, player.maxHp);
@@ -395,7 +399,7 @@ export function createPlayer(scene, spawn) {
     if (keys.has('KeyS')) iz -= 1;
     if (keys.has('KeyA')) ix -= 1;
     if (keys.has('KeyD')) ix += 1;
-    const sprinting = (keys.has('ShiftLeft') || keys.has('ShiftRight')) && player.canSprint();
+    const sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
 
     player.crouching = keys.has('KeyC') && player.mode === 'normal' && !player.airborne;
     player.crouch01 += ((player.crouching ? 1 : 0) - player.crouch01) * (1 - Math.exp(-dt * 12));
@@ -407,6 +411,29 @@ export function createPlayer(scene, spawn) {
 
     let dirX = fwdX * iz + rightX * ix;
     let dirZ = fwdZ * iz + rightZ * ix;
+    // walking himself somewhere: the route steers in place of the keys
+    if (player.route && player.mode === 'normal') {
+      const r = player.route;
+      let t = r.points[r.i];
+      const last = r.i === r.points.length - 1;
+      // a waypoint counts as passed a stride early; the last must be reached
+      if (Math.hypot(t.x - player.pos.x, t.z - player.pos.z) < (last ? 0.25 : 0.6)) {
+        if (last) {
+          player.route = null;
+          r.onArrive();
+        } else {
+          r.i += 1;
+          t = r.points[r.i];
+        }
+      }
+      if (player.route) {
+        dirX = t.x - player.pos.x;
+        dirZ = t.z - player.pos.z;
+      } else {
+        dirX = 0;
+        dirZ = 0;
+      }
+    }
     const len = Math.hypot(dirX, dirZ);
     if (len > 0) {
       dirX /= len;
@@ -490,8 +517,10 @@ export function createPlayer(scene, spawn) {
     player.sit01 = player.sitK * player.sitK * (3 - 2 * player.sitK);
 
     if (player.mode === 'normal') {
-      // getting up from the fire, he finds his feet before he finds his pace
-      const pace = P.walkSpeed * (player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1) * (1 - player.sit01);
+      // getting up from the fire, he finds his feet before he finds his pace;
+      // the walk home (spent for the day) is a weary walk, never a run
+      const gait = player.route ? CONFIG.stamina.homewardPace : player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1;
+      const pace = P.walkSpeed * gait * (1 - player.sit01);
       if (player.airborne) {
         // nothing to push against: momentum carries the leap, the keys only nudge it
         if (len > 0) steer(dirX * pace, dirZ * pace, P.airAccel, dt);
@@ -502,8 +531,8 @@ export function createPlayer(scene, spawn) {
         // pushing off toward the wanted pace, or braking: easing off, or turning back on himself
         const turnedBack = player.vel.x * dirX + player.vel.y * dirZ < 0;
         steer(dirX * want, dirZ * want, len > 0 && !turnedBack ? P.accel : P.brake, dt);
-        // walking and running wear on the stamina pool
-        if (len > 0) {
+        // walking and running wear on the stamina pool (the walk home is free)
+        if (len > 0 && !player.route) {
           const ST = CONFIG.stamina;
           player.fatigue += (sprinting && !player.crouching ? ST.sprintDrain : ST.walkDrain) * dt;
           if (player.fatigue >= 1) {
@@ -577,6 +606,21 @@ export function createPlayer(scene, spawn) {
   player.attack = startAttack;
   player.startSleep = startSleep;
   player.startWork = startWork;
+
+  // walk himself through `points` ({x, z} each) in turn; onArrive at the last
+  player.walkRoute = function walkRoute(points, onArrive) {
+    player.route = points.length ? { points, i: 0, onArrive } : null;
+    if (!points.length) onArrive();
+  };
+
+  // already lying on the cot, with no tuck-in to watch (a load while spent)
+  player.lieDownAt = function lieDownAt(bed) {
+    player.respawn(bed.x, bed.z);
+    player.facing = bed.facing;
+    m.group.rotation.y = bed.facing;
+    startSleep(bed);
+    player.modeT = 5; // past the glide and the lying back
+  };
 
   player.faceToward = function faceToward(x, z) {
     player.facing = Math.atan2(x - player.pos.x, z - player.pos.z);

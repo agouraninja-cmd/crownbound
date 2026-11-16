@@ -59,6 +59,7 @@ src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankle
 src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
 src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
 src/player/camera.js  pointer-lock third-person orbit camera
+src/player/pathfind.js  the walk home: grid A* around the colliders, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
 src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
@@ -68,6 +69,7 @@ src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact promp
 src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest, Map panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
+src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
 ```
@@ -99,7 +101,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   chronicle: [ { week, text, writtenAt } ],      // the Chronicler's weekly entries, append-only, oldest first
   // v1 additions beyond original spec (documented deviations):
   daysPlayed,                                    // incremented on first login of each local day
-  stamina: { current, date },                    // daily pool, persisted within the day
+  stamina: { current, date, spent },             // daily pool, persisted within the day; spent: true once
+                                                 //   it hit 0 today (abed till the morrow; absent = false)
   counters: { date, dummyXp, ratsKilled },       // per-day scratch: dummy diminishing returns, rat respawn
   sleep: { retiredAt, lastRewardDate, wellRestedDate,   // cot bedtime + Well-Rested boon bookkeeping
            log: [ { bed, wake, verdict } ] },           // every judged night, append-only (kept in full
@@ -128,7 +131,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   (toasts in main.js). Once only — the timestamp guards re-triggering. Board and Tome show the
   road to the crown ("N of 70 virtue levels won"), then the crowning date ever after. The full
   Coronation ceremony (visuals, the event itself) remains v5 scope.
-- Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day, feeds streak.
+- Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day
+  (no refill once spent for the day — see below), feeds streak.
 - Weekly bounty: +100 XP to chosen stat, +50 coins. Monthly campaign: +300 XP, +150 coins.
   Epic: manual progress %, logged to history.
 - Streak: daily completion counts the day. Missing a full day resets to 0 → "The fire died in the night."
@@ -137,9 +141,16 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   reminder; it swells to full tier the moment the deed is logged.
 - Stamina: base cap 240 (attack 5, dodge 8). Daily completion → refill + cap 480 for that day.
   The legs draw on it too: 0.25/s walking (crouched included), 1/s sprinting, on the ground
-  only — a leap and standing still are free (`walkDrain`/`sprintDrain`). Empty stamina blocks
-  combat and the sprint, never walking (no one is stranded far from the board): "Your arms are
-  spent. Earn your strength — the board awaits." / a once-per-load "Your legs are spent" toast.
+  only — a leap and standing still are free (`walkDrain`/`sprintDrain`). Too little for a
+  swing/roll: "Your arms are spent. Earn your strength — the board awaits." At exactly 0 the
+  day is over ("Spent for the day", below).
+- Spent for the day: the moment stamina hits 0, `stamina.spent` is set and he walks himself
+  home — the keys let go, a path is found round everything (out through the field gate if need
+  be), the door opens, he lies down on the cot — and the rest card says play resumes tomorrow,
+  with a motivational line he says to himself. E hurries the walk (fade, abed). The Quest Board,
+  Tome and Exchequer open from the card; a daily posted from bed counts (XP, coins, streak) but
+  does NOT refill a spent pool. "Retire for the night" marks the real bedtime (the walk home
+  never does). Opening the game again that day finds him abed; the next day's rollover clears it.
 - Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
@@ -746,6 +757,22 @@ headlessly; everything else covered by the regression suite below.
   only; no rule or save change. All 21 smoke scenarios pass (cloud container, headless Chromium), `guide` only on a re-run (its 400ms prompt wait read a stalled frame — see Session notes). Seen only in a pose bench, not yet on the owner's machine. After merging The Hearthside (its SEAT pose's wrist is in range; the stick is laid aside seated) `hearth`, `body` and `combat` pass on the merge; `house` passes all but its first check (the closed door pushing him out), which failed the same way on plain `main` — no frame drew inside its 300ms wait. Details: under "The Living Body" in
   Noted decisions.
 
+- [x] Post-v1 — "To Bed, Spent" (2026-11-16), at the owner's request ("when stamina hits 0 make
+  the user automatically walk to his bed and go to sleep... tell the player he can start playing
+  again tomorrow... something motivational... talking to himself"). At 0 stamina: control lets
+  go, he walks home on a route from src/player/pathfind.js (grid A*, 0.5 cells, colliders grown
+  by 0.45, string-pulled; static colliders only — main.js hurries him home if he stalls 3s or
+  no route exists), opens the door, crosses to the wake spot, tucks in, and src/ui/rest.js
+  shows his line (one per day, from a done/owed list) + "Come back tomorrow". `player.route`
+  steers in place of the keys at `homewardPace` 0.8; `player.lieDownAt` puts him abed at once
+  for a load on a spent day. State: `stamina.spent` (set at 0 by spend/drain, cleared by the
+  new day's pool; also set on a same-day load at 0), `staminaSpent()`; completeDaily and the
+  Well-Rested grant don't refill a spent pool. The earlier "a dry pool can still walk, not
+  sprint" rule (`canSprint`) is gone. Decisions taken without asking (owner may revisit): the
+  ledgers stay usable from bed, a daily from bed doesn't wake him, the walk home records no
+  bedtime ("Retire for the night" does). New smoke scenario `spent`; `fire` now spends to 1.
+  No saveVersion bump (absent `spent` = false).
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -761,7 +788,7 @@ headlessly; everything else covered by the regression suite below.
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
-  `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/miller-tally greeting/death
+  `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy/rats/miller-tally greeting/death
   (respawn at the cot) ·
   `walk` movement · `body` the player's weight and limbs, stepped by hand at a fixed rate:
   sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole
@@ -800,6 +827,10 @@ headlessly; everything else covered by the regression suite below.
   `chronicle` v7→current migration (old str/agi deeds re-tagged ath) + fetch-stubbed weekly entries: a failing call writes nothing,
   the next load retries, one written entry per load, the empty week left blank for free, week
   order kept, Tome journal newest-first (screenshot → scripts/smoke-chronicle.png) ·
+  `spent` stamina to 0 inside the field fence → he walks home through the gate (not hurried),
+  door opened, abed, keys dead, rest card says tomorrow + the owed deed; daily posted from bed
+  counts but leaves the pool at 0; retire marks the bedtime; reload finds him abed; a new day
+  frees him with a full pool; E hurries a second walk (screenshot → scripts/smoke-spent.png) ·
   `map` M opens the map, both sheets draw, kingdom + village named, home ringed, hover caption,
   plan opens on The Green at the spawn, The Bounds button, M closes and frees the player, the
   arrow moves north-east when he stands by the strip, the zoom kept for the session, Esc

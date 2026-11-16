@@ -6,12 +6,14 @@ import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, placePrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
-import { loadState, getState, onChange, staminaCap, spendStamina, drainStamina, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
+import { loadState, getState, onChange, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
 import { initPanels, openPanel, closePanel, openPanelId, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
 import { keepChronicle } from './ai/chronicler.js';
 import { toast } from './ui/toasts.js';
+import { initRest, showRest, setRestVisible } from './ui/rest.js';
+import { planPath } from './player/pathfind.js';
 import { initAudio, sfx } from './ui/audio.js';
 import { createDummy } from './combat/dummy.js';
 import { createRats } from './combat/rats.js';
@@ -57,15 +59,8 @@ applyPurchases();
 
 // combat actions draw from the daily stamina pool
 player.trySpend = (cost) => spendStamina(cost);
-// walking and running draw on it too; a dry pool forbids only the sprint
-player.tire = (n) => {
-  const had = getState().stamina.current;
-  drainStamina(n);
-  if (had > 0 && getState().stamina.current === 0) {
-    toast('Your legs are spent — no more running today. Earn your strength — the board awaits.', 'grim');
-  }
-};
-player.canSprint = () => getState().stamina.current > 0;
+// walking and running draw on it too; emptied, he is done for the day (see "spent")
+player.tire = (n) => drainStamina(n);
 player.onActionBlocked = () =>
   toast('Your arms are spent. Earn your strength — the board awaits.', 'grim');
 
@@ -111,7 +106,7 @@ player.onDeath = () => {
     player.respawn(world.wakeSpot.x, world.wakeSpot.z);
     fadeEl.classList.remove('show');
     toast('You wake on your straw cot, aching. The rats remain.', 'grim');
-    if (!isPanelOpen()) player.setEnabled(true);
+    if (!isPanelOpen() && !abed()) player.setEnabled(true);
   }, 1100);
 };
 
@@ -139,13 +134,127 @@ function sleepAtCot() {
         : 'You rest your eyes a while. The night is marked.',
       ''
     );
-    if (!isPanelOpen()) player.setEnabled(true);
+    if (!isPanelOpen() && !abed()) player.setEnabled(true);
     sleeping = false;
   }, 2600);
 }
 
+// ---------- spent for the day ----------
+// The moment the stamina pool hits nought he is done: the keys let go, he
+// walks himself home (a path around everything, through the field gate if
+// need be), opens his door, lies down on his cot, and the rest card says
+// so — play resumes tomorrow. The flag lives in the save (staminaSpent), so
+// opening the game again today finds him already abed.
+let resting = false; // abed, the rest card up
+let homeward = false; // on the walk home
+let spentPending = false; // spent, waiting for a swing or a leap to finish first
+let bedtimeIso = null; // a bedtime marked from the rest card since he lay down
+const abed = () => resting || homeward || spentPending;
+let lastHomeward = null; // how the last walk home ended: 'walked' | 'hurried' (smoke tests)
+const watch = { t: 0, x: 0, z: 0 }; // a stall on the way home: hurried there instead
+
+function beginHomeward() {
+  spentPending = false;
+  homeward = true;
+  player.setEnabled(false);
+  player.invulnerable = true; // no rat spoils the walk home
+  showPrompt(null);
+  watch.t = 0;
+  watch.x = player.pos.x;
+  watch.z = player.pos.z;
+  toast('Your strength is spent. Home to your cot. (E — hurry home)', 'grim');
+  const D = world.door;
+  const inDoor = { x: D.x - 0.7, z: D.z }; // just over the threshold
+  const toBed = [inDoor, world.wakeSpot];
+  if (insideHovel()) {
+    player.walkRoute([world.wakeSpot], tuckIn);
+    return;
+  }
+  const route = planPath(world.colliders, player.pos, { x: D.x + 1.3, z: D.z }); // the doorstep
+  if (!route) {
+    hurryHome();
+    return;
+  }
+  player.walkRoute(route, () => {
+    if (!D.isOpen) {
+      D.toggle();
+      sfx.creak();
+    }
+    setTimeout(() => {
+      if (homeward) player.walkRoute(toBed, tuckIn);
+    }, 450);
+  });
+}
+
+// over the threshold to the cot: he lies down, and the day is done
+function tuckIn() {
+  if (!homeward) return;
+  homeward = false;
+  lastHomeward = 'walked';
+  player.startSleep(world.bedRest);
+  setTimeout(() => goToRest(), 1700);
+}
+
+// skipped, stuck, or no way through: a fade, and he wakes abed
+function hurryHome() {
+  if (!homeward) return;
+  homeward = false;
+  lastHomeward = 'hurried';
+  player.route = null;
+  fadeEl.classList.add('show');
+  setTimeout(() => {
+    player.lieDownAt(world.bedRest);
+    fadeEl.classList.remove('show');
+    goToRest();
+  }, 800);
+}
+
+function drawRest() {
+  showRest({ dailyDone: dailyDoneToday(), bedtimeIso });
+}
+
+function goToRest() {
+  resting = true;
+  player.setEnabled(false);
+  orbitCam.unlock(); // the mouse is wanted for the card's buttons
+  document.body.classList.add('abed');
+  if (isPanelOpen()) setRestVisible(false);
+  else drawRest();
+}
+
+function retireForTheNight() {
+  recordBedtime();
+  bedtimeIso = getState().sleep.retiredAt;
+  sfx.page();
+  toast('The night is marked. Sleep well.', '');
+  drawRest();
+}
+
+onChange((reason) => {
+  if (reason === 'stamina' && staminaSpent() && !abed()) spentPending = true;
+});
+
+// E hurries the walk home
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyE' && homeward && !e.repeat) hurryHome();
+});
+
+// on the way home: steps along (begun once a swing or leap is over), and a
+// walk that has stalled for a few seconds is hurried instead
+function stepSpent(dt) {
+  if (spentPending && player.mode === 'normal' && !player.airborne && player.hp > 0 && !sleeping) beginHomeward();
+  if (!homeward || !player.route) return;
+  watch.t += dt;
+  if (watch.t < 3) return;
+  if (Math.hypot(player.pos.x - watch.x, player.pos.z - watch.z) < 0.6) hurryHome();
+  watch.t = 0;
+  watch.x = player.pos.x;
+  watch.z = player.pos.z;
+}
+
+// the card's buttons — the panels stay usable abed; Esc and the map do not wake him
 const isUiOpen = isPanelOpen;
-const orbitCam = createOrbitCamera(camera, renderer.domElement, isUiOpen);
+const orbitCam = createOrbitCamera(camera, renderer.domElement, () => isPanelOpen() || resting);
 orbitCam.setInterior(world.hovelInterior);
 // where pointer lock is refused, a plain click on the scene is the swing
 orbitCam.setOnTap(() => {
@@ -155,7 +264,11 @@ orbitCam.setOnTap(() => {
 initHud();
 initPanels(
   (opened) => {
-    player.setEnabled(!opened);
+    player.setEnabled(!opened && !abed());
+    if (resting) {
+      if (opened) setRestVisible(false);
+      else drawRest(); // a deed posted from bed changes his line
+    }
     if (opened) {
       orbitCam.unlock();
       showPrompt(null);
@@ -192,6 +305,18 @@ window.addEventListener('keydown', (e) => {
   if (openPanelId() === 'map') closePanel();
   else if (!isPanelOpen() && player.isEnabled()) openPanel('map');
 });
+
+initRest({
+  board: () => openPanel('board'),
+  tome: () => openPanel('tome'),
+  treasury: () => openPanel('treasury'),
+  retire: retireForTheNight,
+});
+// opened again on a day already spent: he is found abed
+if (staminaSpent()) {
+  player.lieDownAt(world.bedRest);
+  goToRest();
+}
 
 function syncHud() {
   const s = getState();
@@ -399,7 +524,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -419,6 +544,7 @@ const MAX_CATCHUP = 0.5; // a tab stalled longer than this simply loses the time
 // ambient scenery and the camera, which never pause.
 function step(dt) {
   if (!isUiOpen()) {
+    stepSpent(dt);
     player.update(dt, orbitCam.getYaw(), world.colliders);
     rats.update(dt, player, (dmg, x, z) => player.takeDamage(dmg, x, z));
     dummy.update(dt);
