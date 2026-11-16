@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './ui/ui.css';
 import { buildWorld } from './scene/world.js';
+import { skyAt, solarHour, compass } from './scene/daylight.js';
 import { LAYOUT } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
@@ -30,6 +31,15 @@ const marketToday =
     ? marketParam === '1'
     : CONFIG.shop.marketWeekdays.includes(new Date().getDay());
 
+// The sky shows the hour of the player's own clock. ?hour=17.5 holds it at
+// that hour of today instead (smoke tests, and a look at any time of day).
+const hourParam = parseFloat(new URLSearchParams(location.search).get('hour'));
+function skyClock() {
+  const now = new Date();
+  if (Number.isFinite(hourParam)) now.setHours(0, 0, hourParam * 3600, 0);
+  return now;
+}
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -42,7 +52,7 @@ document.getElementById('app').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-const world = buildWorld(scene, marketToday);
+const world = buildWorld(scene, marketToday, skyClock);
 const player = createPlayer(scene, LAYOUT.playerSpawn);
 player.hearth = LAYOUT.campfire; // stand still by it and he sits to warm himself
 
@@ -524,7 +534,7 @@ window.addEventListener('keydown', (e) => {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, solarHour, compass, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {

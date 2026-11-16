@@ -185,6 +185,14 @@ export const CONFIG = {
     strokeTime: 0.5, // seconds each takes
   },
 
+  // The sky keeps the hour of the player's own clock: sun, moon and stars
+  // stand where they would for someone at this latitude, today.
+  sky: {
+    latitude: 45, // degrees north of the equator: how long the days run, season by season.
+    //               Set it to where the game is played for truer dawns and dusks.
+    refresh: 5, // seconds between repaints of the sky and its light (the sun moves a hair in that time)
+  },
+
   campfireTiers: [
     { minStreak: 30, name: 'roaring' },
     { minStreak: 7, name: 'healthy' },

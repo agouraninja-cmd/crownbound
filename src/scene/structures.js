@@ -165,8 +165,8 @@ export function buildHovel() {
   doorPaint.visible = false;
   doorPivot.add(doorPaint);
 
-  // the little window: a dark opening with a hint of firelight, framed, with
-  // one shutter hung open
+  // the little window: a dark opening with a hint of firelight (more of it
+  // after dark — world.js), framed, with one shutter hung open
   const opening = new THREE.Mesh(box(0.08, 0.42, 0.42), new THREE.MeshBasicMaterial({ color: 0x4a2c16 }));
   opening.position.set(1.71, 1.35, 0.74);
   g.add(opening);
@@ -239,7 +239,7 @@ export function buildHovel() {
   const upgrades = { door: doorPaint, window: glassWindow, lantern, garden, ...inside.upgrades };
 
   bake(g);
-  return { group: g, doorPivot, chestLid: inside.chestLid, upgrades, hearth: inside.hearth };
+  return { group: g, doorPivot, chestLid: inside.chestLid, upgrades, hearth: inside.hearth, windowGlow: opening, windowLight: inside.windowLight };
 }
 
 // One-room medieval peasant interior: straw cot, open hearth with a pot over
@@ -383,7 +383,7 @@ function furnish(g, rng) {
   add(box(0.05, 0.62, 0.34), 0x5a4a3a, { x: 1.535, y: 1.22, z: 0.3, rx: 0.04 });
   add(box(0.06, 0.16, 0.26), 0x4d3f31, { x: 1.53, y: 1.47, z: 0.3 });
 
-  // daylight at the window, seen from within
+  // daylight at the window, seen from within (world.js colours it by the hour)
   const daylight = new THREE.Mesh(box(0.02, 0.38, 0.38), new THREE.MeshBasicMaterial({ color: 0xf7ecd0 }));
   daylight.position.set(1.572, 1.35, 0.74);
   g.add(daylight);
@@ -418,7 +418,7 @@ function furnish(g, rng) {
   trophy.visible = false;
   g.add(trophy);
 
-  return { upgrades: { rug, trophy }, hearth: { flames, glow, halo }, chestLid };
+  return { upgrades: { rug, trophy }, hearth: { flames, glow, halo }, chestLid, windowLight: daylight };
 }
 
 export function buildQuestBoard() {

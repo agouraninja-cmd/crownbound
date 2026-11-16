@@ -3,10 +3,12 @@ import { makeRng } from './meshUtils.js';
 import { terrainHeight } from './terrain.js';
 import { softDotTexture } from './sprites.js';
 import { createPuffs } from './particles.js';
+import { daylight } from './daylight.js';
 
 // Ambient life — nothing here touches the game, it only keeps the valley from
 // standing still: smoke from the hovel's roof, motes adrift in the sunlight,
-// birds wheeling high over the wood, butterflies at the flower patches.
+// birds wheeling high over the wood, butterflies at the flower patches. The
+// birds and butterflies keep the sun's hours: after dusk they are gone to roost.
 // buildAmbient returns { group, update(dt, camera) }; five draw calls in all.
 
 const SMOKE_NEW = new THREE.Color(0x6a635b);
@@ -111,6 +113,7 @@ export function buildAmbient({ smokeAt, flowerSpots }) {
     for (let v = 0; v < 6; v++) wingCol.set([c.r, c.g, c.b], i * 18 + v * 3);
   });
   flutter.geo.setAttribute('color', new THREE.BufferAttribute(wingCol, 3));
+  flutter.mesh.material.color = daylight.veil; // unlit wings, so the hour tints them
   group.add(flutter.mesh);
 
   function update(dt, camera) {
@@ -138,6 +141,7 @@ export function buildAmbient({ smokeAt, flowerSpots }) {
     smoke.update(dt);
 
     // motes: drift downwind, bob, twinkle; wrap so the box always surrounds the camera
+    const moteLight = 1 - 0.55 * daylight.night; // less to catch after dark
     const cx = camera.position.x;
     const cy = camera.position.y;
     const cz = camera.position.z;
@@ -156,13 +160,19 @@ export function buildAmbient({ smokeAt, flowerSpots }) {
       motePos[o] = x;
       motePos[o + 1] = y;
       motePos[o + 2] = z;
-      const glint = 0.12 + 0.34 * Math.max(0, Math.sin(t * m.speed * 1.7 + m.phase));
+      const glint = (0.12 + 0.34 * Math.max(0, Math.sin(t * m.speed * 1.7 + m.phase))) * moteLight;
       moteCol[o] = glint;
       moteCol[o + 1] = glint * 0.93;
       moteCol[o + 2] = glint * 0.74;
     }
     moteGeo.attributes.position.needsUpdate = true;
     moteGeo.attributes.color.needsUpdate = true;
+
+    // birds and butterflies fly while there is light to fly by
+    const abroad = daylight.sunAlt > -4;
+    birdFlock.mesh.visible = abroad;
+    flutter.mesh.visible = abroad;
+    if (!abroad) return;
 
     // birds: wide slow circles, a lazy wingbeat
     birds.forEach((b, i) => {
