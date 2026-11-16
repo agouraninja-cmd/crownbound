@@ -69,7 +69,7 @@ src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest, Map panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
-src/ui/wares.js       pictures of the chapman's wares: one small ink-and-wash SVG per shop item, drawn in code
+src/ui/wares.js       pictures of the wares: one small ink-and-wash SVG per shop item + the stick, drawn in code (shop + chest)
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
 ```
 
@@ -235,8 +235,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   oxblood door), so the picture matches what turns up in the hand or the hovel. A ware above
   the player's rank is shown faded. The pictures carry no ids or gradients (nine share one
   page). A new item in `shop.items` still sells without a picture (warePicture returns '');
-  give it one by adding a drawing to `PICTURES` under its id. Only the shop shows them — the
-  Chest panel still lists its weapons and loaves as text.
+  give it one by adding a drawing to `PICTURES` under its id. The Chest panel shows them too
+  (asked for the same day): each weapon row (the stick has its own drawing, as it is never
+  sold) and the larder's loaf, faded when the larder is empty.
 - The miller lives in his granary yard, home post (9.0, 9.3) — the rat bounty's flavor text made
   flesh. Third mute villager, v2 NPC candidate alongside the clerk and chapman. E opens no panel:
   it toasts a one-line tally of today's ratsKilled (`millerGreeting()` in main.js).
@@ -709,8 +710,10 @@ headlessly; everything else covered by the regression suite below.
 - [x] Post-v1 — "The Chapman's Pictures" (2026-11-16): every ware on the cart has a picture —
   an ink-and-wash drawing beside its row in the shop (the cudgel, the quarterstaff, the rug,
   the door paint, the glass pane, the garden plot, the loaf, the mounted rat, the candle
-  lantern), drawn in code like the Map; wares above the player's rank are faded. No save
-  change. `market` smoke scenario checks each ware has its picture and screenshots the panel.
+  lantern), drawn in code like the Map; wares above the player's rank are faded. The Chest
+  panel shows them too — each weapon (the stick drawn for it) and the larder's loaf. No save
+  change. `market` smoke scenario checks each ware has its picture in the shop and in the
+  chest, and screenshots the shop.
   Details: "The wares have pictures" under Noted decisions.
 
 ### Session notes
@@ -742,7 +745,7 @@ headlessly; everything else covered by the regression suite below.
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture drawn (shop
-  panel → scripts/smoke-shop.png) + buy flow (coins, ownership, hovel
+  panel → scripts/smoke-shop.png; the chest's three pictures checked later) + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
   damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
   `crown` v5→current migration (incl. best owned weapon → chest.wielded, str's level

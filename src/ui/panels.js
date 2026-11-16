@@ -780,7 +780,8 @@ function renderChest() {
         w.id === inHand.id
           ? `<span class="deed-tag tag-gold">in hand</span>`
           : `<button data-wield="${w.id}">Take up</button>`;
-      return `<div class="deed">
+      return `<div class="deed ware">
+        <span class="ware-pic" title="${w.name}">${warePicture(w.id, w.name)}</span>
         <span class="deed-text"><b>${w.name}</b> — <span class="muted">${w.flavor}</span>
           <span class="muted">(${damageOf(w)} damage)</span></span>
         ${action}
@@ -801,12 +802,17 @@ function renderChest() {
     </div>
     <div class="sheet-section">
       <h2>The Larder</h2>
-      <div class="kv"><span>Loaves</span><span class="v">${loaves} of ${CONFIG.chest.larderCap}</span></div>
-      <p class="muted">${
-        loaves
-          ? 'A loaf mends every wound at once. Bread keeps; eat it when thou art hurt.'
-          : 'Empty. The chapman sells loaves on market days.'
-      }</p>
+      <div class="deed ware${loaves ? '' : ' locked'}">
+        <span class="ware-pic" title="a hearty loaf">${warePicture('loaf', 'a hearty loaf')}</span>
+        <div class="deed-text">
+          <div class="kv"><span>Loaves</span><span class="v">${loaves} of ${CONFIG.chest.larderCap}</span></div>
+          <span class="muted">${
+            loaves
+              ? 'A loaf mends every wound at once. Bread keeps; eat it when thou art hurt.'
+              : 'Empty. The chapman sells loaves on market days.'
+          }</span>
+        </div>
+      </div>
       <div class="row right">
         <button class="primary" data-eat ${!loaves || hale ? 'disabled' : ''}
           title="${loaves && hale ? 'Thou art hale — bread keeps.' : ''}">Eat a loaf</button>

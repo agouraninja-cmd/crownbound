@@ -1817,9 +1817,14 @@ try {
       panel: !document.getElementById('chest-panel').classList.contains('hidden'),
       lid: window.__game.chest.isOpen,
       hand: document.getElementById('chest-body').textContent.includes('oaken cudgel'),
+      // the stick, the cudgel and the larder's loaf, each with its picture
+      pictures: [...document.querySelectorAll('#chest-body .ware-pic svg')].filter(
+        (svg) => svg.querySelectorAll('path, rect, circle, ellipse').length >= 5
+      ).length,
     }));
     console.log('chest:', JSON.stringify(chestOpen));
     if (!chestOpen.panel || !chestOpen.lid) errors.push('market: E at the chest did not open lid + panel');
+    if (chestOpen.pictures !== 3) errors.push(`market: chest shows ${chestOpen.pictures} pictures, not 3 (stick, cudgel, loaf)`);
     await page.click('[data-wield="stick"]');
     await new Promise((r) => setTimeout(r, 150));
     const stickDamage = await page.evaluate(() => window.__game.player.attackDamage);

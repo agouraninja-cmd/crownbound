@@ -1,5 +1,6 @@
 // Pictures of the chapman's wares, drawn in ink and wash like the Map — one
-// small SVG per item in CONFIG.shop.items, shown beside its row in the shop.
+// small SVG per item in CONFIG.shop.items (plus the trusty stick), shown
+// beside its row in the shop and again in the Chest (weapons and the larder).
 // No image files: each picture is a string of SVG built here. The washes are
 // the colours the same things wear in the 3D world (structures.js,
 // playerMesh.js, player.js setWeaponTier), so what the panel shows is what
@@ -31,6 +32,24 @@ function hatch(x, y, n, dx, dy, len, angle = 0, opacity = 0.45) {
 }
 
 const PICTURES = {
+  // the trusty stick (not sold — it is the hand's first weapon, kept in the chest
+  // when another is taken up): a crooked branch, a twig stub, a rag round the grip
+  stick: () => `
+    ${shadow(32, 57, 21)}
+    <g transform="rotate(40 32 32)">
+      <path d="M30.2 60 L33.8 60 L34.6 44 Q33.6 36 35 28 Q36.4 18 34.4 6 L30.6 6 Q31.6 18 30.4 27 Q29 36 29.6 44 Z"
+        fill="#7a5a35" ${line()}/>
+      <path d="M34.3 21 Q38 17.5 40.5 12.5" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/>
+      <path d="M34.3 21 Q38 17.5 40.5 12.5" stroke="#7a5a35" stroke-width="2" stroke-linecap="round"/>
+      <path d="M31.4 10 Q32.4 20 31.2 28 Q30.4 36 31 42" fill="none" stroke="#a07c50" stroke-width="1.2" stroke-linecap="round"/>
+      <ellipse cx="32.6" cy="33" rx="1.4" ry="1" fill="#4f3a25" ${line(0.7)}/>
+      <path d="M33.4 14 l0 5 M30.8 47 l0 6" stroke="${INK}" stroke-width="0.6" opacity="0.45"/>
+      <ellipse cx="32.5" cy="6" rx="2" ry="0.9" fill="#a07c50" ${line(0.9)}/>
+      <path d="M29.4 49 L34.6 50.2 L34.4 56.2 L29.6 55 Z" fill="#5a4a3a" ${line(1)}/>
+      <path d="M29.5 52 L34.5 53.2" stroke="#8a7660" stroke-width="0.8"/>
+      <path d="M34.4 50.5 q2.6 0.8 3.6 3.4" fill="none" stroke="#5a4a3a" stroke-width="1.4" stroke-linecap="round"/>
+    </g>`,
+
   // an oaken cudgel: dark oak, a knotted head, a leather-bound grip
   cudgel: () => `
     ${shadow(32, 57, 21)}
