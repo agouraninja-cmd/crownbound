@@ -353,6 +353,7 @@ try {
         }
         const bodyText = init?.body ?? (typeof input !== 'string' ? await input.clone().text() : '');
         const req = JSON.parse(bodyText);
+        sessionStorage.setItem('smoke-charge', String(req.system ?? ''));
         const ledger = String(req.messages?.[0]?.content ?? '');
         const prose = ledger.includes('tennis') ? 'He strove at the ball court.' : 'He laboured in the yard.';
         return new Response(
@@ -993,6 +994,117 @@ try {
     await new Promise((r) => setTimeout(r, 900));
     await page.screenshot({ path: 'scripts/smoke-body.png' });
     await page.keyboard.up('KeyW');
+  } else if (scenario === 'hearth') {
+    // By the fire: stood still near it for sitDelay he sits to warm himself;
+    // any key, a click or a bite gets him up. Stepped by hand at a fixed rate,
+    // like `body`, so the numbers don't hang on the renderer's frame rate.
+    await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      const DT = 1 / 60;
+      const fire = { x: -4.6, z: 6.2 }; // LAYOUT.campfire
+      window.__hearth = {
+        key: (code, down) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code })),
+        run: (seconds) => {
+          for (let i = 0; i < Math.round(seconds / DT); i++) p.update(DT, 0, g.colliders);
+        },
+        stand: (x, z) => {
+          p.respawn(x, z);
+          p.update(DT, 0, g.colliders);
+        },
+        fireDist: () => Math.hypot(p.pos.x - fire.x, p.pos.z - fire.z),
+        // how far he faces from the fire, radians
+        offFire: () => {
+          let d = Math.abs(Math.atan2(fire.x - p.pos.x, fire.z - p.pos.z) - p.facing) % (Math.PI * 2);
+          return d > Math.PI ? Math.PI * 2 - d : d;
+        },
+        speed: () => Math.hypot(p.vel.x, p.vel.y),
+      };
+    });
+    const pause = () => new Promise((r) => setTimeout(r, 350));
+
+    // 1) stood still near the fire: nothing at first, sat after the delay
+    const sat = await page.evaluate(() => {
+      const h = window.__hearth;
+      const p = window.__game.player;
+      h.stand(-3.0, 6.9); // ~1.75 from the fire's middle, his back half to it
+      h.run(1.5);
+      const early = p.mode;
+      h.run(0.7);
+      const after = p.mode;
+      h.run(1.2);
+      return {
+        early, after, sit01: p.sit01,
+        waist: p.mesh.roller.position.y,
+        knee: p.mesh.legs[0].shin.rotation.x,
+        offFire: h.offFire(), dist: h.fireDist(), stick: p.mesh.weapon.visible,
+      };
+    });
+    console.log('sat:', JSON.stringify(sat));
+    if (sat.early !== 'normal') errors.push(`hearth: sat down after only 1.5s (${sat.early})`);
+    if (sat.after !== 'sit') errors.push(`hearth: still ${sat.after} after 2.2s by the fire`);
+    if (sat.sit01 < 0.99) errors.push(`hearth: only ${sat.sit01.toFixed(2)} of the way down`);
+    if (sat.waist > 0.3) errors.push(`hearth: waist ${sat.waist.toFixed(2)} high — not sat on the ground`);
+    if (sat.knee < 1.4) errors.push(`hearth: knee bent ${sat.knee.toFixed(2)}, expected knees drawn up`);
+    if (sat.offFire > 0.15) errors.push(`hearth: facing ${sat.offFire.toFixed(2)} rad off the fire`);
+    if (sat.stick) errors.push('hearth: still holding the stick while sat');
+
+    // 2) eyeball him sat there, side-on, the fire in shot
+    await page.evaluate(() => window.__game.orbitCam.setView(-0.5, 0.18, 3.6));
+    await new Promise((r) => setTimeout(r, 1500));
+    await page.screenshot({ path: 'scripts/smoke-hearth.png' });
+
+    // 3) W gets him up — slowly at first, then he walks on
+    const rose = await page.evaluate(() => {
+      const h = window.__hearth;
+      const p = window.__game.player;
+      h.key('KeyW', true);
+      h.run(0.1);
+      const mode = p.mode;
+      const rising = h.speed();
+      h.run(0.6);
+      const walking = h.speed();
+      h.key('KeyW', false);
+      h.run(0.5);
+      return { mode, rising, walking, sit01: p.sit01, stick: p.mesh.weapon.visible };
+    });
+    console.log('rose:', JSON.stringify(rose));
+    if (rose.mode !== 'normal') errors.push(`hearth: W left him ${rose.mode}`);
+    if (rose.rising > 1) errors.push(`hearth: ${rose.rising.toFixed(2)} pace while still getting up`);
+    if (rose.walking < 3) errors.push(`hearth: only ${rose.walking.toFixed(2)} pace once up`);
+    if (rose.sit01 !== 0) errors.push(`hearth: sit01 ${rose.sit01} once up and walking`);
+    if (!rose.stick) errors.push('hearth: stick not back in hand');
+    await pause();
+
+    // 4) the spawn (2.2 away) is not near enough; too close he shuffles back;
+    // a click and a bite both get him up, the click without a swing
+    const rest = await page.evaluate(() => {
+      const h = window.__hearth;
+      const g = window.__game;
+      const p = g.player;
+      h.stand(-5, 4);
+      h.run(3);
+      const atSpawn = p.mode;
+      h.stand(-4.6, 7.3); // 1.1 out, at the ring's edge
+      h.run(3.2);
+      const closeMode = p.mode;
+      const closeDist = h.fireDist();
+      const stamina = g.getState().stamina.current;
+      p.attack();
+      const clicked = p.mode;
+      const spent = stamina - g.getState().stamina.current;
+      h.run(3.2);
+      const again = p.mode;
+      p.takeDamage(1, p.pos.x + 1, p.pos.z);
+      return { atSpawn, closeMode, closeDist, clicked, spent, again, bitten: p.mode };
+    });
+    console.log('rest:', JSON.stringify(rest));
+    if (rest.atSpawn !== 'normal') errors.push(`hearth: sat down at the spawn (${rest.atSpawn})`);
+    if (rest.closeMode !== 'sit') errors.push(`hearth: did not sit at the ring's edge (${rest.closeMode})`);
+    if (rest.closeDist < 1.4) errors.push(`hearth: sat ${rest.closeDist.toFixed(2)} from the flames, expected a shuffle back`);
+    if (rest.clicked !== 'normal' || rest.spent !== 0) errors.push(`hearth: click left him ${rest.clicked}, spent ${rest.spent}`);
+    if (rest.again !== 'sit') errors.push('hearth: did not sit again after standing');
+    if (rest.bitten !== 'normal') errors.push(`hearth: a bite left him ${rest.bitten}`);
   } else if (scenario === 'house') {
     // 1) closed door bars the gap: stand in the doorway, get pushed back out
     await page.evaluate(() => {
@@ -1019,13 +1131,24 @@ try {
     if (!open.open) errors.push('house: E near the door did not open it');
     if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
 
-    // 3) sleep: tuck-in animation plays, wounds mend, the night is marked,
-    //    you stand up by the cot
+    // 3) sleep: standing beside the cot offers it, E tucks him in (the cot's
+    //    middle can't be reached, so this once never offered sleep at all);
+    //    tuck-in animation plays, wounds mend, the night is marked, you stand
+    //    up by the cot
     await page.evaluate(() => {
       const g = window.__game;
       g.player.takeDamage(9, 0, 0);
-      g.sleepAtCot();
+      g.player.pos.x = -9.2; // local (-0.2, -0.4): the open floor at the cot's corner
+      g.player.pos.z = 1.6;
     });
+    let cotPrompt = '';
+    for (let i = 0; i < 30 && !cotPrompt.includes('straw cot'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      cotPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    }
+    console.log('cot prompt:', JSON.stringify(cotPrompt));
+    if (!cotPrompt.includes('straw cot')) errors.push(`house: cot prompt "${cotPrompt}"`);
+    await page.keyboard.press('KeyE');
     // mid-nap: poll until he lies flat — the eased pose runs on frame dt, which
     // lags wall-clock under the software renderer, so a fixed delay is flaky
     let nap = { mode: '?', lying: 0 };
@@ -1137,8 +1260,8 @@ try {
     //     covers what the chest holds)
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.4; // local (-0.4, -0.5): between chest and cot
-      g.player.pos.z = 1.5;
+      g.player.pos.x = -9.2; // local (-0.2, -0.95): the chest's corner, against the -z wall
+      g.player.pos.z = 1.05;
       g.orbitCam.setView(0, 0.6, 2); // looking past him at the chest
     });
     // poll: the software renderer can stall past a fixed wait on a fresh view
@@ -1215,7 +1338,11 @@ try {
       g.player.pos.x = 1.2;
       g.player.pos.z = 1.4; // by the charter post, out of the quest board's reach
     });
-    await new Promise((r) => setTimeout(r, 400));
+    // the prompt is set on the next sim step — at ~3fps in a cloud container
+    // that can be well past a fixed wait, so wait for it (up to 3s)
+    await page
+      .waitForFunction(() => document.getElementById('interact-prompt').textContent !== '', { timeout: 3000 })
+      .catch(() => {});
     const prompt = await page.evaluate(
       () => document.getElementById('interact-prompt').textContent
     );
@@ -1268,6 +1395,7 @@ try {
           plan: !!body.querySelector('svg.m-plan'),
           kingdom: body.textContent.includes(C.realm.kingdom),
           village: body.textContent.includes(C.realm.village),
+          lake: body.textContent.includes(C.realm.lake),
           home: !!body.querySelector('.m-place[data-place="home"] .m-home-ring'),
           places: body.querySelectorAll('.m-place').length,
           view: body.querySelector('.map-views button.on')?.dataset.view,
@@ -1282,6 +1410,7 @@ try {
     if (!m1.opened || m1.which !== 'map') errors.push('map: M did not open the map');
     if (!m1.realm || !m1.plan) errors.push('map: realm or village plan missing');
     if (!m1.kingdom || !m1.village) errors.push('map: the kingdom or village is not named');
+    if (!m1.lake) errors.push('map: the lake is not named');
     if (!m1.home) errors.push('map: the home village is not ringed');
     if (m1.places < 8) errors.push(`map: only ${m1.places} places on the realm`);
     if (m1.view !== 'green') errors.push(`map: plan opened on "${m1.view}" though he stands on the green`);
@@ -1672,6 +1801,12 @@ try {
     if (second.texts.length !== 1 || !second.texts[0].includes('yard'))
       errors.push(`chronicle: load 2 wrote ${JSON.stringify(second.texts)}, wanted the oldest week only`);
     if (second.calls !== 2) errors.push(`chronicle: ${second.calls} API calls by load 2 != 2`);
+    const charge = await page.evaluate(() => ({
+      text: sessionStorage.getItem('smoke-charge') || '',
+      village: window.__game.CONFIG.realm.village,
+    }));
+    if (!charge.text.includes(`Name the village, ${charge.village}`))
+      errors.push('chronicle: the chronicler is not told to name the village');
 
     // 3) then the silent week for free and the last week in prose, in order
     await reload();
@@ -1833,8 +1968,8 @@ try {
     //     and the cudgel trade places in hand; a loaf mends the wounded
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.4; // inside the hovel, at the chest's corner
-      g.player.pos.z = 1.5;
+      g.player.pos.x = -9.2; // inside the hovel, at the chest's corner against the -z wall
+      g.player.pos.z = 1.05;
       g.player.takeDamage(6, 0, 0);
     });
     await new Promise((r) => setTimeout(r, 400));

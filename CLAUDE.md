@@ -342,6 +342,17 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     the belt) → arms [upper → fore] and head; the stick hangs from a `grip` pivot in the fist
     of arm 1. Sides are 0 (-x) and 1 (+x, the stick hand). ~6 more draw calls than the old
     one-piece limbs. `mesh.roller.rotation.x` is still the lie-down angle the house smoke reads.
+  - The stick lies across the fist (2026-11-16, the owner: "hold the stick more realistically").
+    It used to run on down the line of the forearm, its butt buried in the wrist. Now a fixed
+    `hold` Group turns it `RIG.hold` (1.3 rad, a little short of square) out of the thumb
+    side, held near its butt in a leather wrap, with knuckles and a thumb on the stick fist.
+    `pose.grip` is the WRIST — 0 straight, cocked back / snapped through within `WRIST`
+    (playerMesh.js) — and `pose.twist` turns the forearm about its length first (grip pivot
+    order YXZ): 0 thumb forward/up for the chop's hammer blow, about -1.4 palm down for the
+    backhand, +1.4 palm up for the sweep, so the level cuts lay the stick flat and whip it
+    through tip-last. Walking it is carried pointing down ahead, coming up level in a run.
+    Looks only — reach, arc, damage and hit timing are unchanged. The hoe and sickle still
+    run down the forearm's line (they hang on `grip`, not `hold`); no wrist clamp for them.
   - Legs are solved, not swung. Each foot is given a place to be and a two-bone solve bends
     the knee to put it there — on the ground (targets in the figure's ground frame, carried
     into the pelvis's frame each step) or off it (targets from the hip, for the leap, the roll
@@ -461,8 +472,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   closes). No save change, no world change — the walkable world is exactly as it was. What a
   future session must know:
   - Names. The village is **Brackenley** ("the clearing among the bracken" — the flora has
-    ferns), the kingdom **Aldermere**, after the Alder Mere at its heart. Both live in
-    `CONFIG.realm`; the Charter's key list reads them. Every other place name on the map
+    ferns), the kingdom **Aldermere**, the great lake at its heart **Lake Laney** (named by the
+    owner, 2026-11-16; it was first "the Alder Mere"). All three live in `CONFIG.realm`; the
+    Charter's key list reads the first two. Every other place name on the map
     (Kingsholt the royal seat, Hollin Cross, Saltmouth, Edricminster, Wendham, Coldbrook,
     Whitwold Abbey, Fellgate; the Grimfells, the Brackenwood, Blackmoor, the King's Chase, the
     Marches, the Whale's Road) is fixed art in map.js, with a hover note each. All fictional —
@@ -481,6 +493,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     Hollin Cross and west-south-west for the Marches.
   - Wiring: panels.js `openPanel('map')` calls `renderMap(body, mapView())`; `mapView` is a hook
     main.js passes to initPanels. panels.js now exports `closePanel` and `openPanelId`.
+  - The Chronicler knows the village (2026-11-16, the owner's ask): his charge names Brackenley
+    and the kingdom from `CONFIG.realm` and tells him to name the village in every entry. The
+    `chronicle` smoke scenario checks the charge it was sent (the stub can't judge real prose).
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -649,7 +664,7 @@ headlessly; everything else covered by the regression suite below.
   door) to show a peasant's goods — a folded tunic, a coin pouch, a whetstone — with a flavor
   toast; E again lowers it. Pure scenery: it holds no items, touches no state, and the lid
   isn't saved (each load starts shut). The cot crowds its front, so you stand at its corner,
-  which is also the wake spot — waking offers the lid first. No save change.
+  against the -z wall. No save change.
 
 - [x] Post-v1 — "The Larder" (2026-11-14): the chest stores things. One weapon in hand, the
   rest in the chest, swapped in the Chest panel; loaves from the cart go to its larder (cap 6)
@@ -710,13 +725,48 @@ headlessly; everything else covered by the regression suite below.
   and expected numbers in other scenarios were moved to the new caps. No save change.
 
 - [x] Post-v1 — "The Map of the Kingdom" (2026-11-15): M unrolls a hand-drawn map of the
-  Kingdom of Aldermere — coast and sea, the Grimfells, the Alder Mere, rivers, woods, roads,
-  the royal seat of Kingsholt and seven more places, each read aloud on hover — with the home
+  Kingdom of Aldermere — coast and sea, the Grimfells, the lake, rivers, woods, roads,
+  the royal seat of Kingsholt and seven more places, Lake Laney at its heart, each read aloud on hover — with the home
   village, Brackenley, ringed in wax. Beside it, a plan of Brackenley drawn live from the game's
   layout (buildings, real trees, today's crop on the strip, the bounds, the player's arrow), in
   two zooms. The walkable world is unchanged. No save change. New smoke scenario `map`; all
   21 scenarios pass (cloud container, headless Chromium, run on top of The Long Road). Not yet seen on the owner's machine.
+  Since then (2026-11-16): the lake renamed Lake Laney, and the Chronicler names Brackenley in
+  every entry. `map` and `chronicle` pass.
   Details: "The Map of the Kingdom" under Noted decisions.
+
+- [x] Fix — "The Cot Within Reach" (2026-11-16), the owner: "I can't sleep in the bed". E
+  never offered the cot: its prompt was measured from the cot's middle, which no one can
+  stand near (the cot and the hearth hem it in), so from every spot the player could reach,
+  the chest, the ledger or the door was nearer and won. The cot is now measured from its
+  open corner (`HOVEL.bedReach`, radius 1.2): stand on the floor at the cot's foot-corner
+  and E sleeps; the chest is opened from its corner against the -z wall. The sleep pose
+  still lies on the cot's centre (`bedRest`). The `house` smoke scenario now walks up and
+  presses E instead of calling `sleepAtCot()` directly (which is how this slipped by);
+  `house` and `market` stand at the chest's new spot. No save change.
+
+- [x] Post-v1 — "The Hearthside" (2026-11-16), asked for by the owner ("after 2 seconds of
+  standing near the fire pit the player sits down to warm up"): stood still within
+  `CONFIG.player.sitNear` (2.0) of the campfire for `sitDelay` (2s), he turns to the flames and
+  sits on the ground — knees drawn up, palms held out, now and then rubbing his hands, the
+  stick laid aside. Too close to the ring, he shuffles back to `sitSeat` (1.45). Any movement
+  key, Space, C, a roll, a click or a bite stands him up; the click swings nothing, and his
+  pace is held back while he finds his feet (`sit01`). Looks only — no rule, reward or save
+  change. The spawn (2.2 from the fire) is deliberately just outside the range, so a load
+  doesn't sit him down. Player mode `sit` (player.js), the `SEAT` layer (playerAnim.js, feet in
+  the ground frame so the knees solve themselves), a line in the Charter's fire section. New
+  smoke scenario `hearth`; all 22 scenarios pass (cloud container, headless Chromium —
+  `exchequer` only on a re-run: its fixed 400ms wait read the prompt before a frame drew it);
+  after merging The Cot Within Reach, `hearth`, `house`, `market` and `body` pass again on
+  the merge. Not yet seen on the owner's machine.
+
+- [x] Post-v1 — "The Honest Grip" (2026-11-16): the player holds the stick like a real fist
+  does — across the palm near its butt, in a leather wrap, wrist cocking and snapping it,
+  forearm turning the hand over for the level cuts — instead of the stick continuing the
+  line of his arm. Carried pointing down ahead of him at rest, up level in a run. All three
+  swings re-posed (the chop is a hammer's blow; the backhand and sweep whip flat). Animation
+  only; no rule or save change. All 21 smoke scenarios pass (cloud container, headless Chromium), `guide` only on a re-run (its 400ms prompt wait read a stalled frame — see Session notes). Seen only in a pose bench, not yet on the owner's machine. After merging The Hearthside (its SEAT pose's wrist is in range; the stick is laid aside seated) `hearth`, `body` and `combat` pass on the merge; `house` passes all but its first check (the closed door pushing him out), which failed the same way on plain `main` — no frame drew inside its 300ms wait. Details: under "The Living Body" in
+  Noted decisions.
 
 - [x] Post-v1 — "The Chapman's Pictures" (2026-11-16): every ware on the cart has a picture —
   an ink-and-wash drawing beside its row in the shop (the cudgel, the quarterstaff, the rug,
@@ -755,6 +805,10 @@ headlessly; everything else covered by the regression suite below.
   chaining 0→1→2→0 and starting over after a pause, footfalls reported while running (none
   standing) and one landing per leap (mid-stride screenshot →
   scripts/smoke-body.png) ·
+  `hearth` by the fire: not sat at 1.5s, sat by 2.2s (waist low, knees up, facing the
+  fire, stick laid aside), W stands him up slowly then walks on, the spawn is not near enough,
+  too close he shuffles back, a click (no swing, no stamina) and a bite both get him up
+  (screenshot → scripts/smoke-hearth.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
@@ -800,8 +854,9 @@ headlessly; everything else covered by the regression suite below.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
-  pushing him out), `combat` (the second dummy swing landing) and `exchequer` (the counter's
-  prompt read as empty, 2026-11-16) each failed once that way and passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
+  pushing him out), `combat` (the second dummy swing landing), `guide` (the charter prompt,
+  read 400ms after he is placed) and `exchequer` (the counter's prompt read as empty,
+  2026-11-16) each failed once that way and passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
   the wait, not the game — re-run that scenario alone with nothing else busy on the machine.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

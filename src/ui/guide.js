@@ -142,7 +142,9 @@ export function renderGuide(guideBody) {
       <h2>The Streak &amp; the Fire</h2>
       <p class="muted">Completing the daily quest claims the day. Miss a full day and the fire
       dies in the night — the streak returns to nought. Until today&#8217;s deed is done the flame
-      gutters low, a living reminder; it swells the moment the deed is logged.</p>
+      gutters low, a living reminder; it swells the moment the deed is logged.
+      Stand still beside it ${CONFIG.player.sitDelay} heartbeats and thou sittest down to warm thy
+      hands; any step raises thee again.</p>
       ${fireRows()}
     </div>
     <div class="sheet-section">

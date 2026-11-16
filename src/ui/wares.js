@@ -248,8 +248,8 @@ function ratLine(blows) {
 
 // how to carry a weapon again once another is in hand
 const CHEST_SWAP =
-  'When thou carriest another weapon it waits in the chest by thy cot: stand beside the cot, ' +
-  'press E to open the chest, and choose &#8220;Take up&#8221;.';
+  'When thou carriest another weapon it waits in the chest by thy cot: go into thy hovel, stand ' +
+  'at the chest, press E to open it, and choose &#8220;Take up&#8221;.';
 
 // how a weapon reaches the hand — said at the cart, needless in the chest
 const BOUGHT = (inChest) => (inChest ? '' : 'Once bought it goes straight to thy hand. ');
@@ -342,8 +342,8 @@ const LORE = {
     about: 'A round of brown bread from the chapman&#8217;s basket, scored and dusted with flour. Bread keeps.',
     use: () =>
       `Each loaf goes to the larder of the chest by thy cot, which holds ${CONFIG.chest.larderCap}; ` +
-      'the chapman will not sell bread to a full larder. When thou art hurt, stand beside the cot, ' +
-      'press E to open the chest, and choose &#8220;Eat a loaf&#8221;.',
+      'the chapman will not sell bread to a full larder. When thou art hurt, go into thy hovel, ' +
+      'stand at the chest, press E to open it, and choose &#8220;Eat a loaf&#8221;.',
     boon: () =>
       `A loaf mends every wound at once, back to the full ${CONFIG.player.maxHp} HP. It mends health ` +
       'and nothing more (no XP, no stamina) and cannot be eaten while thou art hale. Unlike the rest ' +

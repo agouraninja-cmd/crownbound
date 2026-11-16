@@ -51,7 +51,7 @@ export function createPlayer(scene, spawn) {
     pos: m.group.position,
     vel: new THREE.Vector2(0, 0), // xz
     facing: m.group.rotation.y,
-    mode: 'normal', // normal | roll | attack | sleep | work
+    mode: 'normal', // normal | roll | attack | sleep | work | sit
     work: null, // while a ridge is being worked: { kind, x, z, strokes }
     modeT: 0,
     invulnerable: false,
@@ -64,6 +64,10 @@ export function createPlayer(scene, spawn) {
     crouch01: 0, // eased crouch amount, 0 standing → 1 fully crouched
     lie01: 0, // eased lying-down amount on the cot, 0 upright → 1 flat
     restY: 0, // where the waist settles on the mattress, above the ground
+    hearth: null, // { x, z } of the campfire he sits down by (main.js sets it)
+    stillFor: 0, // seconds stood still near the hearth
+    sitK: 0, // how far down onto the ground, 0..1, linear in time
+    sit01: 0, // ...eased: 0 standing → 1 sat by the fire
     time: 0,
     hp: P.maxHp,
     maxHp: P.maxHp,
@@ -116,7 +120,11 @@ export function createPlayer(scene, spawn) {
   });
 
   function startAttack() {
-    if (player.mode !== 'normal') return;
+    if (player.mode === 'sit') {
+      standUp(); // a click by the fire only gets him to his feet
+      return;
+    }
+    if (player.mode !== 'normal' || player.sit01 > 0) return; // not while still getting up
     if (!player.trySpend(CONFIG.stamina.attackCost)) {
       player.onActionBlocked();
       return;
@@ -132,7 +140,7 @@ export function createPlayer(scene, spawn) {
   }
 
   function startJump() {
-    if (player.mode !== 'normal' || player.airborne || player.jumpIn > 0) return;
+    if (player.mode !== 'normal' || player.airborne || player.jumpIn > 0 || player.sit01 > 0) return;
     player.jumpIn = Math.max(P.jumpWindup, 1e-4); // update() springs the leap once the knees have loaded
   }
 
@@ -173,6 +181,41 @@ export function createPlayer(scene, spawn) {
     m.weapon.visible = player.lie01 < 0.5; // the stick rests for the night too
   }
 
+  // Warming by the fire: stood still near it for CONFIG.player.sitDelay, he
+  // sits down on the ground facing the flames (playerAnim.js draws the pose).
+  // Any movement key, Space, C, a roll or a click stands him up again.
+  function hearthDist() {
+    const h = player.hearth;
+    return h ? Math.hypot(player.pos.x - h.x, player.pos.z - h.z) : Infinity;
+  }
+
+  function startSit() {
+    player.mode = 'sit';
+    player.modeT = 0;
+    player.vel.set(0, 0);
+    player.jumpIn = 0;
+    player.stillFor = 0;
+  }
+
+  function standUp() {
+    if (player.mode === 'sit') player.mode = 'normal';
+    player.stillFor = 0;
+  }
+
+  // sat down: settle a comfortable way back from the flames
+  function updateSit(dt) {
+    player.vel.set(0, 0);
+    const h = player.hearth;
+    const dx = player.pos.x - h.x;
+    const dz = player.pos.z - h.z;
+    const d = Math.hypot(dx, dz);
+    if (d < P.sitSeat && d > 1e-3) {
+      const to = d + (P.sitSeat - d) * (1 - Math.exp(-dt * 4)); // a shuffle back, not a slide
+      player.pos.x = h.x + (dx / d) * to;
+      player.pos.z = h.z + (dz / d) * to;
+    }
+  }
+
   // Field work (the miller's strip): rooted at a ridge for a few strokes —
   // of the hoe (tilling, weeding), the sowing hand, or the sickle (reaping).
   // The tool for the job takes the stick's place in the fist until it is done.
@@ -201,7 +244,7 @@ export function createPlayer(scene, spawn) {
   }
 
   function startRoll(dirX, dirZ) {
-    if (player.mode !== 'normal' || player.airborne) return;
+    if (player.mode !== 'normal' || player.airborne || player.sit01 > 0) return;
     if (!player.trySpend(CONFIG.stamina.dodgeCost)) {
       player.onActionBlocked();
       return;
@@ -306,6 +349,7 @@ export function createPlayer(scene, spawn) {
     flash(m.group);
     player.onHurt();
     player.onHpChange(player.hp, player.maxHp);
+    standUp(); // a bite gets him off the ground
     if (player.hp === 0) {
       stopWork(); // a dead man finishes no ridge
       player.onDeath();
@@ -322,6 +366,7 @@ export function createPlayer(scene, spawn) {
     player.mode = 'normal';
     player.invulnerable = false;
     player.lie01 = 0;
+    player.sitK = player.sit01 = player.stillFor = 0;
     stopWork(); // the stick back in hand — after a nap, or a death in the field
     anim.reset(); // on his feet, no leftover lean or half-finished pose
     player.onHpChange(player.hp, player.maxHp);
@@ -366,6 +411,13 @@ export function createPlayer(scene, spawn) {
     if (len > 0) {
       dirX /= len;
       dirZ /= len;
+    }
+
+    // sat by the fire: a key to move, leap, crouch or roll only gets him up
+    if (player.mode === 'sit' && (len > 0 || keys.has('Space') || keys.has('KeyC') || pendingRollKey)) {
+      keys.delete('Space');
+      pendingRollKey = null;
+      standUp();
     }
 
     if (keys.has('Space') && enabled) {
@@ -429,8 +481,17 @@ export function createPlayer(scene, spawn) {
       }
     }
 
+    if (player.mode === 'sit') updateSit(dt);
+
+    // down onto the ground and back up again, at their own paces
+    player.sitK = player.mode === 'sit'
+      ? Math.min(1, player.sitK + dt / P.sitDown)
+      : Math.max(0, player.sitK - dt / P.sitUp);
+    player.sit01 = player.sitK * player.sitK * (3 - 2 * player.sitK);
+
     if (player.mode === 'normal') {
-      const pace = P.walkSpeed * (player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1);
+      // getting up from the fire, he finds his feet before he finds his pace
+      const pace = P.walkSpeed * (player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1) * (1 - player.sit01);
       if (player.airborne) {
         // nothing to push against: momentum carries the leap, the keys only nudge it
         if (len > 0) steer(dirX * pace, dirZ * pace, P.airAccel, dt);
@@ -476,6 +537,14 @@ export function createPlayer(scene, spawn) {
       player.pos.y = groundY;
     }
 
+    // stood still by the fire long enough, he sits down to warm himself
+    const still = enabled && player.mode === 'normal' && !player.airborne && player.jumpIn === 0 &&
+      len === 0 && !player.crouching && player.hp > 0 && player.vel.lengthSq() < 0.01;
+    player.stillFor = still && hearthDist() < P.sitNear ? player.stillFor + dt : 0;
+    if (player.stillFor >= P.sitDelay) startSit();
+    // the stick is laid down beside him while he sits (the field's tools manage their own)
+    if (player.mode !== 'work') m.weapon.visible = player.sit01 < 0.5;
+
     // feel the ground's tilt: it slows a climb and lays the soles to the slope
     player.slope.x = (terrainHeight(px + SLOPE_PROBE, pz) - terrainHeight(px - SLOPE_PROBE, pz)) / (SLOPE_PROBE * 2);
     player.slope.z = (terrainHeight(px, pz + SLOPE_PROBE) - terrainHeight(px, pz - SLOPE_PROBE)) / (SLOPE_PROBE * 2);
@@ -487,6 +556,10 @@ export function createPlayer(scene, spawn) {
       player.facing = lerpAngle(player.facing, Math.atan2(player.rollDir.x, player.rollDir.z), 1 - Math.exp(-dt * P.turnLerp));
     } else if (player.mode === 'normal' && len > 0) {
       player.facing = lerpAngle(player.facing, Math.atan2(dirX, dirZ), 1 - Math.exp(-dt * P.turnLerp));
+    } else if (player.mode === 'sit') {
+      // turned to face the flames
+      const h = player.hearth;
+      player.facing = lerpAngle(player.facing, Math.atan2(h.x - px, h.z - pz), 1 - Math.exp(-dt * 5));
     } else if (player.mode === 'work') {
       // turned to the spot he is working — unless he is standing on it
       const wx = player.work.x - px;
