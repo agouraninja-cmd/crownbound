@@ -7,7 +7,8 @@
     "dev": "vite --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
-    "smoke": "vite build && node scripts/smoke.mjs"
+    "smoke": "vite build && node scripts/smoke.mjs",
+    "guide": "python scripts/build-guide.py"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

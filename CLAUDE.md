@@ -76,6 +76,8 @@ src/ui/rest.js        the rest card shown abed once stamina is spent: his line, 
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
 src/ui/wares.js       the wares pictured and explained: an ink-and-wash SVG per shop item + the stick, and each one's "read more" (shop + chest)
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
+scripts/smoke.mjs     the headless regression suite (see Session notes)
+scripts/build-guide.py  builds CROWNBOUND-Guide.docx (`npm run guide`): the prose, with every number read from config.js via scripts/guide-config.mjs, laid over scripts/guide-template.docx
 ```
 
 ## Data model (localStorage `crownbound_save`)
@@ -242,7 +244,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   sheet. All numbers on it — rewards, stamina costs, streak tiers, rank ladder, dummy curve,
   sleep clock — are read from config.js at render time so re-tuning can never leave it stale;
   only the prose in src/ui/guide.js is fixed. The Chapman section renders only while
-  CONFIG.shop exists. (Companion out-of-game doc: CROWNBOUND-Guide.docx, kept by hand.)
+  CONFIG.shop exists. (Companion out-of-game doc: CROWNBOUND-Guide.docx, built by
+  `npm run guide` from the same config — see "The Guide Caught Up" in Build status.)
 - The chapman's cart was pulled forward from v3 at the owner's request (2026-07-03), in mute
   form: the chapman and mule are scenery (breath/nod/tail sways via world.cart.update) until v2
   gives them dialogue. Stock rotation from the original pitch is deferred until the catalogue
@@ -975,9 +978,16 @@ headlessly; everything else covered by the regression suite below.
   stamina 60/120). It now covers the game as it stands: the earned crown, the hosted address
   and per-address saves, M and the three blows, the Charter, the miller and his strip, the
   new stamina and "spent for the day", the Treasury as rebuilt, the chapman's cart and the
-  chest, the Sage and the Chronicler, the map and the turning sky. Numbers were copied from
-  config.js by hand — unlike the Charter it does not read them live, so re-tuning leaves it
-  stale again. It names Brackenley and Aldermere but no year or country (the setting rule).
+  chest, the Sage and the Chronicler, the map and the turning sky.
+  Same day, the owner ("fix those things you mentioned" — the hand-copied numbers and the
+  unnamed setting): the guide is now BUILT, not kept by hand. `npm run guide` runs
+  scripts/build-guide.py (prose + layout; needs Python with python-docx), which reads every
+  number from config.js through scripts/guide-config.mjs and writes CROWNBOUND-Guide.docx
+  over scripts/guide-template.docx (the v1 guide, kept only for its styles). Never edit the
+  .docx by hand — edit build-guide.py and rebuild; rebuild after re-tuning config.js or
+  changing a rule the guide tells. The guide names the setting (England, around 1250): it
+  is out-of-game, so the no-year-or-country rule — which covers in-game text and AI
+  prompts — does not reach it, and it says the game itself never names them.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
