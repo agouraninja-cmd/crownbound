@@ -627,7 +627,7 @@ headlessly; everything else covered by the regression suite below.
   door) to show a peasant's goods — a folded tunic, a coin pouch, a whetstone — with a flavor
   toast; E again lowers it. Pure scenery: it holds no items, touches no state, and the lid
   isn't saved (each load starts shut). The cot crowds its front, so you stand at its corner,
-  which is also the wake spot — waking offers the lid first. No save change.
+  against the -z wall. No save change.
 
 - [x] Post-v1 — "The Larder" (2026-11-14): the chest stores things. One weapon in hand, the
   rest in the chest, swapped in the Chest panel; loaves from the cart go to its larder (cap 6)
@@ -695,6 +695,16 @@ headlessly; everything else covered by the regression suite below.
   two zooms. The walkable world is unchanged. No save change. New smoke scenario `map`; all
   21 scenarios pass (cloud container, headless Chromium, run on top of The Long Road). Not yet seen on the owner's machine.
   Details: "The Map of the Kingdom" under Noted decisions.
+
+- [x] Fix — "The Cot Within Reach" (2026-11-16), the owner: "I can't sleep in the bed". E
+  never offered the cot: its prompt was measured from the cot's middle, which no one can
+  stand near (the cot and the hearth hem it in), so from every spot the player could reach,
+  the chest, the ledger or the door was nearer and won. The cot is now measured from its
+  open corner (`HOVEL.bedReach`, radius 1.2): stand on the floor at the cot's foot-corner
+  and E sleeps; the chest is opened from its corner against the -z wall. The sleep pose
+  still lies on the cot's centre (`bedRest`). The `house` smoke scenario now walks up and
+  presses E instead of calling `sleepAtCot()` directly (which is how this slipped by);
+  `house` and `market` stand at the chest's new spot. No save change.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's

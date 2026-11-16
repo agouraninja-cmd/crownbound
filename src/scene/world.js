@@ -250,15 +250,15 @@ export function buildWorld(scene, marketToday = false) {
     { id: 'guide', label: 'the Village Charter', x: LAYOUT.charter.x, z: LAYOUT.charter.z, radius: 2.2 },
     { id: 'miller', label: 'the miller', x: LAYOUT.miller.x, z: LAYOUT.miller.z, radius: 2.0 },
     // insideOnly: don't offer these through the walls
-    { id: 'bed', label: 'your straw cot', x: hx + H.bed.x, z: hz + H.bed.z, radius: 1.7, insideOnly: true },
+    { id: 'bed', label: 'your straw cot', x: hx + H.bedReach.x, z: hz + H.bedReach.z, radius: H.bedReach.radius, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
     {
       id: 'chest',
       label: 'open the chest',
       x: hx + (H.chest.x0 + H.chest.x1) / 2,
       z: hz + (H.chest.z0 + H.chest.z1) / 2,
-      // the cot crowds the chest's front, so you stand at its corner (~0.75
-      // off centre) — which is also where you wake, so waking offers the lid
+      // the cot crowds the chest's front, so you stand at its corner against
+      // the -z wall (nearer the cot's corner, the cot is offered instead)
       radius: 1.1,
       insideOnly: true,
     },
