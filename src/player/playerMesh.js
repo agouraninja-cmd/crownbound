@@ -35,6 +35,8 @@ export const RIG = {
   forearm: 0.27, // elbow → the fist
   neck: 0.5, // the head pivot above the spine pivot
   stickDrop: 0.265, // the fist → the middle of the stick: held near its butt, which shows past the little finger
+  hoeDrop: 0.21, // the fist → the middle of the hoe's shaft: held a quarter of the way down it...
+  hoeOffHand: -0.18, // ...and the other hand above, toward the shaft's end (negative: up the shaft)
   // How the stick lies in the fist: not on along the forearm but across the
   // palm, leaving the thumb side at this angle (rad) to the forearm with the
   // wrist straight — a little short of square, as a fist closes on a handle.
@@ -60,7 +62,7 @@ function flat(m, z) {
 //            └ hips (the pelvis: twists and tilts with the stride)
 //               ├ leg ×2: thigh ─ shin ─ foot
 //               └ chest (the spine, at the belt)
-//                  ├ arm ×2: upper ─ fore ( ─ grip ─ weapon / field tools, on arm 1)
+//                  ├ arm ×2: upper ─ fore ( ─ grip ─ hold ─ weapon / hoe, and the sickle, on arm 1)
 //                  └ head
 //
 // Side 0 is the figure's -x, side 1 its +x (the weapon hand). The animator
@@ -162,11 +164,15 @@ export function buildPlayerMesh() {
 
   // Tools for the miller's strip, held in the same fist: hidden until he
   // works a ridge, when player.js swaps one in for the stick. Each is its own
-  // Group, so it bakes apart and can be shown and hidden. Like the stick they
-  // run on down the line of the forearm, past the fist.
+  // Group, so it bakes apart and can be shown and hidden. The hoe is gripped
+  // like the stick, across the fist (on `hold`), a quarter of the way down its
+  // shaft — the other hand takes it above (playerAnim.js graspShaft) — its
+  // blade hooked toward the side the blow travels. The sickle still runs on
+  // down the line of the forearm.
   const hoe = new THREE.Group();
-  hoe.add(mesh(cyl(0.022, 0.026, 0.92), tone(STICK, 1.15), { y: -0.33 })); // the shaft
-  hoe.add(mesh(box(0.16, 0.035, 0.13), IRON, { y: -0.78, z: 0.05, rx: 0.45 })); // the blade, set across its end
+  hoe.add(mesh(cyl(0.022, 0.026, 0.92), tone(STICK, 1.15), { y: -RIG.hoeDrop })); // the shaft
+  // the blade, set across the shaft's end and swept back a little toward the hand
+  hoe.add(mesh(box(0.16, 0.035, 0.13), IRON, { y: -RIG.hoeDrop - 0.45, z: -0.055, rx: 0.4 }));
   const sickle = new THREE.Group();
   sickle.add(mesh(cyl(0.025, 0.022, 0.2), STICK, { y: -0.04 })); // the handle
   // the blade: a crescent of short flats hooking forward from the handle's end
@@ -183,7 +189,8 @@ export function buildPlayerMesh() {
   }
   hoe.visible = false;
   sickle.visible = false;
-  grip.add(hoe, sickle);
+  hold.add(hoe);
+  grip.add(sickle);
 
   // head: a faceted skull under a thatch of dark hair
   const head = new THREE.Group();
@@ -208,5 +215,5 @@ export function buildPlayerMesh() {
   head.add(mesh(box(0.062, 0.012, 0.02), 0x8a5a44, { y: 0.1, z: 0.153, shadow: false })); // mouth
 
   bake(group);
-  return { group, roller, hips, chest, head, legs, arms, grip, weapon, tools: { hoe, sickle } };
+  return { group, roller, hips, chest, head, legs, arms, grip, hold, weapon, tools: { hoe, sickle } };
 }

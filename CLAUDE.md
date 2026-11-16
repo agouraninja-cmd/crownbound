@@ -365,8 +365,20 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     order YXZ): 0 thumb forward/up for the chop's hammer blow, about -1.4 palm down for the
     backhand, +1.4 palm up for the sweep, so the level cuts lay the stick flat and whip it
     through tip-last. Walking it is carried pointing down ahead, coming up level in a run.
-    Looks only — reach, arc, damage and hit timing are unchanged. The hoe and sickle still
-    run down the forearm's line (they hang on `grip`, not `hold`); no wrist clamp for them.
+    Looks only — reach, arc, damage and hit timing are unchanged. The sickle still runs
+    down the forearm's line (it hangs on `grip`, not `hold`, with no wrist clamp).
+  - The hoe is worked two-handed (2026-11-16, the owner: "make the hoe use the same realistic
+    grip"). It hangs on `hold` like the stick, gripped a quarter of the way down the shaft
+    (`RIG.hoeDrop`), and the off hand takes the shaft above it (`RIG.hoeOffHand`, negative =
+    up toward the end). That hand is SOLVED, not posed: playerAnim.js `graspShaft()` finds
+    the spot on the shaft in the chest's frame each step and turns arm 0 onto it — elbow
+    from the distance, shoulder as a whole rotation (quaternion, the upper arm's own twist
+    included, which no pose channel has) with the elbow hanging toward `ELBOW_POLE`. It is
+    blended in by `wGrasp` while working with the hoe out (till and tend), so the hand
+    reaches for the shaft and lets go. The arms are short for the shoulders' width, so both
+    hands only meet near his middle: HOE_UP/HOE_DOWN bring the hoe hand across (spread1
+    -1.1/-0.8) — found by a search for blade-in-the-earth-ahead with the shaft in reach —
+    and the off arm's channels in those poses are only the blend's far end.
   - Legs are solved, not swung. Each foot is given a place to be and a two-bone solve bends
     the knee to put it there — on the ground (targets in the figure's ground frame, carried
     into the pelvis's frame each step) or off it (targets from the hip, for the leap, the roll
@@ -871,6 +883,16 @@ headlessly; everything else covered by the regression suite below.
   Seen only in a cloud container's software renderer, not yet on the owner's screen — the
   night's brightness in particular wants his eye. Details: "The Turning Sky" under Noted
   decisions.
+
+- [x] Post-v1 — "Two Hands on the Hoe" (2026-11-16): the hoe gets the stick's grip — across
+  the fist, not along the arm — and both hands: the stick hand a quarter of the way down the
+  shaft, the off hand above it, solved onto the shaft every step. The stroke re-posed: both
+  fists raised before his chest with the shaft standing tall, then dropped to his belt with
+  the wrist snapped so the blade bites the earth ahead. Tilling and weeding only; sowing and
+  reaping as before. Looks only; no rule or save change. `farm`, `body`, `combat` (on a
+  re-run — the second dummy swing's fixed wait) and `''` pass (cloud container, headless
+  Chromium); seen only in a pose bench, not yet on the owner's machine. Details: under
+  "The Living Body" in Noted decisions.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's

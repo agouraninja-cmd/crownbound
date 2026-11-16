@@ -147,15 +147,18 @@ const SWINGS = [[WINDUP, IMPACT, FOLLOW], [BACK_WINDUP, BACK_IMPACT, BACK_FOLLOW
 // hauled up and brought down into the earth, seed taken from the lap and cast
 // wide, the sickle drawn out and swept through the stalks. He bends to it —
 // and with the chest pitched forward the arms must swing further to reach.
+// The hoe is worked two-handed: the off arm's channels here are only where
+// it would be, for the moment the hoe is taken up or put down — the animator
+// lays that hand on the shaft (graspShaft).
 const HOE_UP = {
-  drop: 0.05, hipYaw: 0.1, chestPitch: 0.28, chestYaw: 0.2, headPitch: 0, headYaw: -0.1,
+  drop: 0.05, hipYaw: 0.2, chestPitch: 0.28, chestYaw: 0.45, headPitch: 0, headYaw: -0.1,
   swing0: -1.25, spread0: 0.3, elbow0: -1.0,
-  swing1: -1.6, spread1: -0.2, elbow1: -0.7, grip: -0.5,
+  swing1: -1.5, spread1: -1.1, elbow1: -0.6, grip: -0.15, // both fists up before his chest: the shaft stands tall
 };
 const HOE_DOWN = {
-  drop: 0.13, hipYaw: -0.05, chestPitch: 0.62, chestYaw: -0.1, headPitch: 0.1, headYaw: 0.05,
+  drop: 0.13, hipYaw: 0.15, chestPitch: 0.62, chestYaw: 0.35, headPitch: 0.1, headYaw: 0.05,
   swing0: -0.95, spread0: 0.3, elbow0: -0.5,
-  swing1: -1.1, spread1: -0.2, elbow1: -0.3, grip: 0,
+  swing1: -0.2, spread1: -0.8, elbow1: -0.4, grip: 0.6, // fists dropped to his belt, wrist snapped: the blade bites ahead
 };
 const SEED_DRAW = { // the casting hand dips into the seed gathered at his belt
   drop: 0.02, hipYaw: -0.1, chestPitch: 0.12, chestYaw: -0.3, headPitch: 0.05, headYaw: 0.15,
@@ -224,6 +227,9 @@ const SEAT = {
   feet: [{ x: -0.085, z: 0.36, pitch: -0.2 }, { x: 0.085, z: 0.36, pitch: -0.2 }],
 };
 
+// where the off elbow hangs when that hand takes the hoe: down, out and a little back
+const ELBOW_POLE = new THREE.Vector3(-0.6, -1, -0.25).normalize();
+
 const foot = () => ({ x: 0, y: 0, z: 0, pitch: 0 });
 
 export function createPlayerAnimator(m) {
@@ -252,6 +258,7 @@ export function createPlayerAnimator(m) {
   let blowT = 1; // how far through the swing, held at the end while it fades
   let blowKind = 0; // which swing: 0 chop, 1 backhand, 2 sweep
   let wWork = 0; // eased weight of the field-work layer
+  let wGrasp = 0; // eased weight of the off hand on the hoe's shaft
   let workBeat = 0; // how far through the current stroke, 0..1, held while the layer fades
   let workKind = 'till';
   let lastVx = 0;
@@ -267,6 +274,16 @@ export function createPlayerAnimator(m) {
 
   const toPelvis = new THREE.Matrix4();
   const v3 = new THREE.Vector3();
+  const toShaft = new THREE.Matrix4();
+  const armFrame = new THREE.Matrix4();
+  const turn4 = new THREE.Matrix4();
+  const graspQ = new THREE.Quaternion();
+  const target = new THREE.Vector3();
+  const reachA = new THREE.Vector3();
+  const reachB = new THREE.Vector3();
+  const reachC = new THREE.Vector3();
+  const pole = new THREE.Vector3();
+  const poleC = new THREE.Vector3();
 
   // One foot's place in the stride at cycle position ph. While planted
   // (ph < duty) the ground carries it back under the body at the body's own
@@ -315,6 +332,39 @@ export function createPlayerAnimator(m) {
     leg.foot.rotation.x = solePitch - hip - knee;
   }
 
+  // The off hand takes the hoe's shaft: find the spot RIG.hoeOffHand along
+  // the shaft from the stick fist (up it, toward the end), in the chest's
+  // frame, and turn arm 0 so its fist lands there. The elbow bends by the
+  // distance; the shoulder turns the bent arm onto the spot with the elbow
+  // hanging down and out, as an elbow does — a whole turn, the upper arm's
+  // own twist included, which no pose channel has. w blends it over the
+  // pose, so the hand reaches for the shaft and lets go.
+  function graspShaft(w) {
+    const a1 = m.arms[1];
+    for (const o of [a1.upper, a1.fore, m.grip, m.hold]) o.updateMatrix();
+    toShaft.multiplyMatrices(a1.upper.matrix, a1.fore.matrix).multiply(m.grip.matrix).multiply(m.hold.matrix);
+    v3.set(0, -RIG.hoeOffHand, 0).applyMatrix4(toShaft);
+    target.set(v3.x + RIG.shoulderX, v3.y - RIG.shoulderY, v3.z); // from the off shoulder
+    const U = RIG.upperArm;
+    const F = RIG.forearm;
+    const d = clamp(target.length(), Math.abs(U - F) + 0.01, U + F - 0.001); // out of reach: reach straight for it
+    const elbow = -Math.acos(clamp((d * d - U * U - F * F) / (2 * U * F), -1, 1)); // bent forward
+    // the fist and the elbow in the unturned arm's frame...
+    reachA.set(0, -U - F * Math.cos(elbow), -F * Math.sin(elbow)).normalize();
+    reachB.set(0, -1, 0).addScaledVector(reachA, reachA.y).normalize(); // toward the elbow, square to the reach
+    reachC.crossVectors(reachA, reachB);
+    armFrame.makeBasis(reachA, reachB, reachC).transpose();
+    // ...and where they belong: the fist on the spot, the elbow toward the pole
+    target.normalize();
+    pole.copy(ELBOW_POLE).addScaledVector(target, -ELBOW_POLE.dot(target)).normalize();
+    poleC.crossVectors(target, pole);
+    turn4.makeBasis(target, pole, poleC).multiply(armFrame);
+    graspQ.setFromRotationMatrix(turn4);
+    const arm = m.arms[0];
+    arm.upper.quaternion.slerp(graspQ, w);
+    arm.fore.rotation.x = lerp(arm.fore.rotation.x, elbow, w);
+  }
+
   function update(dt, pl) {
     if (!(dt > 0)) return; // a zero-length step moves nothing
     clock += dt;
@@ -357,6 +407,8 @@ export function createPlayerAnimator(m) {
       blowKind = pl.swing % SWINGS.length;
     }
     wWork = ease(wWork, pl.mode === 'work' ? 1 : 0, pl.mode === 'work' ? 16 : 9, dt);
+    const hoeing = pl.mode === 'work' && m.tools.hoe.visible;
+    wGrasp = ease(wGrasp, hoeing ? 1 : 0, hoeing ? 14 : 18, dt);
     if (pl.mode === 'work') {
       workBeat = (pl.modeT / CONFIG.farm.strokeTime) % 1;
       workKind = pl.work.kind;
@@ -568,9 +620,11 @@ export function createPlayerAnimator(m) {
     m.arms[0].fore.rotation.x = pose.elbow0;
     m.arms[1].upper.rotation.set(pose.swing1, 0, pose.spread1);
     m.arms[1].fore.rotation.x = pose.elbow1;
-    // the springs can carry the wrist a hair past its reach; the stick never
-    // goes there (the field tools keep their own line down the arm)
-    m.grip.rotation.set(m.weapon.visible ? clamp(pose.grip, WRIST.back, WRIST.snap) : pose.grip, pose.twist, 0);
+    // the springs can carry the wrist a hair past its reach; the stick and
+    // the hoe never go there (the sickle keeps its own line down the arm)
+    const held = m.weapon.visible || m.tools.hoe.visible;
+    m.grip.rotation.set(held ? clamp(pose.grip, WRIST.back, WRIST.snap) : pose.grip, pose.twist, 0);
+    if (wGrasp > 0.001) graspShaft(wGrasp);
 
     // feet: the ground's targets carried into the pelvis's frame, the body's
     // own targets already there — and the knees solved to reach the blend
@@ -609,7 +663,7 @@ export function createPlayerAnimator(m) {
     },
     // stand him up fresh (respawn): no leftover lean, sink or half-blended layer
     reset() {
-      wAir = wRoll = wBlow = wWork = load = 0;
+      wAir = wRoll = wBlow = wWork = wGrasp = load = 0;
       blowT = 1;
       lastVx = lastVz = 0;
       for (const s of [bounce, leanF, leanS, reelF, reelS]) s.x = s.v = 0;
