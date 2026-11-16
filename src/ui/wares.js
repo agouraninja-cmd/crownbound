@@ -1,13 +1,20 @@
-// Pictures of the chapman's wares, drawn in ink and wash like the Map — one
-// small SVG per item in CONFIG.shop.items (plus the trusty stick), shown
-// beside its row in the shop and again in the Chest (weapons and the larder).
-// No image files: each picture is a string of SVG built here. The washes are
-// the colours the same things wear in the 3D world (structures.js,
-// playerMesh.js, player.js setWeaponTier), so what the panel shows is what
-// turns up in the hand or the hovel.
+// The chapman's wares, pictured and explained. Two things live here, both
+// shown in the shop and again in the Chest (its weapons and its larder):
 //
-// Every picture is drawn on a 64×64 sheet. No ids or gradients inside them —
-// the shop shows nine at once and SVG ids are shared across the whole page.
+// - Pictures, drawn in ink and wash like the Map — one small SVG per item in
+//   CONFIG.shop.items, plus the trusty stick. No image files: each picture is
+//   a string of SVG built here. The washes are the colours the same things
+//   wear in the 3D world (structures.js, playerMesh.js, player.js
+//   setWeaponTier), so what the panel shows is what turns up in the hand or
+//   the hovel. Every picture is drawn on a 64×64 sheet, with no ids or
+//   gradients inside — the shop shows nine at once and SVG ids are shared
+//   across the whole page.
+// - The "read more" for each ware: what it is, how to use it, and what it
+//   does for the player. Like the Village Charter, every number in it is read
+//   from config.js when it is shown, so re-tuning can never leave it stale;
+//   only the prose is fixed.
+
+import { CONFIG } from '../state/config.js';
 
 const INK = '#2b2014';
 const WOOD_DARK = '#4f3a25'; // kit.js WOOD_DARK
@@ -215,4 +222,165 @@ export function warePicture(id, label = '') {
   if (!draw) return '';
   const name = label.replace(/"/g, '&quot;');
   return `<svg class="ware-svg" viewBox="0 0 64 64" role="img" aria-label="${name}">${draw()}</svg>`;
+}
+
+// ---------- read more: what each ware is, how it is used, what it gives ----------
+
+// the comforts' law, said once: home goods and trinkets are for looking at
+const COMFORT_ONLY =
+  'Comfort, not virtue: like everything at the cart it earns no XP, no streak and no stamina. ' +
+  'What it gives is a home that looks lived in, and the purchase is written among thy deeds in the Tome.';
+
+// a weapon's numbers, as the swing actually uses them (main.js applyPurchases)
+function weaponFacts(w) {
+  const P = CONFIG.player;
+  const damage = w.damage ?? P.attackDamage;
+  const reach = P.attackRange + (w.reach ?? 0);
+  const blows = Math.ceil(CONFIG.rats.hp / damage);
+  return { damage, reach: Math.round(reach * 100) / 100, blows };
+}
+
+function ratLine(blows) {
+  return blows === 1
+    ? `A granary rat (${CONFIG.rats.hp} HP) falls in a single blow`
+    : `A granary rat (${CONFIG.rats.hp} HP) falls in ${blows} blows`;
+}
+
+// how to carry a weapon again once another is in hand
+const CHEST_SWAP =
+  'When thou carriest another weapon it waits in the chest by thy cot: stand beside the cot, ' +
+  'press E to open the chest, and choose &#8220;Take up&#8221;.';
+
+// how a weapon reaches the hand — said at the cart, needless in the chest
+const BOUGHT = (inChest) => (inChest ? '' : 'Once bought it goes straight to thy hand. ');
+
+const SWING =
+  'Swing with the left mouse button (or a plain click where the mouse cannot be captured). ' +
+  'Swings in quick succession chain chop, backhand and sweep.';
+
+const LORE = {
+  stick: {
+    about:
+      'A crooked length of hazel with a rag wound round the grip. Every villager starts with one.',
+    use: () => `It is thy first weapon and is never lost. ${SWING} ${CHEST_SWAP}`,
+    boon: () => {
+      const f = weaponFacts(CONFIG.chest.stick);
+      return `${f.damage} damage a blow, at a reach of ${f.reach}. ${ratLine(f.blows)}. It costs nothing and asks nothing.`;
+    },
+  },
+
+  cudgel: {
+    about:
+      'A club of seasoned oak, knotted at the head and bound in leather at the grip. ' +
+      'Heavier than a stick, and it lands like it.',
+    use: (item, inChest) => `${BOUGHT(inChest)}${SWING} ${CHEST_SWAP}`,
+    boon: (item) => {
+      const f = weaponFacts(item);
+      const stick = weaponFacts(CONFIG.chest.stick);
+      return (
+        `${f.damage} damage a blow (the stick does ${stick.damage}). ${ratLine(f.blows)} instead of ` +
+        `${stick.blows}, so fewer bites are taken and the bounty (+${CONFIG.rewards.ratCoins} coins a ` +
+        `tail) comes quicker. A swing still costs ${CONFIG.stamina.attackCost} stamina, and the dummy ` +
+        'counts Athleticism by blows, not by weight, so its XP is the same with any weapon.'
+      );
+    },
+  },
+
+  quarterstaff: {
+    about:
+      'Six feet of pale ash, shod with iron at both ends and wrapped for the hands at the middle. ' +
+      'A weapon for one who has trained for it.',
+    use: (item, inChest) => {
+      const rank = CONFIG.ranks.find((r) => r.title === item.minRank);
+      const gate =
+        rank && !inChest
+          ? `The chapman sells it only to a ${rank.title} or better: ${rank.totalLevels} virtue levels in all, won by real deeds at the Quest Board. `
+          : '';
+      return `${gate}${BOUGHT(inChest)}${SWING} ${CHEST_SWAP}`;
+    },
+    boon: (item) => {
+      const f = weaponFacts(item);
+      const stick = weaponFacts(CONFIG.chest.stick);
+      return (
+        `${f.damage} damage a blow and a longer reach (${f.reach}, the stick's is ${stick.reach}), ` +
+        `so thou canst strike from a little farther off. ${ratLine(f.blows)}. A swing still costs ` +
+        `${CONFIG.stamina.attackCost} stamina.`
+      );
+    },
+  },
+
+  rug: {
+    about: 'Wool dyed madder red, bordered dark at both ends, with a gold lozenge at its heart.',
+    use: () =>
+      'Nothing to do but buy it: it is laid at once on the floor of thy hovel, between the cot and the hearth. Step inside to see it.',
+    boon: () => COMFORT_ONLY,
+  },
+
+  door: {
+    about: 'A pot of oxblood paint and a good brush, for a door that has only ever been bare boards.',
+    use: () => 'Bought, it goes on at once: thy hovel&#8217;s door turns oxblood red.',
+    boon: () => COMFORT_ONLY,
+  },
+
+  window: {
+    about:
+      'A real pane of glass in an oak frame with a cross mullion, hauled from the city unbroken. ' +
+      'Glass is a luxury few peasants ever own.',
+    use: () => 'Bought, it is glazed at once into the little window beside thy hovel&#8217;s door.',
+    boon: () => COMFORT_ONLY,
+  },
+
+  garden: {
+    about: 'Seed, string and a spade&#8217;s worth of work: a little kitchen plot of cabbages and seedlings.',
+    use: () =>
+      'Bought, it is dug at once along the side wall of thy hovel. It is there to look on: it is not ' +
+      'worked like the miller&#8217;s strip and yields no crop. (For a wage, the miller&#8217;s strip pays.)',
+    boon: () => COMFORT_ONLY,
+  },
+
+  loaf: {
+    about: 'A round of brown bread from the chapman&#8217;s basket, scored and dusted with flour. Bread keeps.',
+    use: () =>
+      `Each loaf goes to the larder of the chest by thy cot, which holds ${CONFIG.chest.larderCap}; ` +
+      'the chapman will not sell bread to a full larder. When thou art hurt, stand beside the cot, ' +
+      'press E to open the chest, and choose &#8220;Eat a loaf&#8221;.',
+    boon: () =>
+      `A loaf mends every wound at once, back to the full ${CONFIG.player.maxHp} HP. It mends health ` +
+      'and nothing more (no XP, no stamina) and cannot be eaten while thou art hale. Unlike the rest ' +
+      'of the cart, loaves may be bought again and again.',
+  },
+
+  trophy: {
+    about: 'A granary rat, stuffed and mounted on a wooden shield. It stares.',
+    use: () => 'Bought, it hangs at once on the wall of thy hovel, above the pot shelf.',
+    boon: () => COMFORT_ONLY,
+  },
+
+  lantern: {
+    about: 'A candle burning in an iron lantern with horn panes, hung from a bracket.',
+    use: () => 'Bought, it hangs at once beside thy hovel&#8217;s door, lit and glowing warm.',
+    boon: () => COMFORT_ONLY,
+  },
+};
+
+// does this ware have a "read more"? (a new item in config.js simply has none yet)
+export const hasWareLore = (id) => id in LORE;
+
+// The "read more" for one ware (a shop item, or the chest's stick): a larger
+// picture, what it is, how to use it, what it does for the player. In the
+// chest the ware is already owned, so what only matters at the cart is left out.
+export function wareLore(item, inChest = false) {
+  const lore = LORE[item.id];
+  if (!lore) return '';
+  return `
+    <div class="ware-more">
+      <span class="ware-big">${warePicture(item.id, item.name)}</span>
+      <div class="ware-more-text">
+        <p class="ware-about">${lore.about}</p>
+        <h3>How to use it</h3>
+        <p>${lore.use(item, inChest)}</p>
+        <h3>What it does for thee</h3>
+        <p>${lore.boon(item)}</p>
+      </div>
+    </div>`;
 }

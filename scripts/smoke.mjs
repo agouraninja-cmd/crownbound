@@ -1735,12 +1735,39 @@ try {
     // 2b) every ware in the catalogue has its picture drawn beside it
     const pictures = await page.evaluate(() =>
       window.__game.CONFIG.shop.items.map((item) => {
-        const svg = document.querySelector(`#shop-body .ware-pic[title="${item.name}"] svg`);
-        return { id: item.id, drawn: svg ? svg.querySelectorAll('path, rect, circle, ellipse').length : 0 };
+        const svg = document.querySelector(`#shop-body .ware-pic[data-more="${item.id}"] svg`);
+        return {
+          id: item.id,
+          drawn: svg ? svg.querySelectorAll('path, rect, circle, ellipse').length : 0,
+          readMore: !!document.querySelector(`#shop-body .ware-more-link[data-more="${item.id}"]`),
+        };
       })
     );
     console.log('pictures:', JSON.stringify(pictures));
     for (const p of pictures) if (p.drawn < 5) errors.push(`market: ${p.id} has no picture in the shop`);
+    for (const p of pictures) if (!p.readMore) errors.push(`market: ${p.id} has no "read more" in the shop`);
+
+    // 2c) clicking a picture unfolds its "read more" (numbers from config), the link folds it
+    await page.click('#shop-body .ware-pic[data-more="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
+    const lore = await page.evaluate(() => {
+      const box = document.querySelector('#shop-body .ware-more');
+      const cudgel = window.__game.CONFIG.shop.items.find((i) => i.id === 'cudgel');
+      return {
+        open: document.querySelectorAll('#shop-body .ware-more').length,
+        uses: !!box && box.textContent.includes('How to use it') && box.textContent.includes('What it does for thee'),
+        damage: !!box && box.textContent.includes(`${cudgel.damage} damage a blow`),
+        bigPicture: !!box && !!box.querySelector('.ware-big svg'),
+      };
+    });
+    console.log('read more:', JSON.stringify(lore));
+    if (lore.open !== 1 || !lore.uses) errors.push(`market: the cudgel's picture did not unfold its read-more -> ${JSON.stringify(lore)}`);
+    if (!lore.damage) errors.push('market: the cudgel read-more does not give its damage from config');
+    if (!lore.bigPicture) errors.push('market: the read-more has no large picture');
+    await page.click('#shop-body .ware-more-link[data-more="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
+    if (await page.evaluate(() => document.querySelectorAll('#shop-body .ware-more').length))
+      errors.push('market: "Read less" did not fold the read-more');
 
     // 3) buy the rug: coins drop, ownership sticks, the hovel shows it
     await page.click('[data-buy="rug"]');
@@ -1825,6 +1852,14 @@ try {
     console.log('chest:', JSON.stringify(chestOpen));
     if (!chestOpen.panel || !chestOpen.lid) errors.push('market: E at the chest did not open lid + panel');
     if (chestOpen.pictures !== 3) errors.push(`market: chest shows ${chestOpen.pictures} pictures, not 3 (stick, cudgel, loaf)`);
+    // the chest's wares read more too, without the cart's talk of buying
+    await page.click('#chest-body .ware-pic[data-more="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
+    const chestLore = await page.evaluate(() => document.querySelector('#chest-body .ware-more')?.textContent ?? '');
+    if (!chestLore.includes('How to use it')) errors.push('market: the chest\'s cudgel did not unfold its read-more');
+    if (chestLore.includes('Once bought')) errors.push('market: the chest\'s read-more still talks of buying');
+    await page.click('#chest-body .ware-more-link[data-more="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
     await page.click('[data-wield="stick"]');
     await new Promise((r) => setTimeout(r, 150));
     const stickDamage = await page.evaluate(() => window.__game.player.attackDamage);

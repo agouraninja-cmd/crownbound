@@ -278,7 +278,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #panel-overlay, .panel, .hp-bar.low, #hud-streak.grew { animation: none; }
+  #panel-overlay, .panel, .hp-bar.low, #hud-streak.grew, .ware-more { animation: none; }
 }
 
 .panel h1 {
@@ -509,18 +509,74 @@ button:disabled {
 .deed button { flex-shrink: 0; padding: 3px 12px; font-size: 14px; align-self: center; }
 
 /* the chapman's wares (and the chest's), each with its picture (ink and wash, drawn in wares.js) */
-.deed.ware { align-items: center; padding: 5px 0; }
+.deed.ware { align-items: center; padding: 5px 0; flex-wrap: wrap; }
 .deed.ware .deed-tag { align-self: center; }
-.ware-pic {
+.ware-pic,
+.deed .ware-pic {
   flex: 0 0 60px;
   width: 60px;
   height: 60px;
+  padding: 0;
   border: 1px solid var(--parchment-edge);
   border-radius: 3px;
   background: rgba(255, 248, 220, 0.35);
   box-shadow: inset 0 0 8px rgba(140, 105, 50, 0.18);
 }
+/* a picture that unfolds its ware's "read more" */
+button.ware-pic:hover { border-color: var(--ink-faded); background: rgba(255, 248, 220, 0.6); }
+button.ware-pic[aria-expanded='true'] { border-color: var(--ink); background: rgba(255, 248, 220, 0.6); }
+button.ware-pic:active { transform: translateY(1px); }
 .ware-svg { display: block; width: 100%; height: 100%; }
+
+/* "Read more ▾" — ink words, not a parchment button */
+.deed .ware-more-link {
+  padding: 0 0 0 2px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  font-size: 13px;
+  font-variant: normal;
+  letter-spacing: 0;
+  font-style: italic;
+  color: #7a2e1f;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  align-self: baseline;
+}
+.deed .ware-more-link:hover { background: none; color: var(--wax); }
+
+/* the unfolded "read more": a whole line of the row, the picture large beside the words */
+.ware-more {
+  flex: 1 0 100%;
+  display: flow-root;
+  margin: 6px 0 4px;
+  padding: 10px 12px 2px;
+  border: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  background: rgba(255, 250, 235, 0.32);
+  animation: panel-in 0.16s ease-out;
+}
+.ware-big {
+  float: left;
+  width: 104px;
+  height: 104px;
+  margin: 0 12px 6px 0;
+  border: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  background: rgba(255, 248, 220, 0.4);
+  box-shadow: inset 0 0 10px rgba(140, 105, 50, 0.18);
+}
+.ware-more p { margin: 0 0 8px; font-size: 14px; line-height: 1.4; }
+.ware-more .ware-about { font-style: italic; }
+.ware-more h3 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: normal;
+  font-variant: small-caps;
+  letter-spacing: 1px;
+  color: var(--ink-faded);
+}
 /* a ware above thy rank is shown, but faded, like a thing behind the chapman's counter;
    an empty larder fades its loaf the same way */
 .deed.ware.locked .ware-pic { opacity: 0.55; filter: grayscale(0.6) sepia(0.25); }

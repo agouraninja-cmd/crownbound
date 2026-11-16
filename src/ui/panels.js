@@ -30,7 +30,7 @@ import { mouseFeelId, setMouseFeel } from '../state/prefs.js';
 import { todayStr } from '../state/dates.js';
 import { renderGuide } from './guide.js';
 import { renderMap } from './map.js';
-import { warePicture } from './wares.js';
+import { warePicture, wareLore, hasWareLore } from './wares.js';
 import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
@@ -709,6 +709,46 @@ function renderTreasury() {
   }
 }
 
+// ---------- the wares' pictures and their "read more" (shop + chest) ----------
+
+// The wares whose "read more" is unfolded, by id. Kept while the panel is
+// open, so a purchase or a weapon swap re-renders without folding them;
+// emptied on close, so every visit opens tidy.
+const openWares = new Set();
+
+// a ware's picture — a button that unfolds its "read more", where it has one
+function warePic(item) {
+  const pic = warePicture(item.id, item.name);
+  if (!hasWareLore(item.id)) return `<span class="ware-pic">${pic}</span>`;
+  const open = openWares.has(item.id);
+  return `<button class="ware-pic" data-more="${item.id}" aria-expanded="${open}"
+    title="Read more of ${item.name}">${pic}</button>`;
+}
+
+// the words that unfold (or fold) a ware's "read more", after its flavor line
+function wareMoreLink(item) {
+  if (!hasWareLore(item.id)) return '';
+  const open = openWares.has(item.id);
+  return `<button class="ware-more-link" data-more="${item.id}" aria-expanded="${open}">${
+    open ? 'Read less &#9652;' : 'Read more &#9662;'
+  }</button>`;
+}
+
+// the unfolded "read more" itself, when open — it takes a whole line of the row
+const wareMore = (item, inChest = false) => (openWares.has(item.id) ? wareLore(item, inChest) : '');
+
+function bindWareToggles(body, rerender) {
+  for (const btn of body.querySelectorAll('[data-more]')) {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.more;
+      if (openWares.has(id)) openWares.delete(id);
+      else openWares.add(id);
+      sfx.page();
+      rerender();
+    });
+  }
+}
+
 // ---------- The Chapman's Cart (market days only) ----------
 
 const SHOP_SECTIONS = [
@@ -735,9 +775,11 @@ function renderShop() {
           action = `<button data-buy="${item.id}" ${s.coins < item.price || larderFull ? 'disabled' : ''}
             title="${larderFull ? 'Thy chest&#8217;s larder is full.' : ''}">${item.price}c</button>`;
         return `<div class="deed ware${locked ? ' locked' : ''}">
-          <span class="ware-pic" title="${item.name}">${warePicture(item.id, item.name)}</span>
-          <span class="deed-text"><b>${item.name}</b> — <span class="muted">${item.flavor}</span></span>
+          ${warePic(item)}
+          <span class="deed-text"><b>${item.name}</b> — <span class="muted">${item.flavor}</span>
+            ${wareMoreLink(item)}</span>
           ${action}
+          ${wareMore(item)}
         </div>`;
       })
       .join('');
@@ -747,9 +789,12 @@ function renderShop() {
   shopBody.innerHTML = `
     <div class="sheet-section">
       <div class="kv"><span>Thy purse</span><span class="v">${s.coins} coins</span></div>
-      <p class="muted">The chapman deals in comfort and swagger. Virtue is not for sale, at any price.</p>
+      <p class="muted">The chapman deals in comfort and swagger. Virtue is not for sale, at any price.
+        Click a ware&#8217;s picture to read more of it.</p>
     </div>
     ${sections}`;
+
+  bindWareToggles(shopBody, renderShop);
 
   for (const btn of shopBody.querySelectorAll('[data-buy]')) {
     btn.addEventListener('click', () => {
@@ -781,16 +826,18 @@ function renderChest() {
           ? `<span class="deed-tag tag-gold">in hand</span>`
           : `<button data-wield="${w.id}">Take up</button>`;
       return `<div class="deed ware">
-        <span class="ware-pic" title="${w.name}">${warePicture(w.id, w.name)}</span>
+        ${warePic(w)}
         <span class="deed-text"><b>${w.name}</b> — <span class="muted">${w.flavor}</span>
-          <span class="muted">(${damageOf(w)} damage)</span></span>
+          <span class="muted">(${damageOf(w)} damage)</span> ${wareMoreLink(w)}</span>
         ${action}
+        ${wareMore(w, true)}
       </div>`;
     })
     .join('');
 
   const loaves = s.chest.loaves;
   const hale = !shopActions.isWounded();
+  const loaf = CONFIG.shop.items.find((i) => i.id === 'loaf');
   chestBody.innerHTML = `
     <div class="sheet-section">
       <div class="kv"><span>In thy hand</span><span class="v">${inHand.name}</span></div>
@@ -803,7 +850,7 @@ function renderChest() {
     <div class="sheet-section">
       <h2>The Larder</h2>
       <div class="deed ware${loaves ? '' : ' locked'}">
-        <span class="ware-pic" title="a hearty loaf">${warePicture('loaf', 'a hearty loaf')}</span>
+        ${warePic(loaf)}
         <div class="deed-text">
           <div class="kv"><span>Loaves</span><span class="v">${loaves} of ${CONFIG.chest.larderCap}</span></div>
           <span class="muted">${
@@ -811,7 +858,9 @@ function renderChest() {
               ? 'A loaf mends every wound at once. Bread keeps; eat it when thou art hurt.'
               : 'Empty. The chapman sells loaves on market days.'
           }</span>
+          ${wareMoreLink(loaf)}
         </div>
+        ${wareMore(loaf, true)}
       </div>
       <div class="row right">
         <button class="primary" data-eat ${!loaves || hale ? 'disabled' : ''}
@@ -828,6 +877,7 @@ function renderChest() {
       renderChest();
     });
   }
+  bindWareToggles(chestBody, renderChest);
   chestBody.querySelector('[data-eat]').addEventListener('click', () => {
     if (shopActions.isWounded() && eatLoaf()) {
       toast('Warm bread. The aches ease.', 'gold');
@@ -847,6 +897,7 @@ function close() {
   judgingFor = null;
   editingEpic = false;
   pendingImport = null;
+  openWares.clear();
   overlay.classList.add('hidden');
   boardPanel.classList.add('hidden');
   tomePanel.classList.add('hidden');
