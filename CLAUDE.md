@@ -706,7 +706,9 @@ headlessly; everything else covered by the regression suite below.
   change. The spawn (2.2 from the fire) is deliberately just outside the range, so a load
   doesn't sit him down. Player mode `sit` (player.js), the `SEAT` layer (playerAnim.js, feet in
   the ground frame so the knees solve themselves), a line in the Charter's fire section. New
-  smoke scenario `hearth`.
+  smoke scenario `hearth`; all 22 scenarios pass (cloud container, headless Chromium —
+  `exchequer` only on a re-run: its fixed 400ms wait read the prompt before a frame drew it).
+  Not yet seen on the owner's machine.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
