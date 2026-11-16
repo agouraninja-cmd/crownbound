@@ -91,7 +91,7 @@ export const CONFIG = {
   // Anthropic API — his key is granted in the Tome and lives OUTSIDE the save).
   // Every failure path falls back to the manual virtue picker.
   sage: {
-    model: 'claude-haiku-4-5-20251001', // any Claude model id works; haiku is the thrifty choice — a one-word verdict needs no Opus
+    model: 'claude-haiku-5-5', // any Claude model id works; haiku is the thrifty choice — a one-word verdict needs no Opus
     maxTokens: 16,
     timeoutMs: 8000, // past this the manual picker takes over
   },
@@ -100,7 +100,7 @@ export const CONFIG = {
   // (src/ai/chronicler.js). He serves under the sage's key and writes quietly
   // after boot — prose gets more room and more patience than a verdict.
   chronicler: {
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-haiku-5-5',
     maxTokens: 400,
     timeoutMs: 30000, // off the critical path; a later load is the retry
   },

@@ -639,7 +639,8 @@ headlessly; everything else covered by the regression suite below.
   API, browser-direct; key appointed in the Tome, kept outside the save). Verdict is final;
   the manual picker is every failure's fallback. First API integration — v2 groundwork.
   No save change. (2026-07-06: model retuned to claude-haiku-4-5-20251001 — a one-word verdict
-  needs no Opus, and Haiku stays well inside the 8s timeout.)
+  needs no Opus, and Haiku stays well inside the 8s timeout. 2026-11-16, the owner: both AI
+  uses — the Sage and the Chronicler — moved to claude-haiku-5-5, in CONFIG.sage / CONFIG.chronicler.)
 - [x] Post-v1 — "The Scribe's Mirror" (2026-07-06): dev-only auto-backup to one file. Every
   state change is pushed (debounced 1s + pagehide beacon) to a vite dev-server endpoint
   (/__save, vite.config.js plugin) that keeps saves/crownbound-save.json current; a browser
