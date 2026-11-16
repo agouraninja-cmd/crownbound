@@ -712,6 +712,21 @@ headlessly; everything else covered by the regression suite below.
   presses E instead of calling `sleepAtCot()` directly (which is how this slipped by);
   `house` and `market` stand at the chest's new spot. No save change.
 
+- [x] Post-v1 — "The Hearthside" (2026-11-16), asked for by the owner ("after 2 seconds of
+  standing near the fire pit the player sits down to warm up"): stood still within
+  `CONFIG.player.sitNear` (2.0) of the campfire for `sitDelay` (2s), he turns to the flames and
+  sits on the ground — knees drawn up, palms held out, now and then rubbing his hands, the
+  stick laid aside. Too close to the ring, he shuffles back to `sitSeat` (1.45). Any movement
+  key, Space, C, a roll, a click or a bite stands him up; the click swings nothing, and his
+  pace is held back while he finds his feet (`sit01`). Looks only — no rule, reward or save
+  change. The spawn (2.2 from the fire) is deliberately just outside the range, so a load
+  doesn't sit him down. Player mode `sit` (player.js), the `SEAT` layer (playerAnim.js, feet in
+  the ground frame so the knees solve themselves), a line in the Charter's fire section. New
+  smoke scenario `hearth`; all 22 scenarios pass (cloud container, headless Chromium —
+  `exchequer` only on a re-run: its fixed 400ms wait read the prompt before a frame drew it);
+  after merging The Cot Within Reach, `hearth`, `house`, `market` and `body` pass again on
+  the merge. Not yet seen on the owner's machine.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -736,6 +751,10 @@ headlessly; everything else covered by the regression suite below.
   chaining 0→1→2→0 and starting over after a pause, footfalls reported while running (none
   standing) and one landing per leap (mid-stride screenshot →
   scripts/smoke-body.png) ·
+  `hearth` by the fire: not sat at 1.5s, sat by 2.2s (waist low, knees up, facing the
+  fire, stick laid aside), W stands him up slowly then walks on, the spawn is not near enough,
+  too close he shuffles back, a click (no swing, no stamina) and a bite both get him up
+  (screenshot → scripts/smoke-hearth.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +

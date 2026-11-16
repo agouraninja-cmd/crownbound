@@ -204,6 +204,18 @@ const ABED = {
   feet: [{ x: 0, y: -0.515, z: 0, pitch: 0.5 }, { x: 0, y: -0.515, z: 0, pitch: 0.5 }],
 };
 
+// ---------- by the fire: sat on the ground, knees up, palms to the flames ----------
+// The feet here are in the ground frame, like the stride's (x aside, z ahead
+// of the root), so the knees fold to whatever height the pelvis has sunk to —
+// he lowers himself down onto the ground and the legs work it out. drop sinks
+// the waist to just above the earth; the pelvis rocks back onto the seat and
+// the chest leans in toward the warmth.
+const SEAT = {
+  pose: { drop: 0.42, pitch: -0.12, bank: 0, shift: 0, hipYaw: 0, hipRoll: 0, chestPitch: 0.42, chestYaw: 0, chestRoll: 0,
+    headPitch: -0.12, headYaw: 0, swing0: -0.95, spread0: 0.3, elbow0: -0.9, swing1: -0.95, spread1: -0.3, elbow1: -0.9, grip: 0 },
+  feet: [{ x: -0.085, z: 0.36, pitch: -0.2 }, { x: 0.085, z: 0.36, pitch: -0.2 }],
+};
+
 const foot = () => ({ x: 0, y: 0, z: 0, pitch: 0 });
 
 export function createPlayerAnimator(m) {
@@ -221,6 +233,7 @@ export function createPlayerAnimator(m) {
   const blow = { ...WINDUP }; // scratch: the swing, blended
   const toil = { ...HOE_UP }; // scratch: field work, blended
   const step = { along: 0, up: 0, pitch: 0 }; // scratch: one foot's place in the stride
+  const seat = [foot(), foot()]; // scratch: the seated feet, laid to the ground's tilt
 
   let clock = 0;
   let phase = 0; // the stride, 0..1: foot 0 lands at 0, foot 1 at 0.5
@@ -455,6 +468,29 @@ export function createPlayerAnimator(m) {
       const dropWas = pose.drop;
       mix(pose, toil, wWork);
       pose.drop = dropWas + toil.drop * wWork; // he sinks into it from wherever he stood
+    }
+
+    // ---- sat by the fire: breathing slow, and now and then rubbing his hands ----
+    const sit = pl.sit01;
+    if (sit > 0.001) {
+      mix(pose, SEAT.pose, sit);
+      const rub = smooth(Math.sin(clock * 0.55), 0.6, 0.9); // a few seconds' rub, every eleven or so
+      const scrub = Math.sin(clock * 11) * 0.07 * rub;
+      pose.chestPitch += breath * 0.02 * sit;
+      pose.headYaw += Math.sin(clock * 0.3) * 0.12 * sit; // gazing about the flames
+      pose.swing0 += (scrub + breath * 0.02) * sit;
+      pose.swing1 += (-scrub + breath * 0.02) * sit;
+      pose.spread0 += 0.14 * rub * sit; // the hands come together to rub
+      pose.spread1 -= 0.14 * rub * sit;
+      for (let i = 0; i < 2; i++) {
+        const f = SEAT.feet[i];
+        const s0 = seat[i];
+        s0.x = f.x;
+        s0.z = f.z;
+        s0.y = RIG.ankle + slopeF * f.z + slopeS * f.x;
+        s0.pitch = f.pitch - Math.atan(slopeF);
+      }
+      mixFeet(ground, seat, sit);
     }
 
     // ---- the leap ----

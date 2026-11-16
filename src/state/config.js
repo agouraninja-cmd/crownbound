@@ -143,6 +143,13 @@ export const CONFIG = {
     attackArcDeg: 110,
     attackDuration: 0.34,
     comboWindow: 0.9, // a swing begun within this of the last one chains to the next kind of blow
+    // Standing still by the campfire, he sits down to warm himself. Looks only:
+    // no rule or reward hangs on it. Any key or click stands him up again.
+    sitDelay: 2, // seconds standing still near the fire before he sits
+    sitNear: 2.0, // ...near meaning within this of the fire's middle (the spawn, 2.2 away, is just outside)
+    sitSeat: 1.45, // where he settles from the fire's middle; nearer than this and he shuffles back
+    sitDown: 0.9, // seconds to lower himself to the ground
+    sitUp: 0.45, // seconds to get back on his feet
   },
 
   dummy: {
