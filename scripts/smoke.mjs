@@ -61,6 +61,14 @@ try {
   });
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
 
+  // What the E-prompt says once it says anything (up to 4s). A fixed wait can
+  // fall between two frames where the software renderer manages ~3fps.
+  const promptOffered = async () => {
+    const el = () => document.getElementById('interact-prompt').textContent;
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.length > 0, { timeout: 4000 }).catch(() => {});
+    return page.evaluate(el);
+  };
+
   // optional scenario hook, e.g. node scripts/smoke.mjs aerial
   const scenario = process.argv[2] || '';
 
@@ -1189,10 +1197,7 @@ try {
       g.player.pos.x = 4.8; // on the path side of the counter
       g.player.pos.z = 3.1;
     });
-    await new Promise((r) => setTimeout(r, 400));
-    const prompt = await page.evaluate(
-      () => document.getElementById('interact-prompt').textContent
-    );
+    const prompt = await promptOffered();
     console.log('prompt:', JSON.stringify(prompt));
     if (!prompt.includes('Exchequer')) errors.push(`exchequer: prompt "${prompt}" does not offer the table`);
     await page.keyboard.press('KeyE');
@@ -1853,10 +1858,7 @@ try {
       g.player.pos.x = 1.5; // on the path, the chapman's side
       g.player.pos.z = 9.0;
     });
-    await new Promise((r) => setTimeout(r, 400));
-    const prompt = await page.evaluate(
-      () => document.getElementById('interact-prompt').textContent
-    );
+    const prompt = await promptOffered();
     console.log('prompt:', JSON.stringify(prompt));
     if (!prompt.includes('chapman')) errors.push(`market: prompt "${prompt}" does not offer the cart`);
     await page.keyboard.press('KeyE');

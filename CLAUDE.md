@@ -756,7 +756,9 @@ headlessly; everything else covered by the regression suite below.
   of day (long days in summer, early dark in winter); dawn and dusk colour the sky, the
   clouds and the light; night brings stars, the moon in her true phase, moonlight, a lit
   window in the hovel and the campfire as the village's light. Birds and butterflies keep
-  the sun's hours. Looks only — no rule or save change. New smoke scenario `sky`.
+  the sun's hours. Looks only — no rule or save change. New smoke scenario `sky`; all 22
+  scenarios pass (cloud container, headless Chromium — `exchequer` and `market` once their
+  prompt checks waited for the prompt; see Session notes).
   Seen only in a cloud container's software renderer, not yet on the owner's screen — the
   night's brightness in particular wants his eye. Details: "The Turning Sky" under Noted
   decisions.
@@ -837,5 +839,8 @@ headlessly; everything else covered by the regression suite below.
   pushing him out) and `combat` (the second dummy swing landing) each failed once that way and
   passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
   the wait, not the game — re-run that scenario alone with nothing else busy on the machine.
+  (2026-11-16: median frame ~400ms there, before The Turning Sky and after it alike.
+  `exchequer` and `market` failed the same way — a prompt read 400ms after the player was
+  moved — and now wait for the prompt to appear, `promptOffered()` in smoke.mjs.)
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
