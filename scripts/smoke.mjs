@@ -2487,7 +2487,7 @@ try {
     if (!abed.door) errors.push('spent: he walked through a shut door');
     if (!card.shown) errors.push('spent: no rest card');
     if (!card.text.includes('tomorrow')) errors.push('spent: the card does not say play resumes tomorrow');
-    if (!card.text.includes('can still be posted')) errors.push('spent: the card forgets the deed still owed');
+    if (!card.text.includes('thy strength returns at once')) errors.push('spent: the card forgets the deed still owed');
     await page.screenshot({ path: 'scripts/smoke-spent.png' });
 
     // 3) the keys have no say abed
@@ -2498,24 +2498,32 @@ try {
     const still = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z, mode: window.__game.player.mode }));
     if (Math.hypot(still.x - before.x, still.z - before.z) > 0.05 || still.mode !== 'sleep') errors.push('spent: W moved him out of bed');
 
-    // 4) the Quest Board from bed: the deed counts, the pool stays spent
+    // 4) the Quest Board from bed: the deed counts, refills the pool, and gets him up
     await page.click('[data-rest="board"]');
     await page.type('[data-input]', 'Evening lift');
     await page.click('[data-post]');
     await page.click('[data-complete]');
     await page.click('[data-pick="ath"]');
     await page.keyboard.press('Escape');
-    await wait(300);
+    await wait(600);
     const deed = await page.evaluate(() => {
-      const st = window.__game.getState();
-      return { done: st.quests.daily.completed, streak: st.streak.current, xp: st.stats.ath.xp, stamina: st.stamina.current, flag: st.stamina.spent, mode: window.__game.player.mode, enabled: window.__game.player.isEnabled() };
+      const g = window.__game;
+      const st = g.getState();
+      return { done: st.quests.daily.completed, streak: st.streak.current, xp: st.stats.ath.xp, stamina: st.stamina.current, flag: !!st.stamina.spent, ...g.spent(), mode: g.player.mode, enabled: g.player.isEnabled(), abedClass: document.body.classList.contains('abed') };
     });
     const card2 = await restCard();
     console.log('deed from bed:', JSON.stringify(deed));
     if (!deed.done || deed.streak !== 1 || deed.xp !== 25) errors.push('spent: the daily from bed did not count');
-    if (deed.stamina !== 0 || !deed.flag) errors.push(`spent: the daily refilled a spent pool (${deed.stamina})`);
-    if (deed.mode !== 'sleep' || deed.enabled) errors.push('spent: closing the board got him out of bed');
-    if (!card2.shown || card2.text.includes('can still be posted')) errors.push('spent: the card did not come back with the deed done');
+    if (deed.stamina !== 480 || deed.flag) errors.push(`spent: the daily from bed did not refill the pool (${deed.stamina}, spent ${deed.flag})`);
+    if (deed.resting || deed.mode !== 'normal' || !deed.enabled) errors.push(`spent: the daily from bed did not get him up (${JSON.stringify(deed)})`);
+    if (card2.shown || deed.abedClass) errors.push('spent: the rest card stayed up after he rose');
+
+    // 4b) spent again, the daily already done: home from inside the hovel, and abed for good
+    await page.evaluate(() => window.__game.drainStamina(window.__game.getState().stamina.current));
+    const again = await until(() => window.__game.spent().resting, null, 30000);
+    const card2b = await restCard();
+    if (!again || !card2b.shown) errors.push('spent: a second emptying did not put him back to bed');
+    if (card2b.text.includes('thy strength returns at once')) errors.push('spent: the card offers a refill with the daily already done');
 
     // 5) retire for the night marks a real bedtime
     await page.click('[data-rest="retire"]');
