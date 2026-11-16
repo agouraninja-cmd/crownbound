@@ -528,3 +528,36 @@ button:disabled {
   font-size: 15px;
   line-height: 1.45;
 }
+
+/* ---------- Treasury: labelled figures, the how-to, the live verdict ---------- */
+
+.ledger-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+.ledger-field .lf-text { flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
+.ledger-field .lf-label { font-size: 16px; }
+.ledger-field .lf-hint { color: var(--ink-faded); font-style: italic; font-size: 13px; }
+.ledger-field input { width: 140px; flex-shrink: 0; }
+.ledger-field input[type='text'] { width: 200px; }
+
+.ledger-preview {
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--gold);
+  background: rgba(201, 162, 39, 0.1);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.ledger-how { margin: 14px 0; font-size: 15px; }
+.ledger-how summary {
+  font-variant: small-caps;
+  letter-spacing: 1px;
+  font-size: 17px;
+  cursor: var(--cursor-quill);
+}
+.ledger-how ol { margin: 8px 0 6px; padding-left: 22px; line-height: 1.4; }
+.ledger-how li { margin: 4px 0; }

@@ -1266,15 +1266,28 @@ try {
       const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
       q('[data-t-pledge]').value = '200';
       q('[data-t-set]').click(); // rerenders the panel
-      const r = (sel, v) => (document.querySelector(`#treasury-body ${sel}`).value = v);
+      // typed like a player: each figure fires 'input', which drives the live verdict
+      const r = (sel, v) => {
+        const el = document.querySelector(`#treasury-body ${sel}`);
+        el.value = v;
+        el.dispatchEvent(new Event('input'));
+      };
+      // a blank figure is refused (it used to file as 0 and zero the savings)
+      q('[data-r-file]').click();
+      const blankRefused = window.__game.getState().treasury.rolls.length === 0;
       r('[data-r-earned]', '5000');
       r('[data-r-spent]', '3800');
       r('[data-r-saved]', '300');
-      r('[data-r-counted]', '1100');
+      // "savings now" follows the 800 on hand + 300 put in, untyped
+      const followed = q('[data-r-counted]').value;
+      const preview = q('[data-r-preview]').textContent;
       document.querySelector('#treasury-body [data-r-file]').click();
       const st = window.__game.getState();
       const t = st.treasury;
       return {
+        blankRefused,
+        followed,
+        previewFat: preview.includes('the hoard grew fat') && preview.includes('1,200'),
         rolls: t.rolls.length,
         verdict: t.rolls[0]?.verdict,
         current: t.current,
@@ -1286,6 +1299,9 @@ try {
       };
     });
     console.log('filed:', JSON.stringify(filed));
+    if (!filed.blankRefused) errors.push('reckoning: a reckoning with blank figures was filed');
+    if (filed.followed !== '1100') errors.push(`reckoning: savings-now ${filed.followed} did not follow 800 + 300`);
+    if (!filed.previewFat) errors.push('reckoning: live preview did not show left-over 1,200 and the fat verdict');
     if (filed.rolls !== 1) errors.push(`reckoning: ${filed.rolls} rolls != 1`);
     if (filed.verdict !== 'fat') errors.push(`reckoning: verdict ${filed.verdict} != fat (300 >= 200 pledged)`);
     if (filed.current !== 1100) errors.push(`reckoning: counted-true ${filed.current} != 1100`);

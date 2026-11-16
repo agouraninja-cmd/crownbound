@@ -636,6 +636,19 @@ headlessly; everything else covered by the regression suite below.
   fallen well behind the game (it still speaks of a dated Coronation and no shop). Details:
   "The Miller's Strip" under Noted decisions.
 
+- [x] Post-v1 — "The Plain Ledger" (2026-11-16): the Treasury made to make sense, at the
+  owner's word ("make the treasury make more sense" — the save showed it never used). Same
+  rules and data; the panel rewritten. Every figure is a labelled field with a line of help
+  in plain words (savings, goal, monthly pledge, income, spending, put into savings, savings
+  now), the medieval names kept for headings only. A "How the Exchequer works" list (open
+  on an untouched ledger, which also shows The Terms before the reckoning). The goal shows
+  % and amount to go, and months left at the pledge. The reckoning judges live as you type
+  (left over, savings change, the verdict and why); "Savings now" follows savings + "put
+  into savings" until typed over; a blank figure is refused (it used to file as 0 and could
+  zero the savings). The goal can be renamed under The Terms. The rolls show a verdict
+  legend and each month's closing savings. The Charter's Two Purses paragraph rewritten to
+  match. No save change.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -676,7 +689,7 @@ headlessly; everything else covered by the regression suite below.
   and its history deed, back to stubble) + no XP earned + the Charter's section (screenshot →
   scripts/smoke-farm.png) · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
-  `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat) + conquest & next
+  `reckoning` v6→v7 migration + verdict rules + panel filing (pledge/fat, typed: blank figures refused, savings-now follows, live verdict) + conquest & next
   summit + double-file guard + unreckoned backfill (panel screenshot → scripts/smoke-reckoning.png) ·
   `alive` villager breathing spread + head-track/greet for all three (off-axis stand, or the
   turn is ~0) + head returns at distance + fidget fires + miller walks his rounds & his prompt

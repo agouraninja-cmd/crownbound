@@ -173,10 +173,13 @@ export function renderGuide(guideBody) {
       <div class="kv"><span>Coins</span><span class="v">${FM ? 'quest spoils, rat bounties, field wages' : 'quest spoils and rat bounties'}</span></div>
       <div class="kv"><span>The Treasury</span><span class="v">thy true savings, kept at the Exchequer</span></div>
       <p class="muted">They never mix. Coins of the realm will never buy back a virtue,
-      and thy true hoard answers to no game. When each month turns, the clerk hears the
-      Reckoning — coin earned, coin spent, what was laid in the hoard, and the hoard counted
-      true — judges it against thy pledge, and enters the roll. Summits are named, climbed
-      by the month, and conquered only at a filing.</p>
+      and thy true hoard answers to no game — the Treasury is real money, kept on thy honor, and
+      pays no XP or coins.</p>
+      <p class="muted">At the Exchequer set three terms: thy savings, a goal to save toward, and a
+      monthly pledge (what thou meanest to put into savings). When each month ends, tell the clerk
+      what came in, what went out, what went into savings, and what thy savings now stand at. He
+      judges the month — fat if thou savedst the pledge, held if thou spentest no more than came in,
+      bled if more — and enters the roll. A goal is won when a filed reckoning reaches it.</p>
     </div>
     ${farmSection}
     ${marketSection}
