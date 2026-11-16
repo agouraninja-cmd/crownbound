@@ -712,7 +712,7 @@ headlessly; everything else covered by the regression suite below.
   forearm turning the hand over for the level cuts — instead of the stick continuing the
   line of his arm. Carried pointing down ahead of him at rest, up level in a run. All three
   swings re-posed (the chop is a hammer's blow; the backhand and sweep whip flat). Animation
-  only; no rule or save change. Smoke suite (cloud container, headless Chromium): render, `body`, `combat`, `quests` pass; rest pending. Details: under "The Living Body" in
+  only; no rule or save change. All 21 smoke scenarios pass (cloud container, headless Chromium), `guide` only on a re-run (its 400ms prompt wait read a stalled frame — see Session notes). Seen only in a pose bench, not yet on the owner's machine. Details: under "The Living Body" in
   Noted decisions.
 
 ### Session notes
@@ -781,8 +781,8 @@ headlessly; everything else covered by the regression suite below.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
-  pushing him out) and `combat` (the second dummy swing landing) each failed once that way and
-  passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
+  pushing him out), `combat` (the second dummy swing landing) and `guide` (the charter prompt,
+  read 400ms after he is placed) each failed once that way and passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
   the wait, not the game — re-run that scenario alone with nothing else busy on the machine.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
