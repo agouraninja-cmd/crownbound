@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../state/config.js';
-import { RIG } from './playerMesh.js';
+import { RIG, WRIST } from './playerMesh.js';
 
 // The peasant's body in motion. player.js decides what he is doing and where
 // he is; this file decides how that looks, and is the only thing that turns
@@ -70,64 +70,72 @@ function mixFeet(feet, layer, w) {
 // The upper-body channels that pass through a spring before they reach the
 // rig, so arms, chest and head follow through instead of stopping dead.
 const SPRUNG = ['chestPitch', 'chestYaw', 'chestRoll', 'headPitch', 'headYaw',
-  'swing0', 'spread0', 'elbow0', 'swing1', 'spread1', 'elbow1', 'grip'];
+  'swing0', 'spread0', 'elbow0', 'swing1', 'spread1', 'elbow1', 'grip', 'twist'];
 
 // ---------- the swings, each in three held moments ----------
 // Arm angles: swing is the shoulder fore-and-aft (negative forward, -π
 // straight up), elbow bends the same way, spread lifts the arm out from the
-// side (side 0 negative, side 1 positive), grip turns the stick in the fist.
-// With the arm swung level (swing ≈ -1.5), spread is where it points: out to
-// his side when positive, across his body when negative.
+// side (side 0 negative, side 1 positive). With the arm swung level (swing ≈
+// -1.5), spread is where it points: out to his side when positive, across his
+// body when negative.
+//
+// The stick lies across the fist (RIG.hold), so it leaves the hand near
+// square to the forearm, out of the thumb side. grip is the wrist: 0 straight,
+// negative cocked back toward the thumb, positive snapped through toward the
+// little finger — always inside WRIST. twist turns the forearm about its own
+// length before the wrist acts: 0 thumb forward (up, with the arm raised),
+// negative palm down (thumb across the body), positive palm up (thumb out).
+// A chop is a hammer's blow, thumb up; a level cut has to turn the hand over.
 
 // 0 — the chop: hauled up over the shoulder and brought straight down
 const WINDUP = { // stick hauled up and back over the shoulder, chest wound open
   drop: 0.02, hipYaw: 0.18, chestPitch: -0.14, chestYaw: 0.5, headPitch: 0.05, headYaw: -0.4,
   swing0: -0.55, spread0: -0.2, elbow0: -0.7,
-  swing1: -2.9, spread1: 0.25, elbow1: -1.9, grip: -0.35,
+  swing1: -2.9, spread1: 0.25, elbow1: -1.9, grip: 0.45, twist: 0, // the stick hangs down his back
 };
 const IMPACT = { // the blow lands: arm thrown long, wrist snapped over, chest behind it
   drop: 0.06, hipYaw: -0.12, chestPitch: 0.32, chestYaw: -0.3, headPitch: -0.12, headYaw: 0.2,
   swing0: 0.3, spread0: -0.2, elbow0: -0.7,
-  swing1: -1.2, spread1: 0.05, elbow1: -0.3, grip: 0.3,
+  swing1: -1.0, spread1: 0.05, elbow1: -0.25, grip: 0.6, twist: 0,
 };
 const FOLLOW = { // carried on down across the body
   drop: 0.08, hipYaw: -0.2, chestPitch: 0.4, chestYaw: -0.55, headPitch: -0.18, headYaw: 0.35,
   swing0: 0.4, spread0: -0.22, elbow0: -0.8,
-  swing1: -0.45, spread1: -0.35, elbow1: -0.55, grip: 0.5,
+  swing1: -0.2, spread1: -0.35, elbow1: -0.4, grip: 0.6, twist: 0,
 };
 
 // 1 — the backhand: from low across the body, whipped out level to the stick side
 const BACK_WINDUP = { // coiled: fist by the far hip, shoulders turned away
   drop: 0.05, hipYaw: -0.2, chestPitch: 0.15, chestYaw: -0.75, headPitch: -0.05, headYaw: 0.55,
   swing0: 0.3, spread0: -0.25, elbow0: -0.9,
-  swing1: -1.15, spread1: -0.95, elbow1: -1.3, grip: 0.5,
+  swing1: -1.15, spread1: -0.95, elbow1: -1.3, grip: -0.2, twist: -1.3,
 };
 const BACK_IMPACT = { // uncoiled: arm long and level out in front
   drop: 0.05, hipYaw: 0.1, chestPitch: 0.12, chestYaw: 0.25, headPitch: -0.05, headYaw: -0.15,
   swing0: -0.3, spread0: -0.3, elbow0: -0.8,
-  swing1: -1.45, spread1: 0.35, elbow1: -0.2, grip: 0.1,
+  swing1: -1.45, spread1: 0.35, elbow1: -0.2, grip: 0.5, twist: -1.4,
 };
 const BACK_FOLLOW = { // flung wide, chest thrown open
   drop: 0.03, hipYaw: 0.2, chestPitch: 0.02, chestYaw: 0.7, headPitch: 0, headYaw: -0.5,
   swing0: -0.5, spread0: -0.35, elbow0: -0.9,
-  swing1: -1.4, spread1: 1.3, elbow1: -0.45, grip: 0.0,
+  swing1: -1.4, spread1: 1.3, elbow1: -0.45, grip: 0.6, twist: -1.4,
 };
 
 // 2 — the sweep: from wide on the stick side, scythed level back across
 const SWEEP_WINDUP = { // arm drawn out and back, chest wound open
   drop: 0.04, hipYaw: 0.25, chestPitch: 0.04, chestYaw: 0.8, headPitch: 0, headYaw: -0.6,
   swing0: -0.6, spread0: -0.3, elbow0: -0.8,
-  swing1: -1.4, spread1: 1.5, elbow1: -0.9, grip: -0.3,
+  swing1: -1.4, spread1: 1.5, elbow1: -0.9, grip: -0.3, twist: 1.4,
 };
 const SWEEP_IMPACT = { // through the front, arm long, hips driving
   drop: 0.07, hipYaw: -0.15, chestPitch: 0.16, chestYaw: -0.3, headPitch: -0.06, headYaw: 0.2,
   swing0: 0.35, spread0: -0.25, elbow0: -0.7,
-  swing1: -1.45, spread1: 0.1, elbow1: -0.25, grip: 0.15,
+  swing1: -1.45, spread1: 0.1, elbow1: -0.25, grip: 0.5, twist: 1.4,
 };
 const SWEEP_FOLLOW = { // wrapped across the body
   drop: 0.07, hipYaw: -0.25, chestPitch: 0.22, chestYaw: -0.75, headPitch: -0.08, headYaw: 0.5,
   swing0: 0.5, spread0: -0.3, elbow0: -0.8,
-  swing1: -1.3, spread1: -0.85, elbow1: -0.7, grip: 0.3,
+  swing1: -1.3, spread1: -0.85, elbow1: -0.7, grip: 0.6, twist: 1.3,
 };
 
 // player.js names the swing (pl.swing); a chain runs chop → backhand → sweep,
@@ -176,31 +184,31 @@ const WORK = { till: [HOE_UP, HOE_DOWN], tend: [HOE_UP, HOE_DOWN], sow: [SEED_DR
 // Feet here are in the body's own frame, measured from each hip joint.
 const LAUNCH = {
   pose: { drop: -0.02, pitch: 0.16, bank: 0, shift: 0, hipYaw: 0, hipRoll: 0, chestPitch: 0.1, chestYaw: 0, chestRoll: 0,
-    headPitch: -0.2, headYaw: 0, swing0: -1.7, spread0: -0.25, elbow0: -0.5, swing1: -1.3, spread1: 0.3, elbow1: -0.6, grip: 0.5 },
+    headPitch: -0.2, headYaw: 0, swing0: -1.7, spread0: -0.25, elbow0: -0.5, swing1: -1.3, spread1: 0.3, elbow1: -0.6, grip: 0.4 },
   feet: [{ x: 0.02, y: -0.51, z: -0.05, pitch: 0.9 }, { x: -0.02, y: -0.51, z: -0.07, pitch: 0.9 }],
 };
 const AFLOAT = {
   pose: { drop: 0, pitch: 0.06, bank: 0, shift: 0, hipYaw: 0.1, hipRoll: 0, chestPitch: 0.12, chestYaw: -0.12, chestRoll: 0,
-    headPitch: -0.1, headYaw: 0, swing0: -0.4, spread0: -0.5, elbow0: -1.0, swing1: -0.9, spread1: 0.45, elbow1: -0.9, grip: 0.7 },
+    headPitch: -0.1, headYaw: 0, swing0: -0.4, spread0: -0.5, elbow0: -1.0, swing1: -0.9, spread1: 0.45, elbow1: -0.9, grip: 0.6 },
   feet: [{ x: 0.02, y: -0.3, z: 0.17, pitch: 0.3 }, { x: -0.02, y: -0.45, z: -0.16, pitch: 0.7 }],
 };
 const REACH = {
   pose: { drop: 0, pitch: -0.08, bank: 0, shift: 0, hipYaw: 0, hipRoll: 0, chestPitch: 0.02, chestYaw: 0, chestRoll: 0,
-    headPitch: 0.12, headYaw: 0, swing0: -0.2, spread0: -0.8, elbow0: -0.45, swing1: -0.3, spread1: 0.7, elbow1: -0.5, grip: 0.3 },
+    headPitch: 0.12, headYaw: 0, swing0: -0.2, spread0: -0.8, elbow0: -0.45, swing1: -0.3, spread1: 0.7, elbow1: -0.5, grip: 0.5 },
   feet: [{ x: 0, y: -0.47, z: 0.13, pitch: -0.12 }, { x: 0, y: -0.49, z: 0.03, pitch: 0 }],
 };
 
 // ---------- the roll: a tight tuck turning about the waist ----------
 const TUCK = {
   pose: { pitch: 0, bank: 0, shift: 0, hipYaw: 0, hipRoll: 0, chestPitch: 0.55, chestYaw: 0, chestRoll: 0,
-    headPitch: 0.5, headYaw: 0, swing0: -1.15, spread0: 0.1, elbow0: -1.6, swing1: -1.0, spread1: -0.05, elbow1: -1.5, grip: 2.0 },
+    headPitch: 0.5, headYaw: 0, swing0: -1.15, spread0: 0.1, elbow0: -1.6, swing1: -1.0, spread1: -0.05, elbow1: -1.5, grip: 0.6 },
   feet: [{ x: 0.02, y: -0.22, z: 0.2, pitch: 0.3 }, { x: -0.02, y: -0.22, z: 0.2, pitch: 0.3 }],
 };
 
 // ---------- asleep: flat on the back, arms at the sides ----------
 const ABED = {
   pose: { bank: 0, shift: 0, hipYaw: 0, hipRoll: 0, chestPitch: 0, chestYaw: 0, chestRoll: 0,
-    headPitch: -0.08, headYaw: 0, swing0: -0.25, spread0: -0.12, elbow0: -0.25, swing1: -0.25, spread1: 0.12, elbow1: -0.25, grip: 0 },
+    headPitch: -0.08, headYaw: 0, swing0: -0.25, spread0: -0.12, elbow0: -0.25, swing1: -0.25, spread1: 0.12, elbow1: -0.25, grip: 0.6 },
   feet: [{ x: 0, y: -0.515, z: 0, pitch: 0.5 }, { x: 0, y: -0.515, z: 0, pitch: 0.5 }],
 };
 
@@ -225,7 +233,7 @@ export function createPlayerAnimator(m) {
     // the spine and the head
     chestPitch: 0, chestYaw: 0, chestRoll: 0, headPitch: 0, headYaw: 0,
     // the arms and the stick
-    swing0: 0, spread0: 0, elbow0: 0, swing1: 0, spread1: 0, elbow1: 0, grip: 0,
+    swing0: 0, spread0: 0, elbow0: 0, swing1: 0, spread1: 0, elbow1: 0, grip: 0, twist: 0,
   };
   const ground = [foot(), foot()]; // where the ankles belong on the ground (x aside, y up, z ahead of the root)
   const body = [foot(), foot()]; // where they belong off it (from each hip joint, in the pelvis's frame)
@@ -428,11 +436,14 @@ export function createPlayerAnimator(m) {
     pose.spread0 = -(0.08 + 0.08 * run + 0.05 * crouch + breath * 0.008 * idle);
     // the stick arm carries more than it pumps: a shorter swing, a lower hand
     pose.swing1 = -0.55 * reachArm * pump - 0.2 * crouch - breath * 0.02 * idle;
-    pose.elbow1 = -Math.max(0.08, 0.6 * bend + 0.15 * g * pump);
+    pose.elbow1 = -Math.max(0.08, 0.6 * bend + 0.15 + 0.3 * crouch + 0.15 * g * pump); // the elbow keeps the stick's tip off the ground
     pose.spread1 = 0.1 + 0.08 * run + 0.05 * crouch + breath * 0.008 * idle;
-    // the stick keeps its own line whatever the arm does: tipped a little
-    // forward at rest, trailing low behind him in a run
-    pose.grip = clamp(lerp(-0.3, 0.95, run) - (pose.swing1 + pose.elbow1), -1.2, 2.3);
+    // the stick keeps its own line as far as the wrist allows: carried at his
+    // side pointing down ahead of him, coming up level as he runs. Its line
+    // is the forearm's plus the wrist's, less the hold across the fist.
+    const stickLine = lerp(-1.0, -1.5, run);
+    pose.grip = clamp(stickLine - (pose.swing1 + pose.elbow1) + RIG.hold, WRIST.back, WRIST.snap);
+    pose.twist = 0;
 
     // ---- the swing: wound up, landed, carried through ----
     if (wBlow > 0.001) {
@@ -557,7 +568,9 @@ export function createPlayerAnimator(m) {
     m.arms[0].fore.rotation.x = pose.elbow0;
     m.arms[1].upper.rotation.set(pose.swing1, 0, pose.spread1);
     m.arms[1].fore.rotation.x = pose.elbow1;
-    m.grip.rotation.x = pose.grip;
+    // the springs can carry the wrist a hair past its reach; the stick never
+    // goes there (the field tools keep their own line down the arm)
+    m.grip.rotation.set(m.weapon.visible ? clamp(pose.grip, WRIST.back, WRIST.snap) : pose.grip, pose.twist, 0);
 
     // feet: the ground's targets carried into the pelvis's frame, the body's
     // own targets already there — and the knees solved to reach the blend

@@ -320,6 +320,17 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     the belt) → arms [upper → fore] and head; the stick hangs from a `grip` pivot in the fist
     of arm 1. Sides are 0 (-x) and 1 (+x, the stick hand). ~6 more draw calls than the old
     one-piece limbs. `mesh.roller.rotation.x` is still the lie-down angle the house smoke reads.
+  - The stick lies across the fist (2026-11-16, the owner: "hold the stick more realistically").
+    It used to run on down the line of the forearm, its butt buried in the wrist. Now a fixed
+    `hold` Group turns it `RIG.hold` (1.3 rad, a little short of square) out of the thumb
+    side, held near its butt in a leather wrap, with knuckles and a thumb on the stick fist.
+    `pose.grip` is the WRIST — 0 straight, cocked back / snapped through within `WRIST`
+    (playerMesh.js) — and `pose.twist` turns the forearm about its length first (grip pivot
+    order YXZ): 0 thumb forward/up for the chop's hammer blow, about -1.4 palm down for the
+    backhand, +1.4 palm up for the sweep, so the level cuts lay the stick flat and whip it
+    through tip-last. Walking it is carried pointing down ahead, coming up level in a run.
+    Looks only — reach, arc, damage and hit timing are unchanged. The hoe and sickle still
+    run down the forearm's line (they hang on `grip`, not `hold`); no wrist clamp for them.
   - Legs are solved, not swung. Each foot is given a place to be and a two-bone solve bends
     the knee to put it there — on the ground (targets in the figure's ground frame, carried
     into the pelvis's frame each step) or off it (targets from the hip, for the leap, the roll
@@ -727,6 +738,14 @@ headlessly; everything else covered by the regression suite below.
   after merging The Cot Within Reach, `hearth`, `house`, `market` and `body` pass again on
   the merge. Not yet seen on the owner's machine.
 
+- [x] Post-v1 — "The Honest Grip" (2026-11-16): the player holds the stick like a real fist
+  does — across the palm near its butt, in a leather wrap, wrist cocking and snapping it,
+  forearm turning the hand over for the level cuts — instead of the stick continuing the
+  line of his arm. Carried pointing down ahead of him at rest, up level in a run. All three
+  swings re-posed (the chop is a hammer's blow; the backhand and sweep whip flat). Animation
+  only; no rule or save change. All 21 smoke scenarios pass (cloud container, headless Chromium), `guide` only on a re-run (its 400ms prompt wait read a stalled frame — see Session notes). Seen only in a pose bench, not yet on the owner's machine. After merging The Hearthside (its SEAT pose's wrist is in range; the stick is laid aside seated) `hearth`, `body` and `combat` pass on the merge; `house` passes all but its first check (the closed door pushing him out), which failed the same way on plain `main` — no frame drew inside its 300ms wait. Details: under "The Living Body" in
+  Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -797,8 +816,8 @@ headlessly; everything else covered by the regression suite below.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
-  pushing him out) and `combat` (the second dummy swing landing) each failed once that way and
-  passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
+  pushing him out), `combat` (the second dummy swing landing) and `guide` (the charter prompt,
+  read 400ms after he is placed) each failed once that way and passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
   the wait, not the game — re-run that scenario alone with nothing else busy on the machine.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
