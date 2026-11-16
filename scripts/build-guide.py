@@ -224,6 +224,12 @@ m2 = para_after(m1, BODY, "The sky keeps the hour of your own clock. The sun ris
 # ---- saving ----
 set_text(P[39], "Your save lives only in this browser, and separately for each address the game is opened at — the hosted game and the dev server do not share one. The **Scribe**, at the bottom of the Tome, guards against misfortune and carries your progress between them: **Download a copy** writes your whole chronicle to a JSON file; **Restore from a copy** validates the file, keeps your replaced save as a fallback, and reloads the realm from the copy. Take a copy now and then — a browser cleanup would otherwise take the year with it.")
 
+# ---- the proving ground (after Saving) ----
+ph = para_after(P[39], H2, "The Proving Ground (the Test World)")
+t1 = para_after(ph, BODY, "A second world for trying things out, kept wholly apart from your real one. Open it from **The Proving Ground** at the bottom of the Tome, or add **?test=1** to the game’s address (**https://agouraninja-cmd.github.io/crownbound/?test=1**). It has a save of its own: nothing done there changes your real chronicle, and a dark banner across the top of the screen always says which world you are in. **Leave** on the banner takes you back.")
+t2 = para_after(t1, BODY, f"Press **/** to open the command line, type a command and press Enter; Esc closes it. **help** lists every command. A few of them: **stamina full**, **rank {C['ranks'][-1]['title'].lower()}**, **level wis 10**, **coins 500**, **streak 30**, **daily**, **tp field**, **market on**, **give cudgel**, **time 7:30** and **nextday** — a night passes, which is how streaks, the growing crop, market days and the dawn can all be tried in one sitting. **copy** brings in a copy of your real save to experiment on (the real one is not touched), and **reset world** begins the test world again.")
+t3 = para_after(t2, BODY, "You can make commands of your own. Type **make fresh = stamina full; heal; coins 1000** and from then on **fresh** runs all three; **forget fresh** unmakes it. Your own commands stay in the browser even when the test world is begun again.")
+
 # ---- the road ahead ----
 fill(road, [
     ["Version", "What comes"],

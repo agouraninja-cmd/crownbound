@@ -668,7 +668,7 @@ scripts/build-guide.py  builds CROWNBOUND-Guide.docx (`npm run guide`): the pros
     replaced — a Scribe restore in either world, a wipe, a copy — nothing more is written
     before the reload, so a stray step cannot put the old save back.
   - Not told in the game: the Charter has no section for it (it is a tool, not a rule).
-    CROWNBOUND-Guide.docx has one.
+    CROWNBOUND-Guide.docx has one (in scripts/build-guide.py, after Saving).
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -1046,6 +1046,18 @@ headlessly; everything else covered by the regression suite below.
   is out-of-game, so the no-year-or-country rule — which covers in-game text and AI
   prompts — does not reach it, and it says the game itself never names them.
 
+- [x] Post-v1 — "The Proving Ground" (2026-11-16): a separate world for testing. `?test=1`
+  (or the Tome's last section) opens the game on a save of its own; the true save is never
+  written there, and a dark banner says always which world this is. `/` opens a command line:
+  `stamina full`, `rank king`, `level wis 10`, `xp`, `coins`, `streak`, `heal`, `hp`, `daily` /
+  `weekly` / `monthly`, `tp <place>`, `market on`, `give` / `take` a ware, `farm …`, `reset …`,
+  `copy` (the true save copied in to experiment on), `leave` — and a clock that moves:
+  `nextday` lets a night pass, `time 7:30` sets the hour. The owner makes commands of his own
+  with `make fresh = stamina full; heal`. No rule, reward or save shape changed; the true
+  world gains only the Tome's door. CROWNBOUND-Guide.docx has a section (build-guide.py).
+  New smoke scenario `proving`, which passes (cloud container, headless Chromium).
+  Details: "The Proving Ground" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1120,6 +1132,15 @@ headlessly; everything else covered by the regression suite below.
   at dusk, stars + moonlight + dark haze at midnight, the beam never flatter than 18°, June
   against December, a known full moon and new moon, summer time under an emulated New York
   clock (screenshots → scripts/smoke-sky-noon.png, -sunset.png, -dusk.png, -night.png) ·
+  `proving` the test world: the true world has no command line, the Tome's door leads to
+  `?test=1`, a save of its own and the banner, `/` opens the line and typing there moves no
+  one, then by command: stamina, rank (and `rank sage` refused), level, xp, the Coronation
+  held and taken back, coins, streak, daily + reset, give/take, farm, tp (the board's prompt
+  offered), stamina handed back on the road home and abed, own commands made / run with a
+  word passed on / forgotten / kept through a reload and a wipe, built-in names refused,
+  `time`, `nextday` (the game's day moves, the streak holds; two missed nights kill it),
+  `time real`, `market on`, `copy`, `reset world` — and at the end THE TRUE SAVE UNCHANGED to
+  the letter, then `leave` back onto it (screenshot → scripts/smoke-proving.png) ·
   `aerial`/`front` screenshots.
 - If headless Edge quits at once ("Failed to launch the browser process: Code: 0" — seen
   2026-11-13 with Edge already open), point the suite at Chrome:
