@@ -1,5 +1,13 @@
 export const CONFIG = {
   saveKey: 'crownbound_save',
+
+  // Names on the Map of the Kingdom (M). The village is the one place the
+  // player walks; the kingdom around it is drawn on the map only.
+  realm: {
+    kingdom: 'Aldermere',
+    village: 'Brackenley', // the Chronicler is told to name it in every entry
+    lake: 'Lake Laney', // the great lake at the kingdom's heart
+  },
   saveVersion: 12, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip
 
   xpPerLevel: 100, // next level costs 100 × current level
@@ -20,10 +28,16 @@ export const CONFIG = {
   },
 
   stamina: {
-    baseCap: 60,
-    questCap: 120, // cap for the rest of the day once the daily quest is done
+    baseCap: 240,
+    questCap: 480, // cap for the rest of the day once the daily quest is done
     attackCost: 5,
     dodgeCost: 8,
+    // the legs draw on the pool too, per second of moving on the ground
+    // (a crouched shuffle counts as walking). Spent dry, he is done for the
+    // day: he walks himself home to his cot and play resumes on the morrow.
+    walkDrain: 0.25,
+    sprintDrain: 1,
+    homewardPace: 0.8, // the weary walk home, as a share of walkSpeed
   },
 
   // The cot marks a bedtime; the next game load judges it against the dawn.
@@ -33,7 +47,7 @@ export const CONFIG = {
     wakeByHour: 8, // back at the game by 08:00 local to count as rising with the dawn
     wisXp: 10,
     coins: 10,
-    staminaBonus: 10, // extra cap (and pool) for the rest of the day
+    staminaBonus: 40, // extra cap (and pool) for the rest of the day
   },
 
   // The Chapman's Cart. The sacred rule: coins buy comfort and swagger,
@@ -130,6 +144,13 @@ export const CONFIG = {
     attackArcDeg: 110,
     attackDuration: 0.34,
     comboWindow: 0.9, // a swing begun within this of the last one chains to the next kind of blow
+    // Standing still by the campfire, he sits down to warm himself. Looks only:
+    // no rule or reward hangs on it. Any key or click stands him up again.
+    sitDelay: 2, // seconds standing still near the fire before he sits
+    sitNear: 2.0, // ...near meaning within this of the fire's middle (the spawn, 2.2 away, is just outside)
+    sitSeat: 1.45, // where he settles from the fire's middle; nearer than this and he shuffles back
+    sitDown: 0.9, // seconds to lower himself to the ground
+    sitUp: 0.45, // seconds to get back on his feet
   },
 
   dummy: {
@@ -162,6 +183,14 @@ export const CONFIG = {
     harvestPay: 20, // coins when the wheat is brought in
     strokes: 3, // blows of the hoe (casts of seed, cuts of the sickle) to work one ridge
     strokeTime: 0.5, // seconds each takes
+  },
+
+  // The sky keeps the hour of the player's own clock: sun, moon and stars
+  // stand where they would for someone at this latitude, today.
+  sky: {
+    latitude: 45, // degrees north of the equator: how long the days run, season by season.
+    //               Set it to where the game is played for truer dawns and dusks.
+    refresh: 5, // seconds between repaints of the sky and its light (the sun moves a hair in that time)
   },
 
   campfireTiers: [

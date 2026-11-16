@@ -20,6 +20,9 @@ if (!executablePath) {
 }
 
 const PORT = 5199;
+// Every load holds the sky at one in the afternoon (main.js ?hour=), so the
+// screenshots look the same whatever hour the suite is run.
+const DAY = '&hour=13';
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
   shell: true,
   stdio: 'ignore',
@@ -58,6 +61,14 @@ try {
   });
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
 
+  // What the E-prompt says once it says anything (up to 4s). A fixed wait can
+  // fall between two frames where the software renderer manages ~3fps.
+  const promptOffered = async () => {
+    const el = () => document.getElementById('interact-prompt').textContent;
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.length > 0, { timeout: 4000 }).catch(() => {});
+    return page.evaluate(el);
+  };
+
   // optional scenario hook, e.g. node scripts/smoke.mjs aerial
   const scenario = process.argv[2] || '';
 
@@ -68,7 +79,7 @@ try {
   };
 
   if (scenario === 'fire') {
-    // a 35-day streak, daily already done today: roaring blaze + full 120 stamina
+    // a 35-day streak, daily already done today: roaring blaze + full 480 stamina
     const hot = {
       saveVersion: 1,
       createdAt: new Date().toISOString(),
@@ -91,7 +102,7 @@ try {
       },
       history: [],
       daysPlayed: 36,
-      stamina: { current: 120, date: dstr(0) },
+      stamina: { current: 480, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
     };
     await page.evaluateOnNewDocument((save) => {
@@ -126,7 +137,7 @@ try {
       },
       history: [{ date: dstr(-2), questText: 'old deed', statTrained: 'str', type: 'daily' }],
       daysPlayed: 3,
-      stamina: { current: 120, date: dstr(-2) },
+      stamina: { current: 480, date: dstr(-2) },
       counters: { date: dstr(-2), dummyHits: 25, ratsKilled: 3 },
     };
     // inject once; sessionStorage flag stops re-injection on reload
@@ -166,7 +177,7 @@ try {
       },
       history: [],
       daysPlayed: 340,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 240, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
       shop: { owned: ['cudgel', 'quarterstaff'] }, // pre-chest: the best weapon was always in hand
@@ -205,7 +216,7 @@ try {
       },
       history: [],
       daysPlayed: 1,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 240, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
       shop: { owned: [] },
@@ -246,7 +257,7 @@ try {
       history: [],
       chronicle: [],
       daysPlayed: 1,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 240, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
       shop: { owned: [] },
@@ -325,7 +336,7 @@ try {
         { date: dstr(-7), questText: 'Played tennis', statTrained: 'agi', type: 'daily' },
       ],
       daysPlayed: 3,
-      stamina: { current: 60, date: dstr(0) },
+      stamina: { current: 240, date: dstr(0) },
       counters: { date: dstr(0), dummyHits: 0, ratsKilled: 0 },
       sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
       shop: { owned: [] },
@@ -353,6 +364,7 @@ try {
         }
         const bodyText = init?.body ?? (typeof input !== 'string' ? await input.clone().text() : '');
         const req = JSON.parse(bodyText);
+        sessionStorage.setItem('smoke-charge', String(req.system ?? ''));
         const ledger = String(req.messages?.[0]?.content ?? '');
         const prose = ledger.includes('tennis') ? 'He strove at the ball court.' : 'He laboured in the yard.';
         return new Response(
@@ -372,7 +384,7 @@ try {
     }, old);
   }
 
-  await page.goto(`http://localhost:${PORT}/?smoke=${scenario}`, {
+  await page.goto(`http://localhost:${PORT}/?smoke=${scenario}${DAY}`, {
     waitUntil: 'networkidle2',
     timeout: 40000,
   });
@@ -406,7 +418,7 @@ try {
     if (s1.monthlyText !== '' || s1.monthlyDone) errors.push('rollover: monthly not reset');
     if (s1.streak !== 0) errors.push(`rollover: streak ${s1.streak} != 0 (fire should die)`);
     if (s1.best !== 9) errors.push(`rollover: best streak ${s1.best} != 9`);
-    if (s1.stamina !== 60) errors.push(`rollover: stamina ${s1.stamina} != 60`);
+    if (s1.stamina !== 240) errors.push(`rollover: stamina ${s1.stamina} != 240`);
     if (s1.dummyHits !== 0) errors.push('rollover: day counters not reset');
     if (s1.daysPlayed !== 4) errors.push(`rollover: daysPlayed ${s1.daysPlayed} != 4`);
     if (s1.coins !== 42) errors.push('rollover: coins not preserved');
@@ -434,9 +446,9 @@ try {
     const drain = await page.evaluate(() => {
       const g = window.__game;
       const spends = [];
-      for (let i = 0; i < 6; i++) spends.push(g.spendStamina(5)); // 120 -> 90
+      for (let i = 0; i < 6; i++) spends.push(g.spendStamina(5)); // 480 -> 450
       const mid = g.getState().stamina.current;
-      const big = g.spendStamina(90); // -> 0
+      const big = g.spendStamina(449); // -> 1 (nought would send him home to bed)
       const empty = g.spendStamina(5); // must refuse
       return { spends, mid, big, empty, end: g.getState().stamina.current };
     });
@@ -444,10 +456,10 @@ try {
     const tended = await page.evaluate(() => window.__game.campfire.getGutter());
     if (tended !== 1) errors.push(`fire: blaze guttering (${tended}) though daily is done`);
     if (drain.spends.some((v) => !v)) errors.push('fire: early spends refused');
-    if (drain.mid !== 90) errors.push(`fire: mid stamina ${drain.mid} != 90`);
-    if (!drain.big) errors.push('fire: spend-to-zero refused');
-    if (drain.empty) errors.push('fire: spend allowed at 0 stamina');
-    if (drain.end !== 0) errors.push(`fire: end stamina ${drain.end} != 0`);
+    if (drain.mid !== 450) errors.push(`fire: mid stamina ${drain.mid} != 450`);
+    if (!drain.big) errors.push('fire: spend-to-one refused');
+    if (drain.empty) errors.push('fire: spend of 5 allowed at 1 stamina');
+    if (drain.end !== 1) errors.push(`fire: end stamina ${drain.end} != 1`);
   } else if (scenario === 'aerial') {
     await page.evaluate(() => window.__game?.orbitCam?.setView(2.4, 1.1, 14));
   } else if (scenario === 'front') {
@@ -478,7 +490,7 @@ try {
     if (s.athXp !== 25) errors.push(`quests: athXp ${s.athXp} != 25`);
     if (s.streak !== 1) errors.push(`quests: streak ${s.streak} != 1`);
     if (!s.done) errors.push('quests: daily not completed');
-    if (s.stamina !== 120) errors.push(`quests: stamina ${s.stamina} != 120`);
+    if (s.stamina !== 480) errors.push(`quests: stamina ${s.stamina} != 480`);
     if (s.history !== 1) errors.push(`quests: history ${s.history} != 1`);
 
     // weekly bounty: post, complete, train Wisdom (+100 XP -> level 2 with 0 spare)
@@ -580,7 +592,7 @@ try {
     console.log('dummy:', JSON.stringify(afterDummy));
     if (afterDummy.athXp !== 4) errors.push(`combat: dummy athXp ${afterDummy.athXp} != 4`);
     if (afterDummy.hits !== 2) errors.push(`combat: dummyHits ${afterDummy.hits} != 2`);
-    if (afterDummy.stamina !== 50) errors.push(`combat: stamina ${afterDummy.stamina} != 50`);
+    if (afterDummy.stamina !== 230) errors.push(`combat: stamina ${afterDummy.stamina} != 230`);
 
     // 2) rats: walk into the granary yard, get bitten, then slay one
     await page.evaluate(() => {
@@ -735,6 +747,38 @@ try {
     if (weight.top < 6) errors.push(`body: sprint topped out at ${weight.top.toFixed(2)}`);
     if (!(weight.sliding > 1.5 && weight.sliding < weight.top)) errors.push(`body: 0.1s after letting go he does ${weight.sliding.toFixed(2)}, expected a slide`);
     if (weight.stopped > 0.05) errors.push(`body: still sliding (${weight.stopped.toFixed(2)}) half a second after letting go`);
+    await pause();
+
+    // 1b) the legs' toll: walking wears on the stamina pool, a sprint the more
+    const toll = await page.evaluate(() => {
+      const b = window.__body;
+      const g = window.__game;
+      const p = g.player;
+      const st = () => g.getState().stamina;
+      const ST = g.CONFIG.stamina;
+      b.stand(-2, -9);
+      p.fatigue = 0;
+      st().current = 100;
+      b.run(1.0); // standing costs nothing
+      const idle = st().current;
+      b.key('KeyW', true);
+      b.run(8);
+      const walked = idle - st().current;
+      b.key('ShiftLeft', true);
+      p.fatigue = 0;
+      const before = st().current;
+      b.run(4);
+      const sprinted = before - st().current;
+      b.key('ShiftLeft', false);
+      b.key('KeyW', false);
+      b.run(0.6);
+      st().current = 240;
+      return { idle, walked, sprinted, end: st().current, walkDrain: ST.walkDrain, sprintDrain: ST.sprintDrain };
+    });
+    console.log('toll:', JSON.stringify(toll));
+    if (toll.idle !== 100) errors.push(`body: standing still drained stamina (${toll.idle})`);
+    if (Math.abs(toll.walked - toll.walkDrain * 8) > 1) errors.push(`body: 8s of walking drained ${toll.walked}, expected ~${toll.walkDrain * 8}`);
+    if (Math.abs(toll.sprinted - toll.sprintDrain * 4) > 1) errors.push(`body: 4s of sprinting drained ${toll.sprinted}, expected ~${toll.sprintDrain * 4}`);
     await pause();
 
     // 2) knees: nearly straight standing, folded in a crouch — with the sole still planted
@@ -955,6 +999,117 @@ try {
     await new Promise((r) => setTimeout(r, 900));
     await page.screenshot({ path: 'scripts/smoke-body.png' });
     await page.keyboard.up('KeyW');
+  } else if (scenario === 'hearth') {
+    // By the fire: stood still near it for sitDelay he sits to warm himself;
+    // any key, a click or a bite gets him up. Stepped by hand at a fixed rate,
+    // like `body`, so the numbers don't hang on the renderer's frame rate.
+    await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      const DT = 1 / 60;
+      const fire = { x: -4.6, z: 6.2 }; // LAYOUT.campfire
+      window.__hearth = {
+        key: (code, down) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code })),
+        run: (seconds) => {
+          for (let i = 0; i < Math.round(seconds / DT); i++) p.update(DT, 0, g.colliders);
+        },
+        stand: (x, z) => {
+          p.respawn(x, z);
+          p.update(DT, 0, g.colliders);
+        },
+        fireDist: () => Math.hypot(p.pos.x - fire.x, p.pos.z - fire.z),
+        // how far he faces from the fire, radians
+        offFire: () => {
+          let d = Math.abs(Math.atan2(fire.x - p.pos.x, fire.z - p.pos.z) - p.facing) % (Math.PI * 2);
+          return d > Math.PI ? Math.PI * 2 - d : d;
+        },
+        speed: () => Math.hypot(p.vel.x, p.vel.y),
+      };
+    });
+    const pause = () => new Promise((r) => setTimeout(r, 350));
+
+    // 1) stood still near the fire: nothing at first, sat after the delay
+    const sat = await page.evaluate(() => {
+      const h = window.__hearth;
+      const p = window.__game.player;
+      h.stand(-3.0, 6.9); // ~1.75 from the fire's middle, his back half to it
+      h.run(1.5);
+      const early = p.mode;
+      h.run(0.7);
+      const after = p.mode;
+      h.run(1.2);
+      return {
+        early, after, sit01: p.sit01,
+        waist: p.mesh.roller.position.y,
+        knee: p.mesh.legs[0].shin.rotation.x,
+        offFire: h.offFire(), dist: h.fireDist(), stick: p.mesh.weapon.visible,
+      };
+    });
+    console.log('sat:', JSON.stringify(sat));
+    if (sat.early !== 'normal') errors.push(`hearth: sat down after only 1.5s (${sat.early})`);
+    if (sat.after !== 'sit') errors.push(`hearth: still ${sat.after} after 2.2s by the fire`);
+    if (sat.sit01 < 0.99) errors.push(`hearth: only ${sat.sit01.toFixed(2)} of the way down`);
+    if (sat.waist > 0.3) errors.push(`hearth: waist ${sat.waist.toFixed(2)} high — not sat on the ground`);
+    if (sat.knee < 1.4) errors.push(`hearth: knee bent ${sat.knee.toFixed(2)}, expected knees drawn up`);
+    if (sat.offFire > 0.15) errors.push(`hearth: facing ${sat.offFire.toFixed(2)} rad off the fire`);
+    if (sat.stick) errors.push('hearth: still holding the stick while sat');
+
+    // 2) eyeball him sat there, side-on, the fire in shot
+    await page.evaluate(() => window.__game.orbitCam.setView(-0.5, 0.18, 3.6));
+    await new Promise((r) => setTimeout(r, 1500));
+    await page.screenshot({ path: 'scripts/smoke-hearth.png' });
+
+    // 3) W gets him up — slowly at first, then he walks on
+    const rose = await page.evaluate(() => {
+      const h = window.__hearth;
+      const p = window.__game.player;
+      h.key('KeyW', true);
+      h.run(0.1);
+      const mode = p.mode;
+      const rising = h.speed();
+      h.run(0.6);
+      const walking = h.speed();
+      h.key('KeyW', false);
+      h.run(0.5);
+      return { mode, rising, walking, sit01: p.sit01, stick: p.mesh.weapon.visible };
+    });
+    console.log('rose:', JSON.stringify(rose));
+    if (rose.mode !== 'normal') errors.push(`hearth: W left him ${rose.mode}`);
+    if (rose.rising > 1) errors.push(`hearth: ${rose.rising.toFixed(2)} pace while still getting up`);
+    if (rose.walking < 3) errors.push(`hearth: only ${rose.walking.toFixed(2)} pace once up`);
+    if (rose.sit01 !== 0) errors.push(`hearth: sit01 ${rose.sit01} once up and walking`);
+    if (!rose.stick) errors.push('hearth: stick not back in hand');
+    await pause();
+
+    // 4) the spawn (2.2 away) is not near enough; too close he shuffles back;
+    // a click and a bite both get him up, the click without a swing
+    const rest = await page.evaluate(() => {
+      const h = window.__hearth;
+      const g = window.__game;
+      const p = g.player;
+      h.stand(-5, 4);
+      h.run(3);
+      const atSpawn = p.mode;
+      h.stand(-4.6, 7.3); // 1.1 out, at the ring's edge
+      h.run(3.2);
+      const closeMode = p.mode;
+      const closeDist = h.fireDist();
+      const stamina = g.getState().stamina.current;
+      p.attack();
+      const clicked = p.mode;
+      const spent = stamina - g.getState().stamina.current;
+      h.run(3.2);
+      const again = p.mode;
+      p.takeDamage(1, p.pos.x + 1, p.pos.z);
+      return { atSpawn, closeMode, closeDist, clicked, spent, again, bitten: p.mode };
+    });
+    console.log('rest:', JSON.stringify(rest));
+    if (rest.atSpawn !== 'normal') errors.push(`hearth: sat down at the spawn (${rest.atSpawn})`);
+    if (rest.closeMode !== 'sit') errors.push(`hearth: did not sit at the ring's edge (${rest.closeMode})`);
+    if (rest.closeDist < 1.4) errors.push(`hearth: sat ${rest.closeDist.toFixed(2)} from the flames, expected a shuffle back`);
+    if (rest.clicked !== 'normal' || rest.spent !== 0) errors.push(`hearth: click left him ${rest.clicked}, spent ${rest.spent}`);
+    if (rest.again !== 'sit') errors.push('hearth: did not sit again after standing');
+    if (rest.bitten !== 'normal') errors.push(`hearth: a bite left him ${rest.bitten}`);
   } else if (scenario === 'house') {
     // 1) closed door bars the gap: stand in the doorway, get pushed back out
     await page.evaluate(() => {
@@ -981,13 +1136,24 @@ try {
     if (!open.open) errors.push('house: E near the door did not open it');
     if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
 
-    // 3) sleep: tuck-in animation plays, wounds mend, the night is marked,
-    //    you stand up by the cot
+    // 3) sleep: standing beside the cot offers it, E tucks him in (the cot's
+    //    middle can't be reached, so this once never offered sleep at all);
+    //    tuck-in animation plays, wounds mend, the night is marked, you stand
+    //    up by the cot
     await page.evaluate(() => {
       const g = window.__game;
       g.player.takeDamage(9, 0, 0);
-      g.sleepAtCot();
+      g.player.pos.x = -9.2; // local (-0.2, -0.4): the open floor at the cot's corner
+      g.player.pos.z = 1.6;
     });
+    let cotPrompt = '';
+    for (let i = 0; i < 30 && !cotPrompt.includes('straw cot'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      cotPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    }
+    console.log('cot prompt:', JSON.stringify(cotPrompt));
+    if (!cotPrompt.includes('straw cot')) errors.push(`house: cot prompt "${cotPrompt}"`);
+    await page.keyboard.press('KeyE');
     // mid-nap: poll until he lies flat — the eased pose runs on frame dt, which
     // lags wall-clock under the software renderer, so a fixed delay is flaky
     let nap = { mode: '?', lying: 0 };
@@ -1058,7 +1224,7 @@ try {
     if (boon.again) errors.push('house: boon granted twice in one day');
     if (boon.dCoins !== 10) errors.push(`house: boon coins ${boon.dCoins} != 10`);
     if (boon.dWis !== 10) errors.push(`house: boon wis xp ${boon.dWis} != 10`);
-    if (boon.stamina !== 70) errors.push(`house: stamina ${boon.stamina} != 70 (60 + rested cap)`);
+    if (boon.stamina !== 280) errors.push(`house: stamina ${boon.stamina} != 280 (240 + rested cap)`);
     if (boon.histType !== 'sleep') errors.push(`house: history type ${boon.histType} != sleep`);
     if (!boon.rested) errors.push('house: wellRestedDate not set');
 
@@ -1099,8 +1265,8 @@ try {
     //     covers what the chest holds)
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.4; // local (-0.4, -0.5): between chest and cot
-      g.player.pos.z = 1.5;
+      g.player.pos.x = -9.2; // local (-0.2, -0.95): the chest's corner, against the -z wall
+      g.player.pos.z = 1.05;
       g.orbitCam.setView(0, 0.6, 2); // looking past him at the chest
     });
     // poll: the software renderer can stall past a fixed wait on a fresh view
@@ -1137,10 +1303,7 @@ try {
       g.player.pos.x = 4.8; // on the path side of the counter
       g.player.pos.z = 3.1;
     });
-    await new Promise((r) => setTimeout(r, 400));
-    const prompt = await page.evaluate(
-      () => document.getElementById('interact-prompt').textContent
-    );
+    const prompt = await promptOffered();
     console.log('prompt:', JSON.stringify(prompt));
     if (!prompt.includes('Exchequer')) errors.push(`exchequer: prompt "${prompt}" does not offer the table`);
     await page.keyboard.press('KeyE');
@@ -1177,7 +1340,11 @@ try {
       g.player.pos.x = 1.2;
       g.player.pos.z = 1.4; // by the charter post, out of the quest board's reach
     });
-    await new Promise((r) => setTimeout(r, 400));
+    // the prompt is set on the next sim step — at ~3fps in a cloud container
+    // that can be well past a fixed wait, so wait for it (up to 3s)
+    await page
+      .waitForFunction(() => document.getElementById('interact-prompt').textContent !== '', { timeout: 3000 })
+      .catch(() => {});
     const prompt = await page.evaluate(
       () => document.getElementById('interact-prompt').textContent
     );
@@ -1214,6 +1381,215 @@ try {
       g.player.pos.z = -0.3;
       g.orbitCam.setView(-0.85, 0.18, 4.1);
     });
+  } else if (scenario === 'sky') {
+    // the sky keeps the hour: the pinned clock, the sun's road east → south →
+    // west, the looks of noon, dusk and night, the seasons, the moon's phase,
+    // summer time, and the beam that never lies flat
+    const at = (y, mo, d, h, mi = 0) =>
+      page.evaluate(
+        ([y, mo, d, h, mi]) => {
+          const g = window.__game;
+          g.sky.setClock(new Date(y, mo, d, h, mi));
+          const s = g.sky.state;
+          const key = g.scene.children.find((o) => o.isDirectionalLight);
+          const fog = g.scene.fog.color;
+          const east = g.compass(1, 0, 0);
+          const south = g.compass(0, -1, 0);
+          return {
+            hour: s.hour,
+            sunAlt: s.sunAlt,
+            moonAlt: s.moonAlt,
+            moonLit: s.moonLit,
+            night: s.night,
+            moonlit: s.moonlit,
+            starShow: s.starShow,
+            stars: g.scene.getObjectByName('stars').visible,
+            keyPower: key.intensity,
+            beamUp: s.beamUp, // how steeply the key light falls: the sine of its height
+            fog: (fog.r + fog.g + fog.b) / 3,
+            sunEast: s.sun.dot(east),
+            sunSouth: s.sun.dot(south),
+          };
+        },
+        [y, mo, d, h, mi]
+      );
+    const shot = async (name, body) => {
+      // look toward the sun (or the moon), from the open path south of the green
+      await page.evaluate((body) => {
+        const g = window.__game;
+        g.player.pos.x = -2.9;
+        g.player.pos.z = -14;
+        const b = g.sky.state[body];
+        g.orbitCam.setView(Math.atan2(-b.x, -b.z) + 0.5, -0.08, 9);
+      }, body);
+      await new Promise((r) => setTimeout(r, 2500));
+      await page.screenshot({ path: `scripts/smoke-sky-${name}.png` });
+    };
+
+    // the page was opened with ?hour=13: the sky stands at one o'clock
+    // (by the sun that is noon, where summer time is being kept)
+    const pinnedHour = await page.evaluate(() => {
+      const g = window.__game;
+      const d = new Date();
+      d.setHours(13, 0, 0, 0);
+      return { hour: g.sky.state.hour, want: g.solarHour(d) };
+    });
+    console.log('pinned:', JSON.stringify(pinnedHour));
+    if (Math.abs(pinnedHour.hour - pinnedHour.want) > 0.02) errors.push(`sky: ?hour=13 shows hour ${pinnedHour.hour}, want ${pinnedHour.want}`);
+
+    // an autumn day (no summer time anywhere in the north): morning, noon, evening, midnight
+    const morning = await at(2026, 10, 16, 9);
+    const noon = await at(2026, 10, 16, 12);
+    await shot('noon', 'sun');
+    const evening = await at(2026, 10, 16, 15);
+    const sunset = await at(2026, 10, 16, 16, 35);
+    await shot('sunset', 'sun');
+    const dusk = await at(2026, 10, 16, 17, 10);
+    const midnight = await at(2026, 10, 17, 0, 30);
+    console.log('morning:', JSON.stringify(morning));
+    console.log('noon:', JSON.stringify(noon));
+    console.log('evening:', JSON.stringify(evening));
+    console.log('sunset:', JSON.stringify(sunset));
+    console.log('dusk:', JSON.stringify(dusk));
+    console.log('midnight:', JSON.stringify(midnight));
+    if (!(morning.sunEast > 0.3)) errors.push(`sky: the morning sun is not in the east (${morning.sunEast})`);
+    if (!(evening.sunEast < -0.3)) errors.push(`sky: the evening sun is not in the west (${evening.sunEast})`);
+    if (!(noon.sunSouth > 0.5 && Math.abs(noon.sunEast) < 0.05)) errors.push('sky: the noon sun is not due south');
+    if (!(noon.sunAlt > 20 && noon.sunAlt > morning.sunAlt && noon.sunAlt > evening.sunAlt)) errors.push('sky: the sun is not highest at noon');
+    if (noon.keyPower < 2.5 || noon.night !== 0 || noon.stars) errors.push(`sky: noon is not full day (key ${noon.keyPower}, night ${noon.night}, stars ${noon.stars})`);
+    if (noon.fog < 0.5) errors.push(`sky: the noon haze is dark (${noon.fog})`);
+    if (Math.abs(sunset.sunAlt) > 3) errors.push(`sky: 16:35 in November is not sunset (sun at ${sunset.sunAlt})`);
+    if (!(sunset.keyPower > 0.5 && sunset.keyPower < noon.keyPower)) errors.push(`sky: the setting sun's light (${sunset.keyPower}) is not weaker than noon's`);
+    if (sunset.beamUp < Math.sin((17.5 * Math.PI) / 180)) errors.push(`sky: the beam lies flat at sunset (${sunset.beamUp})`);
+    if (dusk.keyPower > 0.3) errors.push(`sky: the key light still burns at dusk (${dusk.keyPower})`);
+    if (!(midnight.sunAlt < -14 && midnight.night === 1 && midnight.moonlit)) errors.push('sky: midnight is not night');
+    if (!(midnight.stars && midnight.starShow === 1)) errors.push('sky: no stars at midnight');
+    if (!(midnight.keyPower > 0.4 && midnight.keyPower < 1.5)) errors.push(`sky: night's light is ${midnight.keyPower}`);
+    if (midnight.fog > 0.2) errors.push(`sky: the night haze is bright (${midnight.fog})`);
+    if (midnight.beamUp < Math.sin((17.5 * Math.PI) / 180)) errors.push('sky: the beam lies flat at night');
+
+    // the seasons: a high sun and a long evening in June, a low sun and an early dark in December
+    const june = await at(2026, 5, 21, 12);
+    const juneEve = await at(2026, 5, 21, 19);
+    const december = await at(2026, 11, 21, 12);
+    const decemberEve = await at(2026, 11, 21, 17);
+    console.log('seasons:', JSON.stringify({ june: june.sunAlt, juneEve: juneEve.sunAlt, december: december.sunAlt, decemberEve: decemberEve.sunAlt }));
+    if (!(june.sunAlt > december.sunAlt + 40)) errors.push('sky: midsummer noon is no higher than midwinter noon');
+    if (!(juneEve.sunAlt > 0 && decemberEve.sunAlt < 0)) errors.push('sky: the days do not lengthen in summer');
+
+    // the moon: full and high at a winter midnight, dark when new
+    const full = await at(2026, 10, 24, 23, 30);
+    await shot('night', 'moon');
+    const newMoon = await page.evaluate(() => window.__game.skyAt(new Date(Date.UTC(2024, 0, 11, 12)), 45).moonLit);
+    console.log('moon:', JSON.stringify({ fullLit: full.moonLit, fullAlt: full.moonAlt, fullKey: full.keyPower, moonless: midnight.keyPower, newLit: newMoon }));
+    if (!(full.moonLit > 0.95 && full.moonAlt > 30)) errors.push(`sky: the full moon of 24 Nov 2026 is not full and high (${full.moonLit}, ${full.moonAlt})`);
+    if (!(full.keyPower > midnight.keyPower)) errors.push('sky: a full moon lights the night no better than none');
+    if (newMoon > 0.05) errors.push(`sky: the new moon of 11 Jan 2024 is lit (${newMoon})`);
+
+    // summer time: the clocks go forward, the sun does not
+    await page.emulateTimezone('America/New_York');
+    const clocks = await page.evaluate(() => ({
+      july: window.__game.solarHour(new Date(2026, 6, 1, 13, 0)),
+      january: window.__game.solarHour(new Date(2026, 0, 15, 13, 0)),
+    }));
+    await page.emulateTimezone(null);
+    console.log('summer time:', JSON.stringify(clocks));
+    if (clocks.july !== 12 || clocks.january !== 13) errors.push(`sky: summer time misread (${JSON.stringify(clocks)})`);
+
+    // leave the dusk up for the last screenshot
+    await at(2026, 10, 16, 16, 55);
+    await shot('dusk', 'sun');
+  } else if (scenario === 'map') {
+    // the Map of the Kingdom: M unrolls it, the realm and the village plan
+    // both draw, hovering reads a place aloud, the plan's arrow stands where
+    // the player does with north up (the strip to the north-east), M rolls it up
+    const mapState = () =>
+      page.evaluate(() => {
+        const C = window.__game.CONFIG;
+        const body = document.getElementById('map-body');
+        const you = body.querySelector('.m-you');
+        return {
+          opened: !document.getElementById('map-panel').classList.contains('hidden'),
+          which: window.__game.openPanelId(),
+          realm: !!body.querySelector('svg.m-realm'),
+          plan: !!body.querySelector('svg.m-plan'),
+          kingdom: body.textContent.includes(C.realm.kingdom),
+          village: body.textContent.includes(C.realm.village),
+          lake: body.textContent.includes(C.realm.lake),
+          home: !!body.querySelector('.m-place[data-place="home"] .m-home-ring'),
+          places: body.querySelectorAll('.m-place').length,
+          view: body.querySelector('.map-views button.on')?.dataset.view,
+          you: you ? { x: Number(you.dataset.px), y: Number(you.dataset.py) } : null,
+          enabled: window.__game.player.isEnabled(),
+        };
+      });
+    await page.keyboard.press('KeyM');
+    await new Promise((r) => setTimeout(r, 400));
+    const m1 = await mapState();
+    console.log('map opened:', JSON.stringify(m1));
+    if (!m1.opened || m1.which !== 'map') errors.push('map: M did not open the map');
+    if (!m1.realm || !m1.plan) errors.push('map: realm or village plan missing');
+    if (!m1.kingdom || !m1.village) errors.push('map: the kingdom or village is not named');
+    if (!m1.lake) errors.push('map: the lake is not named');
+    if (!m1.home) errors.push('map: the home village is not ringed');
+    if (m1.places < 8) errors.push(`map: only ${m1.places} places on the realm`);
+    if (m1.view !== 'green') errors.push(`map: plan opened on "${m1.view}" though he stands on the green`);
+    if (!m1.you) errors.push('map: no arrow for the player');
+    if (m1.enabled) errors.push('map: player still free to move under the map');
+    const hover = await page.evaluate(() => {
+      const el = document.querySelector('#map-body [data-place="kingsholt"]');
+      el.dispatchEvent(new MouseEvent('mouseenter'));
+      const on = document.getElementById('map-caption').textContent;
+      el.dispatchEvent(new MouseEvent('mouseleave'));
+      return { on, off: document.getElementById('map-caption').textContent };
+    });
+    console.log('hover:', JSON.stringify(hover));
+    if (!hover.on.includes('Kingsholt')) errors.push('map: hovering Kingsholt reads nothing of it');
+    if (hover.off.includes('Kingsholt')) errors.push('map: the caption kept Kingsholt after the hover');
+    await page.screenshot({ path: 'scripts/smoke-map.png' });
+
+    await page.click('#map-body [data-view="bounds"]');
+    await new Promise((r) => setTimeout(r, 200));
+    const m2 = await mapState();
+    if (m2.view !== 'bounds') errors.push('map: The Bounds button did not change the plan');
+    await page.screenshot({ path: 'scripts/smoke-map-bounds.png' });
+
+    await page.keyboard.press('KeyM');
+    await new Promise((r) => setTimeout(r, 300));
+    const m3 = await mapState();
+    if (m3.which !== null || m3.opened) errors.push('map: M did not roll the map up');
+    if (!m3.enabled) errors.push('map: player not freed when the map closed');
+
+    // out by the strip: the arrow must move up (north) and right (east) of where it was
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = 21;
+      g.player.pos.z = 25;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    await page.keyboard.press('KeyM');
+    await new Promise((r) => setTimeout(r, 400));
+    const m4 = await mapState();
+    console.log('by the strip:', JSON.stringify({ view: m4.view, was: m2.you, now: m4.you }));
+    if (m4.view !== 'bounds') errors.push('map: the chosen plan view was not kept for the session');
+    if (!(m4.you && m2.you && m4.you.y < m2.you.y - 20 && m4.you.x > m2.you.x)) {
+      errors.push('map: walking to the north-east strip did not move the arrow north-east');
+    }
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+    if ((await mapState()).opened) errors.push('map: Esc did not close the map');
+
+    // M does nothing under another panel; the Charter lists the key
+    await page.evaluate(() => window.__game.openPanel('guide'));
+    await page.keyboard.press('KeyM');
+    await new Promise((r) => setTimeout(r, 300));
+    const under = await page.evaluate(() => ({
+      which: window.__game.openPanelId(),
+      charter: document.getElementById('guide-body').textContent.includes(window.__game.CONFIG.realm.village),
+    }));
+    if (under.which !== 'guide') errors.push(`map: M under the Charter opened "${under.which}"`);
+    if (!under.charter) errors.push('map: the Charter does not list the map key');
+    await page.keyboard.press('Escape');
   } else if (scenario === 'reckoning') {
     // month keys computed the same way dates.js does, offset in months
     const mk = (offset) => {
@@ -1365,7 +1741,7 @@ try {
   } else if (scenario === 'alive') {
     // the villagers breathe, watch, nod, and fidget — force a market day so
     // the chapman is present too
-    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1${DAY}`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 2000));
 
     // 1) breathing is visible: the clerk's sway lean actually moves
@@ -1561,6 +1937,12 @@ try {
     if (second.texts.length !== 1 || !second.texts[0].includes('yard'))
       errors.push(`chronicle: load 2 wrote ${JSON.stringify(second.texts)}, wanted the oldest week only`);
     if (second.calls !== 2) errors.push(`chronicle: ${second.calls} API calls by load 2 != 2`);
+    const charge = await page.evaluate(() => ({
+      text: sessionStorage.getItem('smoke-charge') || '',
+      village: window.__game.CONFIG.realm.village,
+    }));
+    if (!charge.text.includes(`Name the village, ${charge.village}`))
+      errors.push('chronicle: the chronicler is not told to name the village');
 
     // 3) then the silent week for free and the last week in prose, in order
     await reload();
@@ -1591,7 +1973,7 @@ try {
     await page.screenshot({ path: 'scripts/smoke-chronicle.png' });
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
-    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1${DAY}`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 2000));
     if (!(await page.evaluate(() => !!window.__game.cart)))
       errors.push('market: cart absent though market=1');
@@ -1610,16 +1992,50 @@ try {
       g.player.pos.x = 1.5; // on the path, the chapman's side
       g.player.pos.z = 9.0;
     });
-    await new Promise((r) => setTimeout(r, 400));
-    const prompt = await page.evaluate(
-      () => document.getElementById('interact-prompt').textContent
-    );
+    const prompt = await promptOffered();
     console.log('prompt:', JSON.stringify(prompt));
     if (!prompt.includes('chapman')) errors.push(`market: prompt "${prompt}" does not offer the cart`);
     await page.keyboard.press('KeyE');
     await new Promise((r) => setTimeout(r, 300));
     if (await page.evaluate(() => document.getElementById('shop-panel').classList.contains('hidden')))
       errors.push('market: E by the cart did not open the shop');
+
+    // 2b) every ware in the catalogue has its picture drawn beside it
+    const pictures = await page.evaluate(() =>
+      window.__game.CONFIG.shop.items.map((item) => {
+        const svg = document.querySelector(`#shop-body .ware-pic[data-more="${item.id}"] svg`);
+        return {
+          id: item.id,
+          drawn: svg ? svg.querySelectorAll('path, rect, circle, ellipse').length : 0,
+          readMore: !!document.querySelector(`#shop-body .ware-more-link[data-more="${item.id}"]`),
+        };
+      })
+    );
+    console.log('pictures:', JSON.stringify(pictures));
+    for (const p of pictures) if (p.drawn < 5) errors.push(`market: ${p.id} has no picture in the shop`);
+    for (const p of pictures) if (!p.readMore) errors.push(`market: ${p.id} has no "read more" in the shop`);
+
+    // 2c) clicking a picture unfolds its "read more" (numbers from config), the link folds it
+    await page.click('#shop-body .ware-pic[data-more="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
+    const lore = await page.evaluate(() => {
+      const box = document.querySelector('#shop-body .ware-more');
+      const cudgel = window.__game.CONFIG.shop.items.find((i) => i.id === 'cudgel');
+      return {
+        open: document.querySelectorAll('#shop-body .ware-more').length,
+        uses: !!box && box.textContent.includes('How to use it') && box.textContent.includes('What it does for thee'),
+        damage: !!box && box.textContent.includes(`${cudgel.damage} damage a blow`),
+        bigPicture: !!box && !!box.querySelector('.ware-big svg'),
+      };
+    });
+    console.log('read more:', JSON.stringify(lore));
+    if (lore.open !== 1 || !lore.uses) errors.push(`market: the cudgel's picture did not unfold its read-more -> ${JSON.stringify(lore)}`);
+    if (!lore.damage) errors.push('market: the cudgel read-more does not give its damage from config');
+    if (!lore.bigPicture) errors.push('market: the read-more has no large picture');
+    await page.click('#shop-body .ware-more-link[data-more="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
+    if (await page.evaluate(() => document.querySelectorAll('#shop-body .ware-more').length))
+      errors.push('market: "Read less" did not fold the read-more');
 
     // 3) buy the rug: coins drop, ownership sticks, the hovel shows it
     await page.click('[data-buy="rug"]');
@@ -1646,6 +2062,8 @@ try {
     console.log('staff gate:', JSON.stringify(staff));
     if (staff.buyable) errors.push('market: quarterstaff sold to a Peasant');
     if (!staff.gated) errors.push('market: quarterstaff gate not shown');
+    // the shop with its pictures: the rug owned, the quarterstaff faded behind its gate
+    await (await page.$('#shop-panel')).screenshot({ path: 'scripts/smoke-shop.png' });
 
     // 5) the cudgel arms the player
     await page.click('[data-buy="cudgel"]');
@@ -1683,8 +2101,8 @@ try {
     //     and the cudgel trade places in hand; a loaf mends the wounded
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.4; // inside the hovel, at the chest's corner
-      g.player.pos.z = 1.5;
+      g.player.pos.x = -9.2; // inside the hovel, at the chest's corner against the -z wall
+      g.player.pos.z = 1.05;
       g.player.takeDamage(6, 0, 0);
     });
     await new Promise((r) => setTimeout(r, 400));
@@ -1694,9 +2112,22 @@ try {
       panel: !document.getElementById('chest-panel').classList.contains('hidden'),
       lid: window.__game.chest.isOpen,
       hand: document.getElementById('chest-body').textContent.includes('oaken cudgel'),
+      // the stick, the cudgel and the larder's loaf, each with its picture
+      pictures: [...document.querySelectorAll('#chest-body .ware-pic svg')].filter(
+        (svg) => svg.querySelectorAll('path, rect, circle, ellipse').length >= 5
+      ).length,
     }));
     console.log('chest:', JSON.stringify(chestOpen));
     if (!chestOpen.panel || !chestOpen.lid) errors.push('market: E at the chest did not open lid + panel');
+    if (chestOpen.pictures !== 3) errors.push(`market: chest shows ${chestOpen.pictures} pictures, not 3 (stick, cudgel, loaf)`);
+    // the chest's wares read more too, without the cart's talk of buying
+    await page.click('#chest-body .ware-pic[data-more="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
+    const chestLore = await page.evaluate(() => document.querySelector('#chest-body .ware-more')?.textContent ?? '');
+    if (!chestLore.includes('How to use it')) errors.push('market: the chest\'s cudgel did not unfold its read-more');
+    if (chestLore.includes('Once bought')) errors.push('market: the chest\'s read-more still talks of buying');
+    await page.click('#chest-body .ware-more-link[data-more="cudgel"]');
+    await new Promise((r) => setTimeout(r, 150));
     await page.click('[data-wield="stick"]');
     await new Promise((r) => setTimeout(r, 150));
     const stickDamage = await page.evaluate(() => window.__game.player.attackDamage);
@@ -1734,7 +2165,7 @@ try {
     await page.evaluate(() => window.__game.orbitCam.setView(-1.1, 0.3, 5.5));
     await new Promise((r) => setTimeout(r, 600));
     await page.screenshot({ path: 'scripts/smoke-market.png' });
-    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0${DAY}`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 2000));
     const offDay = await page.evaluate(() => {
       const g = window.__game;
@@ -2032,6 +2463,128 @@ try {
     if (still.at !== again) errors.push('crown: coronationAt changed on a later quest');
     if (still.histType !== 'weekly') errors.push(`crown: second coronation appended (${still.histType})`);
   }
+  if (scenario === 'spent') {
+    // Spent for the day: at nought stamina he walks himself home, lies down on
+    // his cot, and the rest card says play resumes tomorrow.
+    const until = (fn, arg, ms = 15000) => page.waitForFunction(fn, { timeout: ms, polling: 200 }, arg).then(() => true, () => false);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const restCard = () => page.evaluate(() => {
+      const c = document.getElementById('rest-card');
+      return { shown: !c.classList.contains('hidden'), text: c.textContent };
+    });
+
+    // 1) out in the miller's strip, inside its fence: the last of the pool goes
+    const set = await page.evaluate(() => {
+      const g = window.__game;
+      g.player.respawn(27, 33);
+      g.drainStamina(g.getState().stamina.current);
+      return { flag: g.getState().stamina.spent, stamina: g.getState().stamina.current };
+    });
+    await wait(800);
+    const going = await page.evaluate(() => ({ ...window.__game.spent(), enabled: window.__game.player.isEnabled(), route: !!window.__game.player.route }));
+    console.log('spent:', JSON.stringify(set), JSON.stringify(going));
+    if (!set.flag || set.stamina !== 0) errors.push(`spent: pool at ${set.stamina}, spent flag ${set.flag}`);
+    if (!going.homeward || !going.route) errors.push('spent: he did not set off for home');
+    if (going.enabled) errors.push('spent: the keys still steer him on the way home');
+
+    // 2) he walks home — out through the field gate — and lies down abed
+    const home = await until(() => window.__game.spent().resting, null, 90000);
+    const abed = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      return { ...g.spent(), mode: p.mode, lie: p.lie01, enabled: p.isEnabled(), door: g.door.isOpen, x: p.pos.x, z: p.pos.z };
+    });
+    const card = await restCard();
+    console.log('abed:', JSON.stringify(abed), JSON.stringify(card.text.slice(0, 120)));
+    if (!home) errors.push('spent: never reached his cot');
+    if (abed.last !== 'walked') errors.push(`spent: the walk home was ${abed.last}, not walked`);
+    if (abed.mode !== 'sleep' || abed.lie < 0.9) errors.push(`spent: not lying on the cot (mode ${abed.mode}, lie ${abed.lie})`);
+    if (abed.enabled) errors.push('spent: he can be steered abed');
+    if (!abed.door) errors.push('spent: he walked through a shut door');
+    if (!card.shown) errors.push('spent: no rest card');
+    if (!card.text.includes('tomorrow')) errors.push('spent: the card does not say play resumes tomorrow');
+    if (!card.text.includes('thy strength returns at once')) errors.push('spent: the card forgets the deed still owed');
+    await page.screenshot({ path: 'scripts/smoke-spent.png' });
+
+    // 3) the keys have no say abed
+    const before = abed;
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' })));
+    await wait(1000);
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' })));
+    const still = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z, mode: window.__game.player.mode }));
+    if (Math.hypot(still.x - before.x, still.z - before.z) > 0.05 || still.mode !== 'sleep') errors.push('spent: W moved him out of bed');
+
+    // 4) the Quest Board from bed: the deed counts, refills the pool, and gets him up
+    await page.click('[data-rest="board"]');
+    await page.type('[data-input]', 'Evening lift');
+    await page.click('[data-post]');
+    await page.click('[data-complete]');
+    await page.click('[data-pick="ath"]');
+    await page.keyboard.press('Escape');
+    await wait(600);
+    const deed = await page.evaluate(() => {
+      const g = window.__game;
+      const st = g.getState();
+      return { done: st.quests.daily.completed, streak: st.streak.current, xp: st.stats.ath.xp, stamina: st.stamina.current, flag: !!st.stamina.spent, ...g.spent(), mode: g.player.mode, enabled: g.player.isEnabled(), abedClass: document.body.classList.contains('abed') };
+    });
+    const card2 = await restCard();
+    console.log('deed from bed:', JSON.stringify(deed));
+    if (!deed.done || deed.streak !== 1 || deed.xp !== 25) errors.push('spent: the daily from bed did not count');
+    if (deed.stamina !== 480 || deed.flag) errors.push(`spent: the daily from bed did not refill the pool (${deed.stamina}, spent ${deed.flag})`);
+    if (deed.resting || deed.mode !== 'normal' || !deed.enabled) errors.push(`spent: the daily from bed did not get him up (${JSON.stringify(deed)})`);
+    if (card2.shown || deed.abedClass) errors.push('spent: the rest card stayed up after he rose');
+
+    // 4b) spent again, the daily already done: home from inside the hovel, and abed for good
+    await page.evaluate(() => window.__game.drainStamina(window.__game.getState().stamina.current));
+    const again = await until(() => window.__game.spent().resting, null, 30000);
+    const card2b = await restCard();
+    if (!again || !card2b.shown) errors.push('spent: a second emptying did not put him back to bed');
+    if (card2b.text.includes('thy strength returns at once')) errors.push('spent: the card offers a refill with the daily already done');
+
+    // 5) retire for the night marks a real bedtime
+    await page.click('[data-rest="retire"]');
+    const retired = await page.evaluate(() => Date.now() - new Date(window.__game.getState().sleep.retiredAt).getTime());
+    if (!(retired >= 0 && retired < 60000)) errors.push(`spent: retiring did not mark the bedtime (${retired}ms ago)`);
+
+    // 6) opened again the same day: found abed at once
+    await page.reload({ waitUntil: 'networkidle2' });
+    await until(() => window.__game && window.__game.spent);
+    await wait(1500);
+    const reload = await page.evaluate(() => ({ ...window.__game.spent(), mode: window.__game.player.mode, enabled: window.__game.player.isEnabled() }));
+    const card3 = await restCard();
+    console.log('after reload:', JSON.stringify(reload));
+    if (!reload.resting || reload.mode !== 'sleep' || reload.enabled || !card3.shown) errors.push('spent: a reload got him out of bed');
+
+    // 7) a new day: up and about, strength back
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('crownbound_save'));
+      s.stamina.date = '2000-01-01';
+      localStorage.setItem('crownbound_save', JSON.stringify(s));
+    });
+    await page.reload({ waitUntil: 'networkidle2' });
+    await until(() => window.__game && window.__game.spent);
+    await wait(1000);
+    const morning = await page.evaluate(() => ({ ...window.__game.spent(), enabled: window.__game.player.isEnabled(), stamina: window.__game.getState().stamina }));
+    const card4 = await restCard();
+    console.log('next day:', JSON.stringify(morning));
+    if (morning.resting || !morning.enabled || card4.shown) errors.push('spent: still abed on a new day');
+    if (morning.stamina.spent || morning.stamina.current !== 480) errors.push(`spent: the new day's pool is ${JSON.stringify(morning.stamina)}`);
+
+    // 8) E hurries the walk home
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.respawn(4, -0.5); // by the Quest Board
+      g.drainStamina(g.getState().stamina.current);
+    });
+    await wait(700);
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' })));
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' })));
+    const hurried = await until(() => window.__game.spent().resting, null, 10000);
+    const h = await page.evaluate(() => ({ ...window.__game.spent(), mode: window.__game.player.mode }));
+    console.log('hurried:', JSON.stringify(h));
+    if (!hurried || h.last !== 'hurried' || h.mode !== 'sleep') errors.push(`spent: E did not hurry him home (${JSON.stringify(h)})`);
+  }
+
   await new Promise((r) => setTimeout(r, 1500));
 
   const info = await page.evaluate(() => window.__smoke || null);

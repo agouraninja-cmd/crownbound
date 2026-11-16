@@ -51,6 +51,67 @@ body {
 
 #fade.show { opacity: 1; }
 
+/* ---------- abed for the day (stamina spent) ---------- */
+
+/* the scene dims toward night while he sleeps out the day */
+body.abed #vignette {
+  background: radial-gradient(ellipse at 50% 40%, rgba(8, 6, 14, 0.25) 30%, rgba(8, 6, 14, 0.7) 100%);
+  transition: background 1.2s ease;
+}
+
+#rest-card {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin: 0 auto; /* centred without a transform: panel-in animates transform */
+  bottom: 6vh;
+  width: min(560px, calc(100vw - 32px));
+  box-sizing: border-box;
+  z-index: 12; /* over the HUD, under the fade and the panels */
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(255, 248, 220, 0.5), transparent 50%),
+    linear-gradient(160deg, var(--parchment) 0%, #e2cf9e 55%, var(--parchment-dark) 100%);
+  border: 3px double var(--ink);
+  outline: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.65), inset 0 0 60px rgba(140, 105, 50, 0.25);
+  padding: 18px 24px 12px;
+  animation: panel-in 0.6s ease-out;
+}
+
+#rest-card .rest-thought {
+  margin: 0 0 10px;
+  font-size: 21px;
+  font-style: italic;
+  line-height: 1.35;
+}
+
+#rest-card h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-variant: small-caps;
+  letter-spacing: 2px;
+  border-top: 1px solid var(--ink-faded);
+  padding-top: 10px;
+}
+
+#rest-card .rest-note { margin: 4px 0; font-size: 16px; color: var(--ink-faded); }
+
+#rest-card .rest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+#rest-card .rest-small { margin: 4px 0 0; font-size: 13px; font-style: italic; color: var(--ink-faded); }
+
+@media (prefers-reduced-motion: reduce) {
+  #rest-card { animation: none; }
+}
+
 /* ---------- HUD ---------- */
 
 #hud {
@@ -278,7 +339,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #panel-overlay, .panel, .hp-bar.low, #hud-streak.grew { animation: none; }
+  #panel-overlay, .panel, .hp-bar.low, #hud-streak.grew, .ware-more { animation: none; }
 }
 
 .panel h1 {
@@ -508,6 +569,79 @@ button:disabled {
 /* the chapman's price buttons sit at the end of a deed row */
 .deed button { flex-shrink: 0; padding: 3px 12px; font-size: 14px; align-self: center; }
 
+/* the chapman's wares (and the chest's), each with its picture (ink and wash, drawn in wares.js) */
+.deed.ware { align-items: center; padding: 5px 0; flex-wrap: wrap; }
+.deed.ware .deed-tag { align-self: center; }
+.ware-pic,
+.deed .ware-pic {
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  background: rgba(255, 248, 220, 0.35);
+  box-shadow: inset 0 0 8px rgba(140, 105, 50, 0.18);
+}
+/* a picture that unfolds its ware's "read more" */
+button.ware-pic:hover { border-color: var(--ink-faded); background: rgba(255, 248, 220, 0.6); }
+button.ware-pic[aria-expanded='true'] { border-color: var(--ink); background: rgba(255, 248, 220, 0.6); }
+button.ware-pic:active { transform: translateY(1px); }
+.ware-svg { display: block; width: 100%; height: 100%; }
+
+/* "Read more ▾" — ink words, not a parchment button */
+.deed .ware-more-link {
+  padding: 0 0 0 2px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  font-size: 13px;
+  font-variant: normal;
+  letter-spacing: 0;
+  font-style: italic;
+  color: #7a2e1f;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  align-self: baseline;
+}
+.deed .ware-more-link:hover { background: none; color: var(--wax); }
+
+/* the unfolded "read more": a whole line of the row, the picture large beside the words */
+.ware-more {
+  flex: 1 0 100%;
+  display: flow-root;
+  margin: 6px 0 4px;
+  padding: 10px 12px 2px;
+  border: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  background: rgba(255, 250, 235, 0.32);
+  animation: panel-in 0.16s ease-out;
+}
+.ware-big {
+  float: left;
+  width: 104px;
+  height: 104px;
+  margin: 0 12px 6px 0;
+  border: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  background: rgba(255, 248, 220, 0.4);
+  box-shadow: inset 0 0 10px rgba(140, 105, 50, 0.18);
+}
+.ware-more p { margin: 0 0 8px; font-size: 14px; line-height: 1.4; }
+.ware-more .ware-about { font-style: italic; }
+.ware-more h3 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: normal;
+  font-variant: small-caps;
+  letter-spacing: 1px;
+  color: var(--ink-faded);
+}
+/* a ware above thy rank is shown, but faded, like a thing behind the chapman's counter;
+   an empty larder fades its loaf the same way */
+.deed.ware.locked .ware-pic { opacity: 0.55; filter: grayscale(0.6) sepia(0.25); }
+
 /* ---------- the Weekly Chronicle (the Chronicler's journal) ---------- */
 
 .deed-list.journal { max-height: 240px; }
@@ -561,3 +695,118 @@ button:disabled {
 }
 .ledger-how ol { margin: 8px 0 6px; padding-left: 22px; line-height: 1.4; }
 .ledger-how li { margin: 4px 0; }
+
+/* ---------- The Map of the Kingdom ---------- */
+
+#map-panel { width: min(1180px, 96vw); }
+
+.map-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.map-realm { flex: 1 1 560px; min-width: 0; }
+.map-side { flex: 0 1 330px; min-width: 240px; margin: 0 auto; }
+
+.map-realm svg,
+.map-side svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.map-realm svg { max-height: calc(86vh - 200px); } /* letterboxed if short; the sheet draws its own paper */
+.map-side svg { background: rgba(255, 248, 220, 0.22); }
+.map-realm svg, .map-side svg { overflow: hidden; }
+
+.map-side h2 {
+  margin: 0;
+  text-align: center;
+  font-size: 22px;
+  font-variant: small-caps;
+  letter-spacing: 2px;
+}
+
+.map-views { display: flex; gap: 6px; justify-content: center; margin: 4px 0 8px; }
+.map-views button { padding: 2px 12px; font-size: 14px; }
+.map-views button.on {
+  background: linear-gradient(#a33424, var(--wax));
+  color: #f3e6c4;
+  border-color: #4a120a;
+}
+
+.map-caption {
+  min-height: 2.8em;
+  margin-top: 10px;
+  text-align: center;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ink-faded);
+}
+
+/* the ink of the map itself */
+.m-tree { fill: #8f9a5e; stroke: #3d3a20; stroke-width: 0.7; }
+.m-trunk { stroke: #3d3a20; stroke-width: 0.9; fill: none; }
+.m-peak { fill: var(--parchment); stroke: var(--ink); stroke-width: 1.1; stroke-linejoin: round; }
+.m-hill { fill: var(--parchment); stroke: var(--ink-faded); stroke-width: 0.9; }
+.m-hatch { fill: none; stroke: var(--ink-faded); stroke-width: 0.7; }
+.m-bldg { fill: var(--parchment); stroke: var(--ink); stroke-width: 0.9; stroke-linejoin: round; }
+.m-line { stroke: var(--ink); stroke-width: 1; fill: none; }
+.m-roof { fill: #c9a96a; stroke: var(--ink); stroke-width: 0.9; }
+
+.m-name {
+  font-size: 15px;
+  text-anchor: middle;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: rgba(234, 217, 176, 0.92);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+.m-big { font-size: 20px; font-variant: small-caps; letter-spacing: 1.5px; }
+.m-small { font-size: 12px; }
+.m-home { font-size: 19px; fill: var(--wax); font-variant: small-caps; letter-spacing: 1px; }
+.m-here {
+  font-size: 12px;
+  font-style: italic;
+  text-anchor: middle;
+  fill: var(--wax);
+  paint-order: stroke;
+  stroke: rgba(234, 217, 176, 0.92);
+  stroke-width: 3px;
+}
+.m-faint { fill: var(--ink-faded); opacity: 0.85; }
+
+.m-region {
+  font-size: 17px;
+  font-style: italic;
+  letter-spacing: 4px;
+  text-anchor: middle;
+  fill: var(--ink-faded);
+  paint-order: stroke;
+  stroke: rgba(234, 217, 176, 0.85);
+  stroke-width: 3px;
+}
+.m-fells { font-size: 19px; font-variant: small-caps; letter-spacing: 7px; }
+.m-water { fill: #3f6470; }
+.m-sea { font-size: 22px; letter-spacing: 5px; }
+
+.m-cart-small { font-size: 16px; font-style: italic; text-anchor: middle; fill: var(--ink-faded); }
+.m-cart-big { font-size: 34px; font-variant: small-caps; letter-spacing: 6px; text-anchor: middle; fill: var(--ink); }
+.m-compass-n { font-size: 16px; text-anchor: middle; fill: var(--ink); }
+
+.m-place, .m-site, [data-place] { cursor: help; }
+.m-place:hover .m-name, .m-site:hover { filter: drop-shadow(0 0 2px rgba(201, 162, 39, 0.9)); }
+
+/* the home village's wax ring breathes, so the eye finds it at once */
+.m-home-ring { transform-box: fill-box; transform-origin: center; animation: m-ring 2.4s ease-in-out infinite; }
+@keyframes m-ring {
+  50% { transform: scale(1.12); opacity: 0.55; }
+}
+.m-you.m-off { opacity: 0.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .m-home-ring { animation: none; }
+}

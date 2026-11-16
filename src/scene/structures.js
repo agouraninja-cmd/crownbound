@@ -21,7 +21,11 @@ export const HOVEL = {
   halfZ: 1.45,
   wallT: 0.12, // walls span x ±[1.58, 1.70], z ±[1.33, 1.45]
   door: { z0: -0.97, z1: -0.07, h: 1.62, openAngle: 1.9 }, // gap in the +x wall
-  bed: { x: -1.05, z: 0.55, topY: 0.46 }, // cot centre + mattress top — interactable & lie-down spot
+  bed: { x: -1.05, z: 0.55, topY: 0.46 }, // cot centre + mattress top — the lie-down spot
+  // the cot's reachable corner, where its E-prompt is measured from: the cot's
+  // middle can't be reached (the hearth hems its open side), so measured from
+  // there the chest, ledger or door was always nearer and E never offered sleep
+  bedReach: { x: -0.7, z: -0.1, radius: 1.2 },
   wake: { x: -0.3, z: -0.6 }, // open floor where you stand after sleep/death
   hearth: { x: 0.3, z: 0.45, r: 0.55 },
   chest: { x0: -1.28, x1: -0.62, z0: -1.21, z1: -0.79, lidHinge: 0.23, openAngle: -1.7 }, // lid swings up off its back edge
@@ -161,8 +165,8 @@ export function buildHovel() {
   doorPaint.visible = false;
   doorPivot.add(doorPaint);
 
-  // the little window: a dark opening with a hint of firelight, framed, with
-  // one shutter hung open
+  // the little window: a dark opening with a hint of firelight (more of it
+  // after dark — world.js), framed, with one shutter hung open
   const opening = new THREE.Mesh(box(0.08, 0.42, 0.42), new THREE.MeshBasicMaterial({ color: 0x4a2c16 }));
   opening.position.set(1.71, 1.35, 0.74);
   g.add(opening);
@@ -235,7 +239,7 @@ export function buildHovel() {
   const upgrades = { door: doorPaint, window: glassWindow, lantern, garden, ...inside.upgrades };
 
   bake(g);
-  return { group: g, doorPivot, chestLid: inside.chestLid, upgrades, hearth: inside.hearth };
+  return { group: g, doorPivot, chestLid: inside.chestLid, upgrades, hearth: inside.hearth, windowGlow: opening, windowLight: inside.windowLight };
 }
 
 // One-room medieval peasant interior: straw cot, open hearth with a pot over
@@ -379,7 +383,7 @@ function furnish(g, rng) {
   add(box(0.05, 0.62, 0.34), 0x5a4a3a, { x: 1.535, y: 1.22, z: 0.3, rx: 0.04 });
   add(box(0.06, 0.16, 0.26), 0x4d3f31, { x: 1.53, y: 1.47, z: 0.3 });
 
-  // daylight at the window, seen from within
+  // daylight at the window, seen from within (world.js colours it by the hour)
   const daylight = new THREE.Mesh(box(0.02, 0.38, 0.38), new THREE.MeshBasicMaterial({ color: 0xf7ecd0 }));
   daylight.position.set(1.572, 1.35, 0.74);
   g.add(daylight);
@@ -414,7 +418,7 @@ function furnish(g, rng) {
   trophy.visible = false;
   g.add(trophy);
 
-  return { upgrades: { rug, trophy }, hearth: { flames, glow, halo }, chestLid };
+  return { upgrades: { rug, trophy }, hearth: { flames, glow, halo }, chestLid, windowLight: daylight };
 }
 
 export function buildQuestBoard() {

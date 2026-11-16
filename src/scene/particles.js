@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { softDotTexture } from './sprites.js';
+import { daylight } from './daylight.js';
 
 // A small pool of soft round puffs drawn as ONE Points object. Every puff has
 // its own place, size, colour and opacity over its life — the same pool makes
 // woodsmoke (normal blending) or sparks (additive). Sizes are in world units.
+// Smoke makes no light of its own, so it is tinted by the hour (daylight.veil).
 
 const VERT = `
 attribute float size;
@@ -23,12 +25,13 @@ void main() {
 
 const FRAG = `
 uniform sampler2D uMap;
+uniform vec3 uVeil;
 varying float vAlpha;
 varying vec3 vTint;
 void main() {
 	float a = texture2D( uMap, gl_PointCoord ).a * vAlpha;
 	if ( a < 0.004 ) discard;
-	gl_FragColor = vec4( vTint, a );
+	gl_FragColor = vec4( vTint * uVeil, a );
 	#include <tonemapping_fragment>
 	#include <colorspace_fragment>
 }
@@ -57,7 +60,11 @@ export function createPuffs({ max, additive = false }) {
   geo.setAttribute('tint', new THREE.BufferAttribute(tint, 3));
 
   const material = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: softDotTexture() }, uPx: { value: 400 } },
+    uniforms: {
+      uMap: { value: softDotTexture() },
+      uPx: { value: 400 },
+      uVeil: { value: additive ? new THREE.Color(1, 1, 1) : daylight.veil }, // glowing things keep their own colour
+    },
     vertexShader: VERT,
     fragmentShader: FRAG,
     transparent: true,

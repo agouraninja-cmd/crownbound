@@ -1,7 +1,9 @@
 # CROWNBOUND — Medieval Productivity RPG
 
 ## Vision
-A third-person, low-poly 3D medieval life RPG that is also the owner's personal goal tracker.
+A third-person, low-poly 3D medieval life RPG — set in **England, around 1250** — that is also the owner's personal goal tracker.
+The player lives in **Brackenley**, a village in a clearing of the Brackenwood, in the **Kingdom of Aldermere**
+(both fictional; names in `CONFIG.realm`, shown on the Map of the Kingdom).
 **Real life levels you up; the game is where you feel it.** The player completes real-world goals
 (lifting, tennis, business, learning, saving), logs them as quests at the in-game Quest Board, and
 the character grows. Sessions are short (10–15 min daily). Honor system — no verification.
@@ -13,8 +15,9 @@ happens the moment the character reaches King** (70 total virtue levels).
 - @anthropic-ai/sdk (browser-direct, `dangerouslyAllowBrowser`) — the Sage only, so far;
   v2's villagers will reuse this plumbing. Model + tuning in CONFIG.sage.
 - All art is procedural low-poly geometry, flat-shaded, warm earth tones under a painterly sky.
-  No model files and no image files — the one texture is a soft round dot drawn on a canvas at
-  load (sprites.js).
+  No model files and no image files — the few textures are drawn on a canvas at load: a soft
+  round dot (sprites.js), the sun's disc and the moon's face (sky.js). Pictures in the UI
+  (the Map, the shop's wares) are SVG built in code.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
 - Persistence: localStorage key `crownbound_save`, `saveVersion: 12`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
@@ -36,11 +39,12 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/state/prefs.js    device preferences (mouse feel), own localStorage slot outside the save
 src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
 vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
-src/scene/layout.js   where everything stands: LAYOUT positions, the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap)
+src/scene/layout.js   where everything stands: LAYOUT positions, NORTH (the compass), the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap)
 src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() static batching, tint/sway/batch helpers, hit flash
 src/scene/kit.js      the building kit: palette, thatch roofs, boarding, stone footings, villager heads/arms/robes
 src/scene/terrain.js  analytic terrain height fn (gameplay) + the drawn land: faceted vertex-colored ground, dirt path, outer hills, far mountains
-src/scene/sky.js      sky dome + sun + low-poly clouds, fog, lighting, the shadow box that follows the player
+src/scene/daylight.js the hour of the real day: skyAt(date) — where sun and moon stand by the player's own clock (pure), + `daylight`, what unlit things read of it
+src/scene/sky.js      the sky that keeps the hour: dome, sun, moon in her phase, stars, low-poly clouds, fog, the key + fill light, the shadow box that follows the player
 src/scene/scatter.js  merged woodland: pines/oaks/birches, boulders, pebbles, and the backdrop forest beyond the walkable world
 src/scene/flora.js    grass tufts, meadow grass, wildflowers, ferns, bushes — no colliders, all wind-swayed
 src/scene/wind.js     the shared wind clock + the vertex-shader patch that sways foliage and grass
@@ -57,6 +61,7 @@ src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankle
 src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
 src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
 src/player/camera.js  pointer-lock third-person orbit camera
+src/player/pathfind.js  the walk home: grid A* around the colliders, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
 src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
@@ -64,8 +69,11 @@ src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep 
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
-src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest panel UIs
+src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Treasury, Shop, Chest, Map panel UIs
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
+src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
+src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
+src/ui/wares.js       the wares pictured and explained: an ink-and-wash SVG per shop item + the stick, and each one's "read more" (shop + chest)
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
 ```
 
@@ -96,7 +104,8 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   chronicle: [ { week, text, writtenAt } ],      // the Chronicler's weekly entries, append-only, oldest first
   // v1 additions beyond original spec (documented deviations):
   daysPlayed,                                    // incremented on first login of each local day
-  stamina: { current, date },                    // daily pool, persisted within the day
+  stamina: { current, date, spent },             // daily pool, persisted within the day; spent: true once
+                                                 //   it hit 0 today (abed till the morrow; absent = false)
   counters: { date, dummyXp, ratsKilled },       // per-day scratch: dummy diminishing returns, rat respawn
   sleep: { retiredAt, lastRewardDate, wellRestedDate,   // cot bedtime + Well-Rested boon bookkeeping
            log: [ { bed, wake, verdict } ] },           // every judged night, append-only (kept in full
@@ -125,15 +134,28 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   (toasts in main.js). Once only — the timestamp guards re-triggering. Board and Tome show the
   road to the crown ("N of 70 virtue levels won"), then the crowning date ever after. The full
   Coronation ceremony (visuals, the event itself) remains v5 scope.
-- Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day, feeds streak.
+- Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day
+  (even from bed, spent — it gets him up; see below), feeds streak.
 - Weekly bounty: +100 XP to chosen stat, +50 coins. Monthly campaign: +300 XP, +150 coins.
   Epic: manual progress %, logged to history.
 - Streak: daily completion counts the day. Missing a full day resets to 0 → "The fire died in the night."
 - Campfire tiers by streak: 0 embers / 1–6 small flame / 7–29 healthy fire / 30+ roaring blaze.
   Until today's daily is done the fire gutters (45% size/light, unsteady flicker) as a living
   reminder; it swells to full tier the moment the deed is logged.
-- Stamina: base cap 60 (attack 5, dodge 8). Daily completion → refill + cap 120 for that day.
-  Empty stamina blocks combat only: "Your arms are spent. Earn your strength — the board awaits."
+- Stamina: base cap 240 (attack 5, dodge 8). Daily completion → refill + cap 480 for that day.
+  The legs draw on it too: 0.25/s walking (crouched included), 1/s sprinting, on the ground
+  only — a leap and standing still are free (`walkDrain`/`sprintDrain`). Too little for a
+  swing/roll: "Your arms are spent. Earn your strength — the board awaits." At exactly 0 the
+  day is over ("Spent for the day", below).
+- Spent for the day: the moment stamina hits 0, `stamina.spent` is set and he walks himself
+  home — the keys let go, a path is found round everything (out through the field gate if need
+  be), the door opens, he lies down on the cot — and the rest card says play resumes tomorrow,
+  with a motivational line he says to himself. E hurries the walk (fade, abed). The Quest Board,
+  Tome and Exchequer open from the card; today's daily posted from bed refills the pool (480),
+  clears `spent` and gets him up beside the cot (`wakeFromRest`, main.js) — once the daily is
+  done, a second emptying is final till tomorrow. "Retire for the night" marks the real bedtime
+  (the walk home never does). Opening the game again that day finds him abed; the next day's
+  rollover clears it.
 - Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
@@ -164,7 +186,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 - The hovel is enterable: E opens/closes the hinged door (closed = solid collider), furnished
   one-room peasant interior, indoor camera pulls in close. E on the cot sleeps: fade out, full heal,
   and the bedtime is recorded. On the next load, if ≥7h passed (≤13h, so it was last night) and it is
-  8:00 AM local or earlier → Well-Rested boon: +10 WIS XP, +10 coins, +10 stamina cap for the day,
+  8:00 AM local or earlier → Well-Rested boon: +10 WIS XP, +10 coins, +40 stamina cap for the day,
   history entry type "sleep". Once per day; after 8:00 a grim flavor line and no boon. Honor system —
   "wake time" is when the game is next opened, which doubles as the morning check-in habit.
 - The Sleep Ledger (plank board on the hovel's -z interior wall, E to read): every judged night is
@@ -189,7 +211,7 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
 - Controls: Space jumps (grounded gravity arc, no double-jump, free — stamina blocks combat only);
   dodge-roll is double-tap of a movement key, rolling in that key's camera-relative direction;
   hold C to crouch (visual stance + slower walk, no stealth effect — Ctrl was rejected because
-  Ctrl+W closes the browser tab); E is the one interact key — quest board, tome, cot, and the hovel
+  Ctrl+W closes the browser tab); M opens the Map of the Kingdom; E is the one interact key — quest board, tome, cot, and the hovel
   door all use it, nearest target wins (a separate F-for-doors binding was tried and consolidated
   away). None work while a UI panel is open.
 - Hovel interior (post-v1 "Hearth & Home"): same footprint, walls became hollow shell + furniture;
@@ -221,6 +243,27 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   outgrows one cart-load — all nine items show every market day. Market-day status is fixed per
   load, like rollover. On non-market days the cart, its colliders, and its prompt don't exist;
   only the wheel-rut dirt patch remains.
+- The wares have pictures (2026-11-16, the owner: "Add pictures of each item in the chapman's
+  cart"). Each shop row shows a 60px ink-and-wash drawing beside its name — the Map's style, an
+  SVG string from `warePicture(id)` in src/ui/wares.js, no image file. The washes are the
+  colours the item wears in the 3D world (the cudgel's dark oak, the rug's madder and gold, the
+  oxblood door), so the picture matches what turns up in the hand or the hovel. A ware above
+  the player's rank is shown faded. The pictures carry no ids or gradients (nine share one
+  page). A new item in `shop.items` still sells without a picture (warePicture returns '');
+  give it one by adding a drawing to `PICTURES` under its id. The Chest panel shows them too
+  (asked for the same day): each weapon row (the stick has its own drawing, as it is never
+  sold) and the larder's loaf, faded when the larder is empty.
+- Each ware reads more (2026-11-16, the owner: "a description of the item and how they can use
+  it in the game and how it benefits them … something they can click and read more of").
+  Clicking a ware's picture, or the "Read more ▾" after its flavor line, unfolds a box under
+  its row: a large picture, a line of what it is, "How to use it" and "What it does for thee".
+  Same in the Chest, where the cart's talk of buying (the Squire gate, "goes straight to thy
+  hand") is left out. The prose is `LORE` in wares.js; like the Charter, every number in it
+  (damage, reach, blows to fell a rat, stamina per swing, larder cap, max HP, the rank gate)
+  is read from config.js as it is shown. Every comfort says plainly it earns no XP, streak or
+  stamina — the sacred rule, told at the point of sale. Unfolded boxes stay open across a
+  purchase or a swap (panels.js `openWares`) and all fold when the panel closes. A new item
+  without a `LORE` entry still sells — its picture is just not a button.
 - The miller lives in his granary yard, home post (9.0, 9.3) — the rat bounty's flavor text made
   flesh. Third mute villager, v2 NPC candidate alongside the clerk and chapman. E opens no panel:
   it toasts a one-line tally of today's ratsKilled (`millerGreeting()` in main.js).
@@ -283,8 +326,9 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     thing in SwiftShader (the headless tests) and no faster on a real GPU. Blades are lit with
     a constant up-normal on both faces (wind.js `upNormals`), so they shade like the ground.
   - The sky rides the camera with depth off, so camera.far (1000) only has to reach the
-    mountains. Fog is a pale blue haze (HAZE in sky.js), 45→560; the far hills are just fogged
-    terrain. Clouds are a hand-shaded unlit mesh turning slowly about the valley.
+    mountains. Fog runs 45→560 (a pale blue haze by day); the far hills are just fogged
+    terrain. Clouds are a hand-shaded unlit mesh turning slowly about the valley. (Colours
+    and light now follow the hour — see The Turning Sky.)
   - Tone mapping is Neutral (was ACES): the palette's hues survive as painted. Light is a cool
     sky / warm ground hemisphere plus the one shadow-casting sun; the shadow box (±40) follows
     the player in whole-texel steps (`followShadow`), so shadows exist wherever he walks and
@@ -314,6 +358,29 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     the belt) → arms [upper → fore] and head; the stick hangs from a `grip` pivot in the fist
     of arm 1. Sides are 0 (-x) and 1 (+x, the stick hand). ~6 more draw calls than the old
     one-piece limbs. `mesh.roller.rotation.x` is still the lie-down angle the house smoke reads.
+  - The stick lies across the fist (2026-11-16, the owner: "hold the stick more realistically").
+    It used to run on down the line of the forearm, its butt buried in the wrist. Now a fixed
+    `hold` Group turns it `RIG.hold` (1.3 rad, a little short of square) out of the thumb
+    side, held near its butt in a leather wrap, with knuckles and a thumb on the stick fist.
+    `pose.grip` is the WRIST — 0 straight, cocked back / snapped through within `WRIST`
+    (playerMesh.js) — and `pose.twist` turns the forearm about its length first (grip pivot
+    order YXZ): 0 thumb forward/up for the chop's hammer blow, about -1.4 palm down for the
+    backhand, +1.4 palm up for the sweep, so the level cuts lay the stick flat and whip it
+    through tip-last. Walking it is carried pointing down ahead, coming up level in a run.
+    Looks only — reach, arc, damage and hit timing are unchanged. The sickle still runs
+    down the forearm's line (it hangs on `grip`, not `hold`, with no wrist clamp).
+  - The hoe is worked two-handed (2026-11-16, the owner: "make the hoe use the same realistic
+    grip"). It hangs on `hold` like the stick, gripped a quarter of the way down the shaft
+    (`RIG.hoeDrop`), and the off hand takes the shaft above it (`RIG.hoeOffHand`, negative =
+    up toward the end). That hand is SOLVED, not posed: playerAnim.js `graspShaft()` finds
+    the spot on the shaft in the chest's frame each step and turns arm 0 onto it — elbow
+    from the distance, shoulder as a whole rotation (quaternion, the upper arm's own twist
+    included, which no pose channel has) with the elbow hanging toward `ELBOW_POLE`. It is
+    blended in by `wGrasp` while working with the hoe out (till and tend), so the hand
+    reaches for the shaft and lets go. The arms are short for the shoulders' width, so both
+    hands only meet near his middle: HOE_UP/HOE_DOWN bring the hoe hand across (spread1
+    -1.1/-0.8) — found by a search for blade-in-the-earth-ahead with the shaft in reach —
+    and the off arm's channels in those poses are only the blend's far end.
   - Legs are solved, not swung. Each foot is given a place to be and a two-bone solve bends
     the knee to put it there — on the ground (targets in the figure's ground frame, carried
     into the pelvis's frame each step) or off it (targets from the hip, for the leap, the roll
@@ -417,6 +484,89 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     handful of golds; a stook is four sheaves leaned together. What grows on a ridge under a
     look is built once and cached, so a redraw is ~4ms after the first (~19ms).
     About 4 draw calls; ~20k triangles when the whole field stands in wheat.
+- The Setting (2026-11-15), the owner's choice: Crownbound takes place in **England, around
+  1250** — the High Middle Ages. Everything new should fit that year: watermills and windmills,
+  smiths, longbows and crossbows, chainmail, timber-and-thatch, silver pennies, hand-copied
+  books are in; guns, printing, mechanical clocks, full plate armour, potatoes, coffee, tea
+  and forks are not. Glass windows exist but are a luxury (hence the shop's price). The
+  setting is a design guide ONLY — the owner does not want the period mentioned in the game
+  (corrected the same day): no year, century or country in any in-game text or AI prompt.
+  The Chronicler is told to name no year, century or country and to avoid those
+  anachronisms; the Sage's prompt just says "medieval". The thee/thy voice and the
+  IM Fell font are later (1600s) but stay — the style, not the history.
+- The Map of the Kingdom (2026-11-15), asked for by the owner ("Create a Kingdom map and add our
+  village in it, keep the game boundaries the same for now"; the village's name was left to
+  Claude). M opens and closes it (nothing while asleep, dead or under another panel; Esc also
+  closes). No save change, no world change — the walkable world is exactly as it was. What a
+  future session must know:
+  - Names. The village is **Brackenley** ("the clearing among the bracken" — the flora has
+    ferns), the kingdom **Aldermere**, the great lake at its heart **Lake Laney** (named by the
+    owner, 2026-11-16; it was first "the Alder Mere"). All three live in `CONFIG.realm`; the
+    Charter's key list reads the first two. Every other place name on the map
+    (Kingsholt the royal seat, Hollin Cross, Saltmouth, Edricminster, Wendham, Coldbrook,
+    Whitwold Abbey, Fellgate; the Grimfells, the Brackenwood, Blackmoor, the King's Chase, the
+    Marches, the Whale's Road) is fixed art in map.js, with a hover note each. All fictional —
+    the setting rule holds: no real country, year or century appears.
+  - Two sheets. The realm (1000×700 SVG) is drawn once per load from seeded rng(1250) and
+    cached; it is a picture only, no place on it can be visited. The village plan beside it is
+    redrawn every time the map opens, from the game's own data: LAYOUT positions and turns, the
+    path (`pathX`), the strip (`fieldToWorld`, each ridge coloured by today's `farmRowLooks`),
+    the real trees and boulders (`world.mapMarks`, scatter's own arrays), the cart only on a
+    market day, the bounds (radius 78) — and the player as a red arrow along `player.facing`.
+    Two zooms: The Green (the village's heart) and The Bounds (all the walkable land); the
+    first open picks by where he stands, then the choice holds for the session.
+  - North. The plan is drawn north-up with the world turned by `NORTH` (0.45 rad, layout.js
+    since The Turning Sky — the sun rises and sets by it too): that puts the miller's strip
+    to the north-east, as the Charter says. The realm's roads agree: the village path leaves east-north-east for
+    Hollin Cross and west-south-west for the Marches.
+  - Wiring: panels.js `openPanel('map')` calls `renderMap(body, mapView())`; `mapView` is a hook
+    main.js passes to initPanels. panels.js now exports `closePanel` and `openPanelId`.
+  - The Chronicler knows the village (2026-11-16, the owner's ask): his charge names Brackenley
+    and the kingdom from `CONFIG.realm` and tells him to name the village in every entry. The
+    `chronicle` smoke scenario checks the charge it was sent (the stub can't judge real prose).
+
+- The Turning Sky (2026-11-16), asked for by the owner ("make the game know what time zone
+  you are in so it can have a daylight cycle based on what time it is you are playing").
+  Looks only: no rule, reward or save changed. What a future session must know:
+  - The clock is the browser's. `new Date()` is already in the player's time zone, so nothing
+    is asked of him and nothing is stored. daylight.js `skyAt(date, latitude)` is the whole
+    reckoning and is pure: the sun from the hour and the day of the year (so days are long in
+    June and dark by five in December), the moon from her true age (a new moon in 2000 counted
+    forward — her phase in the game is tonight's real phase), summer time taken back off
+    (`solarHour`: the clocks go forward, the sun does not). What it cannot know is WHERE the
+    player is: `CONFIG.sky.latitude` (45°N) sets the length of the days, and his place inside
+    his time zone is unknown, so dawn and dusk can run ~20–30 minutes off the window. Asking
+    the browser for his location would fix that and was deliberately not done (a permission
+    prompt for a few minutes of sunset).
+  - sky.js paints it. `LOOKS` is the whole palette: six rows keyed by the sun's height
+    (night −14°, late dusk −8°, dusk −4°, sunset 0°, golden 6°, day 20°+), every colour and
+    light strength blended between rows; dawn wears dusk's rows. The day row IS the old fixed
+    look. To re-tune a time of day, edit its row.
+  - Repainted on a slow beat, not per frame: `CONFIG.sky.refresh` (5s) → dome vertex colours,
+    cloud facets (~22k vertices relit by hand), sprites, lights, fog. Per frame only the dome
+    riding the camera, the cloud drift and the shadow box.
+  - One key light still (the perf rule holds): the sun by day, the moon by night. Its power
+    is zero between the two dusk rows, and that is when it changes hands (at −6°), so the
+    beam never swings while lit. By night it falls from the moon when she is up, else from a
+    fixed `STARLIGHT` quarter, and a fuller moon lights the night better. The beam never lies
+    flatter than 18° (`LOWEST_BEAM` — raking light speckles the shadow map); the SEEN sun
+    still sinks to the hills. `followShadow`'s axes are re-laid at each re-aim.
+  - Sun, moon and stars are drawn straight after the dome and before any land: additive,
+    no depth, renderOrder −9, and deliberately `transparent: false` (a transparent flag would
+    send them to the late pass, on top of the mountains). So land and clouds cover them for
+    free. Stars are one Points call, hidden by day; the moon's face is a canvas texture drawn
+    at load for the night's phase.
+  - Unlit things read `daylight` (daylight.js): smoke is tinted by `daylight.veil`
+    (particles.js `uVeil`), butterflies too; birds and butterflies are hidden once the sun is
+    4° down; motes dim. The hovel's window shows the sky's colour from within and firelight
+    from without after dark (world.js `sky.onLook`). Fires, the hearth and the lantern were
+    already lights — night is simply when they show.
+  - Night is tuned to be played in (most sessions will be evening ones): about a quarter of
+    day's brightness, blue, with the campfire the brightest thing in the village. If it reads
+    too dark on the owner's screen, raise `hemi` / `keyPower` in the night row.
+  - `?hour=17.5` holds the sky at that hour of today (any hour, for a look); the smoke suite
+    opens every page with `?hour=13` so screenshots do not depend on when it is run.
+    `__game.sky.setClock(date)` pins any moment; `sky.state` is what was last painted.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -585,7 +735,7 @@ headlessly; everything else covered by the regression suite below.
   door) to show a peasant's goods — a folded tunic, a coin pouch, a whetstone — with a flavor
   toast; E again lowers it. Pure scenery: it holds no items, touches no state, and the lid
   isn't saved (each load starts shut). The cot crowds its front, so you stand at its corner,
-  which is also the wake spot — waking offers the lid first. No save change.
+  against the -z wall. No save change.
 
 - [x] Post-v1 — "The Larder" (2026-11-14): the chest stores things. One weapon in hand, the
   rest in the chest, swapped in the Chest panel; loaves from the cart go to its larder (cap 6)
@@ -636,6 +786,121 @@ headlessly; everything else covered by the regression suite below.
   fallen well behind the game (it still speaks of a dated Coronation and no shop). Details:
   "The Miller's Strip" under Noted decisions.
 
+- [x] Post-v1 — "The Long Road" (2026-11-15), at the owner's request ("4 times more stamina but
+  make walking and running drain stamina"): caps ×4 (240 base, 480 after the daily, Well-Rested
+  +40), attack/dodge costs unchanged. Walking costs 0.25/s and sprinting 1/s on the ground,
+  gathered in `player.fatigue` and paid in whole points through `player.tire` →
+  `drainStamina()` (state.js; takes down to 0, never refuses) so a save happens at most once a
+  second. A dry pool refuses the sprint (`player.canSprint`) and combat, never the walk. The
+  Charter's Stamina section lists both drains. `body` smoke scenario checks the toll; seeds
+  and expected numbers in other scenarios were moved to the new caps. No save change.
+
+- [x] Post-v1 — "The Map of the Kingdom" (2026-11-15): M unrolls a hand-drawn map of the
+  Kingdom of Aldermere — coast and sea, the Grimfells, the lake, rivers, woods, roads,
+  the royal seat of Kingsholt and seven more places, Lake Laney at its heart, each read aloud on hover — with the home
+  village, Brackenley, ringed in wax. Beside it, a plan of Brackenley drawn live from the game's
+  layout (buildings, real trees, today's crop on the strip, the bounds, the player's arrow), in
+  two zooms. The walkable world is unchanged. No save change. New smoke scenario `map`; all
+  21 scenarios pass (cloud container, headless Chromium, run on top of The Long Road). Not yet seen on the owner's machine.
+  Since then (2026-11-16): the lake renamed Lake Laney, and the Chronicler names Brackenley in
+  every entry. `map` and `chronicle` pass.
+  Details: "The Map of the Kingdom" under Noted decisions.
+
+- [x] Fix — "The Cot Within Reach" (2026-11-16), the owner: "I can't sleep in the bed". E
+  never offered the cot: its prompt was measured from the cot's middle, which no one can
+  stand near (the cot and the hearth hem it in), so from every spot the player could reach,
+  the chest, the ledger or the door was nearer and won. The cot is now measured from its
+  open corner (`HOVEL.bedReach`, radius 1.2): stand on the floor at the cot's foot-corner
+  and E sleeps; the chest is opened from its corner against the -z wall. The sleep pose
+  still lies on the cot's centre (`bedRest`). The `house` smoke scenario now walks up and
+  presses E instead of calling `sleepAtCot()` directly (which is how this slipped by);
+  `house` and `market` stand at the chest's new spot. No save change.
+
+- [x] Post-v1 — "The Hearthside" (2026-11-16), asked for by the owner ("after 2 seconds of
+  standing near the fire pit the player sits down to warm up"): stood still within
+  `CONFIG.player.sitNear` (2.0) of the campfire for `sitDelay` (2s), he turns to the flames and
+  sits on the ground — knees drawn up, palms held out, now and then rubbing his hands, the
+  stick laid aside. Too close to the ring, he shuffles back to `sitSeat` (1.45). Any movement
+  key, Space, C, a roll, a click or a bite stands him up; the click swings nothing, and his
+  pace is held back while he finds his feet (`sit01`). Looks only — no rule, reward or save
+  change. The spawn (2.2 from the fire) is deliberately just outside the range, so a load
+  doesn't sit him down. Player mode `sit` (player.js), the `SEAT` layer (playerAnim.js, feet in
+  the ground frame so the knees solve themselves), a line in the Charter's fire section. New
+  smoke scenario `hearth`; all 22 scenarios pass (cloud container, headless Chromium —
+  `exchequer` only on a re-run: its fixed 400ms wait read the prompt before a frame drew it);
+  after merging The Cot Within Reach, `hearth`, `house`, `market` and `body` pass again on
+  the merge. Not yet seen on the owner's machine.
+
+- [x] Post-v1 — "The Honest Grip" (2026-11-16): the player holds the stick like a real fist
+  does — across the palm near its butt, in a leather wrap, wrist cocking and snapping it,
+  forearm turning the hand over for the level cuts — instead of the stick continuing the
+  line of his arm. Carried pointing down ahead of him at rest, up level in a run. All three
+  swings re-posed (the chop is a hammer's blow; the backhand and sweep whip flat). Animation
+  only; no rule or save change. All 21 smoke scenarios pass (cloud container, headless Chromium), `guide` only on a re-run (its 400ms prompt wait read a stalled frame — see Session notes). Seen only in a pose bench, not yet on the owner's machine. After merging The Hearthside (its SEAT pose's wrist is in range; the stick is laid aside seated) `hearth`, `body` and `combat` pass on the merge; `house` passes all but its first check (the closed door pushing him out), which failed the same way on plain `main` — no frame drew inside its 300ms wait. Details: under "The Living Body" in
+  Noted decisions.
+
+- [x] Post-v1 — "To Bed, Spent" (2026-11-16), at the owner's request ("when stamina hits 0 make
+  the user automatically walk to his bed and go to sleep... tell the player he can start playing
+  again tomorrow... something motivational... talking to himself"). At 0 stamina: control lets
+  go, he walks home on a route from src/player/pathfind.js (grid A*, 0.5 cells, colliders grown
+  by 0.45, string-pulled; static colliders only — main.js hurries him home if he stalls 3s or
+  no route exists), opens the door, crosses to the wake spot, tucks in, and src/ui/rest.js
+  shows his line (one per day, from a done/owed list) + "Come back tomorrow". `player.route`
+  steers in place of the keys at `homewardPace` 0.8; `player.lieDownAt` puts him abed at once
+  for a load on a spent day. State: `stamina.spent` (set at 0 by spend/drain, cleared by the
+  new day's pool; also set on a same-day load at 0), `staminaSpent()`; completeDaily and the
+  Well-Rested grant don't refill a spent pool. The earlier "a dry pool can still walk, not
+  sprint" rule (`canSprint`) is gone. Decisions taken without asking (owner may revisit): the
+  ledgers stay usable from bed, a daily from bed doesn't wake him, the walk home records no
+  bedtime ("Retire for the night" does). New smoke scenario `spent`; `fire` now spends to 1.
+  No saveVersion bump (absent `spent` = false).
+  Same day, the owner revisited one of those: "make doing the daily from bed refill stamina".
+  completeDaily refills unconditionally again (the fresh pool drops `spent`), and main.js
+  `wakeFromRest` stands him up by the cot with a toast and hands back the keys once the board
+  closes. The card's owed-deed line now promises that. `spent` checks the refill, the rise,
+  and a second emptying (daily done) putting him back abed for good.
+
+- [x] Post-v1 — "The Chapman's Pictures" (2026-11-16): every ware on the cart has a picture —
+  an ink-and-wash drawing beside its row in the shop (the cudgel, the quarterstaff, the rug,
+  the door paint, the glass pane, the garden plot, the loaf, the mounted rat, the candle
+  lantern), drawn in code like the Map; wares above the player's rank are faded. The Chest
+  panel shows them too — each weapon (the stick drawn for it) and the larder's loaf. Click a
+  picture (or "Read more") to unfold what the ware is, how to use it and what it does for
+  thee, numbers live from config. No save change. `market` smoke scenario checks each ware
+  has its picture and its read-more in the shop and the chest, and screenshots the shop. All
+  21 scenarios pass (cloud container, headless Chromium; `house` and `exchequer` each only on
+  a re-run alone — the fixed-wait stalls described in Session notes); after merging The Cot
+  Within Reach, The Hearthside and The Honest Grip (the read-mores now send the player to
+  stand at the chest, where the cot fix moved its E), all 22 pass on the merge, first time.
+  After merging To Bed, Spent: `market`, `spent`, `fire`, render and `house` pass on the merge
+  (`house`'s closed-door check failed twice straight after a busy run, then passed three
+  times alone — plain `main` behaved the same). Not yet seen on the owner's machine.
+  Details: "The wares have pictures" under Noted decisions.
+
+- [x] Post-v1 — "The Turning Sky" (2026-11-16): the sky keeps the hour of the player's own
+  clock. The sun rises in the east, crosses the south and sets in the west at the real time
+  of day (long days in summer, early dark in winter); dawn and dusk colour the sky, the
+  clouds and the light; night brings stars, the moon in her true phase, moonlight, a lit
+  window in the hovel and the campfire as the village's light. Birds and butterflies keep
+  the sun's hours. Looks only — no rule or save change. New smoke scenario `sky`. After merging
+  The Hearthside, The Honest Grip and To Bed, Spent, all 24 scenarios pass first time (cloud
+  container, headless Chromium; `exchequer` and `market` now wait for their prompt instead
+  of a blind 400ms — see Session notes). After merging The Chapman's Pictures as well (UI only),
+  `''`, `sky`, `market` and `house` pass on the merge.
+  Seen only in a cloud container's software renderer, not yet on the owner's screen — the
+  night's brightness in particular wants his eye. Details: "The Turning Sky" under Noted
+  decisions.
+
+- [x] Post-v1 — "Two Hands on the Hoe" (2026-11-16): the hoe gets the stick's grip — across
+  the fist, not along the arm — and both hands: the stick hand a quarter of the way down the
+  shaft, the off hand above it, solved onto the shaft every step. The stroke re-posed: both
+  fists raised before his chest with the shaft standing tall, then dropped to his belt with
+  the wrist snapped so the blade bites the earth ahead. Tilling and weeding only; sowing and
+  reaping as before. Looks only; no rule or save change. `farm`, `body`, `combat` (on a
+  re-run — the second dummy swing's fixed wait) and `''` pass (cloud container, headless
+  Chromium); seen only in a pose bench, not yet on the owner's machine. Details: under
+  "The Living Body" in Noted decisions.
+
 - [x] Post-v1 — "The Plain Ledger" (2026-11-16): the Treasury made to make sense, at the
   owner's word ("make the treasury make more sense" — the save showed it never used). Same
   rules and data; the panel rewritten. Every figure is a labelled field with a line of help
@@ -662,9 +927,11 @@ headlessly; everything else covered by the regression suite below.
 - Headless verification: `npm run smoke` (or `node scripts/smoke.mjs <scenario>` after a build) serves dist,
   loads it in headless Edge via puppeteer-core (devDependency only), fails on console errors, writes
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
+- The suite opens every page with `&hour=13` (the sky held at one in the afternoon), so its
+  screenshots are daylit whenever it is run. For a look at another hour: `?hour=21`.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
-  `fire` streak-35 blaze + stamina drain · `combat` dummy/rats/miller-tally greeting/death
+  `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy/rats/miller-tally greeting/death
   (respawn at the cot) ·
   `walk` movement · `body` the player's weight and limbs, stepped by hand at a fixed rate:
   sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole
@@ -673,11 +940,18 @@ headlessly; everything else covered by the regression suite below.
   chaining 0→1→2→0 and starting over after a pause, footfalls reported while running (none
   standing) and one landing per leap (mid-stride screenshot →
   scripts/smoke-body.png) ·
+  `hearth` by the fire: not sat at 1.5s, sat by 2.2s (waist low, knees up, facing the
+  fire, stick laid aside), W stands him up slowly then walks on, the spawn is not near enough,
+  too close he shuffles back, a click (no swing, no stamina) and a bite both get him up
+  (screenshot → scripts/smoke-hearth.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + Treasury set + booth screenshot ·
-  `market` cart presence/absence via ?market=1|0 + prompt + buy flow (coins, ownership, hovel
+  `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
+  (the cudgel's unfolds with its config damage and folds again; the chest's three pictures and
+  a chest read-more without the buying talk checked later; shop panel →
+  scripts/smoke-shop.png) + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
   damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
   `crown` v5→current migration (incl. best owned weapon → chest.wielded, str's level
@@ -699,6 +973,21 @@ headlessly; everything else covered by the regression suite below.
   `chronicle` v7→current migration (old str/agi deeds re-tagged ath) + fetch-stubbed weekly entries: a failing call writes nothing,
   the next load retries, one written entry per load, the empty week left blank for free, week
   order kept, Tome journal newest-first (screenshot → scripts/smoke-chronicle.png) ·
+  `spent` stamina to 0 inside the field fence → he walks home through the gate (not hurried),
+  door opened, abed, keys dead, rest card says tomorrow + the owed deed; daily posted from bed
+  counts, refills to 480 and gets him up; emptied again (daily done) he goes back abed and the
+  card offers no refill; retire marks the bedtime; reload finds him abed; a new day
+  frees him with a full pool; E hurries a second walk (screenshot → scripts/smoke-spent.png) ·
+  `map` M opens the map, both sheets draw, kingdom + village named, home ringed, hover caption,
+  plan opens on The Green at the spawn, The Bounds button, M closes and frees the player, the
+  arrow moves north-east when he stands by the strip, the zoom kept for the session, Esc
+  closes, M does nothing under the Charter, the Charter lists the key (screenshots →
+  scripts/smoke-map.png, scripts/smoke-map-bounds.png) ·
+  `sky` the pinned ?hour=, the sun east in the morning / due south at noon / west in the
+  evening, noon's light and haze, sunset at the right clock time for November, no key light
+  at dusk, stars + moonlight + dark haze at midnight, the beam never flatter than 18°, June
+  against December, a known full moon and new moon, summer time under an emulated New York
+  clock (screenshots → scripts/smoke-sky-noon.png, -sunset.png, -dusk.png, -night.png) ·
   `aerial`/`front` screenshots.
 - If headless Edge quits at once ("Failed to launch the browser process: Code: 0" — seen
   2026-11-13 with Edge already open), point the suite at Chrome:
@@ -710,8 +999,12 @@ headlessly; everything else covered by the regression suite below.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
-  pushing him out) and `combat` (the second dummy swing landing) each failed once that way and
-  passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
+  pushing him out), `combat` (the second dummy swing landing), `guide` (the charter prompt,
+  read 400ms after he is placed) and `exchequer` (the counter's prompt read as empty,
+  2026-11-16) each failed once that way and passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
   the wait, not the game — re-run that scenario alone with nothing else busy on the machine.
+  (2026-11-16: median frame ~400ms there, before The Turning Sky and after it alike.
+  `exchequer` and `market` failed the same way — a prompt read 400ms after the player was
+  moved — and now wait for the prompt to appear, `promptOffered()` in smoke.mjs.)
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).

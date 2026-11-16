@@ -194,7 +194,8 @@ export function applySleepReward() {
   state.sleep.lastRewardDate = today;
   state.sleep.wellRestedDate = today; // staminaCap() reads this for the rest of the day
   state.coins += S.coins;
-  state.stamina.current = Math.min(state.stamina.current + S.staminaBonus, staminaCap());
+  // a body spent for the day stays abed — the boon raises the cap, not the pool
+  if (!state.stamina.spent) state.stamina.current = Math.min(state.stamina.current + S.staminaBonus, staminaCap());
   state.history.push({
     date: today,
     questText: 'Rose with the dawn, well-rested',
@@ -240,7 +241,9 @@ function rollover() {
   }
 
   if (state.stamina.date !== today) {
-    state.stamina = { current: staminaCap(), date: today };
+    state.stamina = { current: staminaCap(), date: today }; // a new day: up from the cot, strength back
+  } else if (state.stamina.current <= 0) {
+    state.stamina.spent = true; // emptied today before the walk home existed — abed all the same
   }
 
   // judge last night's bedtime against the dawn (after the stamina reset,
@@ -347,9 +350,32 @@ export function staminaCap() {
   return base + rested;
 }
 
+// Spent for the day: the pool ran dry, he walked home to his cot, and play
+// resumes on the morrow. Set the moment the pool hits nought; a new day's
+// stamina (rollover) clears it — and so does the daily, posted from his bed.
+// Nothing else refills a spent pool.
+export function staminaSpent() {
+  return state.stamina.spent === true;
+}
+
+function markIfSpent() {
+  if (state.stamina.current <= 0) state.stamina.spent = true;
+}
+
+// the legs' toll: takes what it can, down to nought, and never refuses
+export function drainStamina(n) {
+  const take = Math.min(n, state.stamina.current);
+  if (take <= 0) return;
+  state.stamina.current -= take;
+  markIfSpent();
+  save();
+  emit('stamina');
+}
+
 export function spendStamina(cost) {
   if (state.stamina.current < cost) return false;
   state.stamina.current -= cost;
+  markIfSpent();
   save();
   emit('stamina');
   return true;
@@ -377,7 +403,9 @@ export function completeDaily(statKey) {
   state.lastQuestDate = today;
 
   state.coins += CONFIG.rewards.daily.coins;
-  state.stamina = { current: staminaCap(), date: today }; // includes Well-Rested bonus if earned
+  // the refill (with any Well-Rested bonus) — even from the cot, spent: the
+  // deed gets him up again (a fresh pool carries no `spent` flag)
+  state.stamina = { current: staminaCap(), date: today };
   state.history.push({ date: today, questText: q.text, statTrained: statKey, type: 'daily' });
   const levelUps = addXp(statKey, CONFIG.rewards.daily.xp); // addXp saves + emits
   emit('quests');
