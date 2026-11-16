@@ -725,7 +725,10 @@ headlessly; everything else covered by the regression suite below.
   panel shows them too — each weapon (the stick drawn for it) and the larder's loaf. Click a
   picture (or "Read more") to unfold what the ware is, how to use it and what it does for
   thee, numbers live from config. No save change. `market` smoke scenario checks each ware
-  has its picture and its read-more in the shop and the chest, and screenshots the shop.
+  has its picture and its read-more in the shop and the chest, and screenshots the shop. All
+  21 scenarios pass (cloud container, headless Chromium; `house` and `exchequer` each only on
+  a re-run alone — the fixed-wait stalls described in Session notes). Not yet seen on the
+  owner's machine.
   Details: "The wares have pictures" under Noted decisions.
 
 ### Session notes
@@ -797,8 +800,8 @@ headlessly; everything else covered by the regression suite below.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
-  pushing him out) and `combat` (the second dummy swing landing) each failed once that way and
-  passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
+  pushing him out), `combat` (the second dummy swing landing) and `exchequer` (the counter's
+  prompt read as empty, 2026-11-16) each failed once that way and passed re-run; stepped by hand, both behave. A failure there with otherwise sane numbers is
   the wait, not the game — re-run that scenario alone with nothing else busy on the machine.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
