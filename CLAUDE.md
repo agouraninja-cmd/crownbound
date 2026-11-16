@@ -966,8 +966,8 @@ headlessly; everything else covered by the regression suite below.
   (a bar chart of the climb and the rolls), goals won, the plan and the how-to folded away.
   New: `treasury.laid`, `layIn()`, rolls without earned/spent, the two-figure verdict — no
   saveVersion bump (absent `laid` = {}). The Charter's Two Purses paragraph rewritten.
-  `exchequer` and `reckoning` smoke scenarios rewritten for it. Seen only in a cloud
-  container, not yet on the owner's screen; the coin sound on laying in is untested by ear.
+  `exchequer` and `reckoning` smoke scenarios rewritten for it. All 24 scenarios pass, first
+  time (cloud container, headless Chromium). Seen only there, not yet on the owner's screen; the coin sound on laying in is untested by ear.
   CROWNBOUND-Guide.docx NOT updated. Details: "The Coffer" under Noted decisions.
 
 ### Session notes
