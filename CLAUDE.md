@@ -320,6 +320,17 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
     the belt) → arms [upper → fore] and head; the stick hangs from a `grip` pivot in the fist
     of arm 1. Sides are 0 (-x) and 1 (+x, the stick hand). ~6 more draw calls than the old
     one-piece limbs. `mesh.roller.rotation.x` is still the lie-down angle the house smoke reads.
+  - The stick lies across the fist (2026-11-16, the owner: "hold the stick more realistically").
+    It used to run on down the line of the forearm, its butt buried in the wrist. Now a fixed
+    `hold` Group turns it `RIG.hold` (1.3 rad, a little short of square) out of the thumb
+    side, held near its butt in a leather wrap, with knuckles and a thumb on the stick fist.
+    `pose.grip` is the WRIST — 0 straight, cocked back / snapped through within `WRIST`
+    (playerMesh.js) — and `pose.twist` turns the forearm about its length first (grip pivot
+    order YXZ): 0 thumb forward/up for the chop's hammer blow, about -1.4 palm down for the
+    backhand, +1.4 palm up for the sweep, so the level cuts lay the stick flat and whip it
+    through tip-last. Walking it is carried pointing down ahead, coming up level in a run.
+    Looks only — reach, arc, damage and hit timing are unchanged. The hoe and sickle still
+    run down the forearm's line (they hang on `grip`, not `hold`); no wrist clamp for them.
   - Legs are solved, not swung. Each foot is given a place to be and a two-bone solve bends
     the knee to put it there — on the ground (targets in the figure's ground frame, carried
     into the pelvis's frame each step) or off it (targets from the hip, for the leap, the roll
@@ -695,6 +706,14 @@ headlessly; everything else covered by the regression suite below.
   two zooms. The walkable world is unchanged. No save change. New smoke scenario `map`; all
   21 scenarios pass (cloud container, headless Chromium, run on top of The Long Road). Not yet seen on the owner's machine.
   Details: "The Map of the Kingdom" under Noted decisions.
+
+- [x] Post-v1 — "The Honest Grip" (2026-11-16): the player holds the stick like a real fist
+  does — across the palm near its butt, in a leather wrap, wrist cocking and snapping it,
+  forearm turning the hand over for the level cuts — instead of the stick continuing the
+  line of his arm. Carried pointing down ahead of him at rest, up level in a run. All three
+  swings re-posed (the chop is a hammer's blow; the backhand and sweep whip flat). Animation
+  only; no rule or save change. Smoke suite (cloud container, headless Chromium): render, `body`, `combat`, `quests` pass; rest pending. Details: under "The Living Body" in
+  Noted decisions.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
