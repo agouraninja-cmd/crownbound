@@ -968,7 +968,16 @@ headlessly; everything else covered by the regression suite below.
   saveVersion bump (absent `laid` = {}). The Charter's Two Purses paragraph rewritten.
   `exchequer` and `reckoning` smoke scenarios rewritten for it. All 24 scenarios pass, first
   time (cloud container, headless Chromium). Seen only there, not yet on the owner's screen; the coin sound on laying in is untested by ear.
-  CROWNBOUND-Guide.docx NOT updated. Details: "The Coffer" under Noted decisions.
+  Details: "The Coffer" under Noted decisions.
+
+- [x] Docs — "The Guide Caught Up" (2026-11-16), the owner: "update the CROWNBOUND-Guide.docx
+  to match the game". The out-of-game guide had stopped at v1 (a dated Coronation, no shop,
+  stamina 60/120). It now covers the game as it stands: the earned crown, the hosted address
+  and per-address saves, M and the three blows, the Charter, the miller and his strip, the
+  new stamina and "spent for the day", the Treasury as rebuilt, the chapman's cart and the
+  chest, the Sage and the Chronicler, the map and the turning sky. Numbers were copied from
+  config.js by hand — unlike the Charter it does not read them live, so re-tuning leaves it
+  stale again. It names Brackenley and Aldermere but no year or country (the setting rule).
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
