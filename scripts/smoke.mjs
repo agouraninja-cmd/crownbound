@@ -2693,6 +2693,265 @@ try {
     if (!hurried || h.last !== 'hurried' || h.mode !== 'sleep') errors.push(`spent: E did not hurry him home (${JSON.stringify(h)})`);
   }
 
+  if (scenario === 'proving') {
+    // The Proving Ground: a test world on its own save, with a command line.
+    // The one thing that matters most: the true save is never written there.
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const until = (fn, arg, ms = 15000) => page.waitForFunction(fn, { timeout: ms, polling: 200 }, arg).then(() => true, () => false);
+    const booted = async () => {
+      await until(() => window.__game && document.getElementById('proving-console'));
+      await wait(1200);
+    };
+    const consoleOpen = () => page.evaluate(() => !document.getElementById('proving-console').classList.contains('hidden'));
+    // a line put to the command line and entered; returns the last line it showed
+    const cmd = (line) =>
+      page.evaluate((text) => {
+        const input = document.querySelector('#proving-console input');
+        input.value = text;
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        const last = document.querySelector('#proving-console .pc-log').lastElementChild;
+        return { text: last.textContent, bad: last.className === 'pc-bad' };
+      }, line);
+    // ...and one that reloads the page
+    const cmdReload = async (line) => {
+      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), cmd(line).catch(() => {})]);
+      await booted();
+    };
+    const st = () => page.evaluate(() => window.__game.getState());
+    const want = (ok, what) => {
+      if (!ok) errors.push(`proving: ${what}`);
+    };
+
+    // 1) the true world: no banner, no command line, `/` opens nothing
+    await page.keyboard.press('/');
+    const plain = await page.evaluate(() => ({
+      box: !!document.getElementById('proving-console'),
+      banner: !!document.getElementById('proving-banner'),
+    }));
+    want(!plain.box && !plain.banner, 'the true world has a command line or a banner');
+
+    // 2) the Tome's door leads to the test world, keeping the rest of the address
+    await page.evaluate(() => window.__game.openPanel('tome'));
+    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), page.click('[data-world="test"]')]);
+    await booted();
+    const url = page.url();
+    want(url.includes('test=1') && url.includes('smoke=proving') && url.includes('hour=13'), `the Tome's door led to ${url}`);
+
+    // mark the true save, so it is known again at the end: from here on it must not change by a letter
+    const TRUE = await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('crownbound_save'));
+      s.coins = 77;
+      s.stats.wis.level = 3;
+      const text = JSON.stringify(s);
+      localStorage.setItem('crownbound_save', text);
+      return text;
+    });
+    const first = await page.evaluate(() => ({
+      banner: document.getElementById('proving-banner')?.textContent ?? '',
+      coins: window.__game.getState().coins,
+      slot: !!localStorage.getItem('crownbound_test_save'),
+    }));
+    console.log('test world:', JSON.stringify(first));
+    want(first.banner.includes('Proving Ground'), 'no banner in the test world');
+    want(first.coins === 0 && first.slot, `the test world did not begin on a save of its own (${JSON.stringify(first)})`);
+
+    // 3) `/` opens the line; what is typed there is letters, not steps
+    const before = await page.evaluate(() => ({ x: window.__game.player.pos.x, z: window.__game.player.pos.z }));
+    await page.keyboard.press('/');
+    await page.keyboard.type('wwe');
+    await wait(900);
+    const typed = await page.evaluate(() => {
+      const p = window.__game.player;
+      const input = document.querySelector('#proving-console input');
+      return { x: p.pos.x, z: p.pos.z, enabled: p.isEnabled(), value: input.value, focused: document.activeElement === input, panel: window.__game.openPanelId() };
+    });
+    console.log('typed:', JSON.stringify(typed));
+    want(await consoleOpen(), '/ did not open the command line');
+    want(typed.value === 'wwe' && typed.focused, `the line holds "${typed.value}", not what was typed`);
+    want(Math.hypot(typed.x - before.x, typed.z - before.z) < 0.05 && !typed.enabled && !typed.panel, 'typing in the command line moved him or opened a panel');
+    // the real keys: backspace it away, type a command, Enter
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace');
+    await page.evaluate(() => { window.__game.player.hp = 5; });
+    await page.keyboard.type('heal');
+    await page.keyboard.press('Enter');
+    want((await page.evaluate(() => window.__game.player.hp)) === 20, 'heal, typed and entered, did not heal');
+
+    // 4) stamina
+    await cmd('stamina 10');
+    want((await st()).stamina.current === 10, 'stamina 10 did not set the pool');
+    await cmd('stamina full');
+    want((await st()).stamina.current === 240, 'stamina full did not fill the pool');
+    await cmd('stamina 3');
+    await cmd('reset stamina');
+    want((await st()).stamina.current === 240, 'reset stamina did not fill the pool');
+
+    // 5) rank and virtues — "level me up to sage" is answered, not obeyed
+    const squire = await cmd('rank squire');
+    let s = await st();
+    const hudRank = await page.evaluate(() => document.getElementById('hud-rank').textContent);
+    console.log('rank squire:', JSON.stringify(squire), s.rank, JSON.stringify(s.stats));
+    want(s.rank === 'Squire' && Object.values(s.stats).every((v) => v.level === 3) && hudRank === 'Squire', `rank squire gave ${s.rank} / HUD ${hudRank}`);
+    const sage = await cmd('rank sage');
+    want(sage.bad && sage.text.includes('not a rank') && sage.text.includes('King') && (await st()).rank === 'Squire', `rank sage answered "${sage.text}"`);
+    await cmd('level wis 10');
+    await cmd('xp ath 250');
+    s = await st();
+    want(s.stats.wis.level === 10 && s.stats.ath.level === 3 && s.stats.ath.xp === 250 && s.rank === 'Squire', `level/xp gave ${JSON.stringify(s.stats)} ${s.rank}`);
+    await cmd('rank king');
+    s = await st();
+    const bells = await page.evaluate(() => document.getElementById('toasts').textContent);
+    want(s.rank === 'King' && !!s.coronationAt && bells.includes('CORONATION'), `rank king: ${s.rank}, crowned ${s.coronationAt}`);
+    await cmd('rank peasant');
+    s = await st();
+    want(s.rank === 'Peasant' && s.coronationAt === null && Object.values(s.stats).every((v) => v.level === 1), `rank peasant left ${s.rank}, crowned ${s.coronationAt}`);
+
+    // 6) the purse and the fire
+    await cmd('coins 500');
+    await cmd('coins +25');
+    want((await st()).coins === 525, 'coins 500, +25 did not make 525');
+    await cmd('coins -1000');
+    want((await st()).coins === 0, 'coins -1000 went below nought');
+    await cmd('streak 8');
+    want((await st()).streak.current === 8 && (await page.evaluate(() => document.getElementById('streak-count').textContent)) === '8', 'streak 8 did not set the streak');
+
+    // 7) quests, by the game's own rule
+    const daily = await cmd('daily wis');
+    s = await st();
+    console.log('daily:', JSON.stringify(daily));
+    want(s.quests.daily.completed && s.stats.wis.xp === 25 && s.streak.current === 9 && s.stamina.current === 480, `daily wis: ${JSON.stringify({ q: s.quests.daily, wis: s.stats.wis, streak: s.streak, st: s.stamina })}`);
+    want((await cmd('daily')).bad, 'a second daily was not refused');
+    await cmd('reset daily');
+    s = await st();
+    want(!s.quests.daily.completed && s.quests.daily.text === '' && s.stamina.current === 240, 'reset daily did not empty the slot');
+
+    // 8) wares
+    await cmd('give cudgel');
+    let gear = await page.evaluate(() => ({ owned: window.__game.getState().shop.owned, wielded: window.__game.getState().chest.wielded, dmg: window.__game.player.attackDamage }));
+    want(gear.owned.includes('cudgel') && gear.wielded === 'cudgel' && gear.dmg === 2, `give cudgel: ${JSON.stringify(gear)}`);
+    await cmd('take cudgel');
+    gear = await page.evaluate(() => ({ owned: window.__game.getState().shop.owned, wielded: window.__game.getState().chest.wielded, dmg: window.__game.player.attackDamage }));
+    want(!gear.owned.includes('cudgel') && gear.wielded === 'stick' && gear.dmg === 1, `take cudgel: ${JSON.stringify(gear)}`);
+    want((await cmd('give crown')).bad, 'a ware that does not exist was given');
+
+    // 9) the strip
+    await cmd('farm finish');
+    s = await st();
+    want(s.farm.stage === 1 && s.coins === 14, `farm finish: stage ${s.farm.stage}, coins ${s.coins}`); // 10 from the daily + the wage
+    want((await cmd('farm finish')).bad, 'a second job in one day was not refused');
+    await cmd('farm grow');
+    want((await page.evaluate(() => window.__game.farmJob())) === 'sow', 'farm grow did not bring the next job');
+    await cmd('farm reap');
+    want((await st()).farm.stage === 3, 'farm reap did not set the job');
+
+    // 10) tp sets him down where E offers the thing
+    await cmd('tp board');
+    want((await cmd('tp moon')).bad, 'tp to nowhere was not refused');
+    await page.keyboard.press('Escape');
+    want(!(await consoleOpen()), 'Esc did not close the command line');
+    const offered = await promptOffered();
+    want(offered.includes('Quest Board') && (await page.evaluate(() => window.__game.player.isEnabled())), `tp board: prompt "${offered}"`);
+
+    // 11) spent, then stamina handed back: stopped on the road home...
+    await page.keyboard.press('/');
+    await cmd('stamina 0');
+    want(await until(() => window.__game.spent().homeward), 'stamina 0 did not send him home');
+    await cmd('stamina full');
+    let up = await page.evaluate(() => ({ ...window.__game.spent(), flag: !!window.__game.getState().stamina.spent, route: !!window.__game.player.route }));
+    want(!up.homeward && !up.resting && !up.pending && !up.flag && !up.route, `stamina full on the road home: ${JSON.stringify(up)}`);
+    // ...and got up from his bed, the rest card gone
+    await cmd('stamina 0');
+    await until(() => window.__game.spent().homeward);
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }))); // hurry home
+    want(await until(() => window.__game.spent().resting), 'he never reached his bed');
+    await page.keyboard.press('/'); // the line opens abed
+    want(await consoleOpen(), 'the command line did not open abed');
+    want((await cmd('tp board')).bad, 'tp moved a man abed');
+    await cmd('stamina full');
+    await page.keyboard.press('Escape');
+    up = await page.evaluate(() => ({
+      ...window.__game.spent(),
+      mode: window.__game.player.mode,
+      enabled: window.__game.player.isEnabled(),
+      abed: document.body.classList.contains('abed'),
+      card: !document.getElementById('rest-card').classList.contains('hidden'),
+    }));
+    console.log('roused:', JSON.stringify(up));
+    want(!up.resting && up.mode === 'normal' && up.enabled && !up.abed && !up.card, `stamina full abed: ${JSON.stringify(up)}`);
+
+    // 12) commands of his own
+    await page.keyboard.press('/');
+    const made = await cmd('make fresh = stamina 100; coins 1000');
+    await cmd('fresh');
+    s = await st();
+    want(!made.bad && s.stamina.current === 100 && s.coins === 1000, `make fresh / fresh: ${made.text} → ${s.stamina.current}, ${s.coins}`);
+    await cmd('make boost = level $1 20');
+    await cmd('boost wis');
+    want((await st()).stats.wis.level === 20, 'an own command did not pass its word on');
+    want((await cmd('make rank = heal')).bad && (await cmd('make help = heal')).bad, 'an own command took a built-in name');
+    await cmd('forget boost');
+    want((await cmd('boost wis')).bad, 'a forgotten command still ran');
+    await cmd('coins 5; coins 6');
+    want((await st()).coins === 6, 'two commands on one line did not both run');
+    want((await cmd('abracadabra')).bad, 'an unknown command was not refused');
+    await cmd('help');
+    await page.screenshot({ path: 'scripts/smoke-proving.png' });
+    const helped = await page.evaluate(() => document.querySelector('#proving-console .pc-log').textContent);
+    want(helped.includes('stamina full') && helped.includes('fresh  stamina 100; coins 1000') && helped.includes('make <name>'), 'help does not list the commands');
+
+    // 13) the clock: the hour, then a night
+    await cmd('time 21:30');
+    const hour = await page.evaluate(() => ({ h: new Date().getHours(), m: new Date().getMinutes(), banner: document.getElementById('proving-clock').textContent }));
+    want(hour.h === 21 && hour.m === 30 && hour.banner.includes('moved'), `time 21:30: ${JSON.stringify(hour)}`);
+    await cmd('rank peasant');
+    await cmd('streak 4');
+    await cmd('daily');
+    await cmdReload('nextday');
+    s = await st();
+    const night = await page.evaluate(() => ({ h: new Date().getHours(), log: document.querySelector('#proving-console .pc-log').textContent }));
+    console.log('next day:', JSON.stringify({ date: s.counters.date, days: s.daysPlayed, streak: s.streak, daily: s.quests.daily, stamina: s.stamina, h: night.h }));
+    want(s.counters.date === dstr(1), `nextday: the game's day is ${s.counters.date}, not ${dstr(1)}`);
+    want(!s.quests.daily.completed && s.streak.current === 5 && s.stamina.current === 240, 'nextday: no new day (daily, streak or stamina)');
+    want(night.h === 21 && night.log.includes('A night passes'), 'nextday: the hour moved, or nothing was said');
+    await cmd('fresh');
+    want((await st()).coins === 1000, 'an own command did not outlast a reload');
+    // two nights with no deed, waking at seven: the fire dies
+    await cmdReload('nextday 2 7:00');
+    s = await st();
+    const dawn = await page.evaluate(() => new Date().getHours());
+    want(s.counters.date === dstr(3) && dawn === 7 && s.streak.current === 0, `nextday 2 7:00: ${s.counters.date}, ${dawn} o'clock, streak ${s.streak.current}`);
+    await cmdReload('time real');
+    want((await st()).counters.date === dstr(0) && (await page.evaluate(() => document.getElementById('proving-clock').classList.contains('hidden'))), 'time real did not return to today');
+
+    // 14) the chapman called
+    await cmdReload('market on');
+    want((await page.evaluate(() => !!window.__game.cart)) && page.url().includes('test=1'), 'market on brought no cart (or left the test world)');
+
+    // 15) a copy of the true save — which stays as it was
+    await cmdReload('copy');
+    s = await st();
+    want(s.coins === 77 && s.stats.wis.level === 3, `copy: coins ${s.coins}, wis ${s.stats.wis.level}`);
+    await cmd('coins 9');
+
+    // 16) the world begun again; his own commands are kept
+    await cmdReload('reset world');
+    s = await st();
+    want(s.coins === 0 && s.rank === 'Peasant' && s.history.length === 0, 'reset world did not begin again');
+    await cmd('fresh');
+    want((await st()).coins === 1000, 'reset world lost his own commands');
+
+    // 17) through all of it the true save has not changed by a letter
+    const after = await page.evaluate(() => localStorage.getItem('crownbound_save'));
+    want(after === TRUE, 'THE TRUE SAVE CHANGED in the test world');
+
+    // 18) and back: the true world, on the true save
+    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), cmd('leave').catch(() => {})]);
+    await until(() => window.__game);
+    const home = await page.evaluate(() => ({ coins: window.__game.getState().coins, banner: !!document.getElementById('proving-banner'), url: location.href }));
+    console.log('back:', JSON.stringify(home));
+    want(home.coins === 77 && !home.banner && !home.url.includes('test=') && !home.url.includes('market='), `leave: ${JSON.stringify(home)}`);
+  }
+
   await new Promise((r) => setTimeout(r, 1500));
 
   const info = await page.evaluate(() => window.__smoke || null);

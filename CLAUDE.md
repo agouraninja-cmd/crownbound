@@ -25,7 +25,8 @@ happens the moment the character reaches King** (70 total virtue levels).
   v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle;
   v8→v9 the chest — weapon in hand + loaf larder; v9→v10 the virtues renamed —
   str→ath, agi→int; v10→v11 Intelligence reset to level 1, rank recounted; v11→v12 the
-  miller's strip — the field begins fallow).
+  miller's strip — the field begins fallow). The test world (`?test=1`, The Proving Ground)
+  keeps a save of its own under `crownbound_test_save` and never writes the true one.
 - Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
   one shadow-casting directional light, cheap particles, no post-processing.
 
@@ -64,6 +65,9 @@ src/player/camera.js  pointer-lock third-person orbit camera
 src/player/pathfind.js  the walk home: grid A* around the colliders, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
+src/proving/proving.js   the Proving Ground (?test=1): which world this is, its save slot, the moved clock — must stay main.js's FIRST import
+src/proving/commands.js  the test world's commands, one table entry each (add a command = add an entry)
+src/proving/console.js   the test world's command line (/), the owner's own commands (make / forget), the banner
 src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
 src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep log, under the sage's key; run once after boot
 src/ui/ui.css         parchment styling
@@ -609,6 +613,59 @@ src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, l
   - `?hour=17.5` holds the sky at that hour of today (any hour, for a look); the smoke suite
     opens every page with `?hour=13` so screenshots do not depend on when it is run.
     `__game.sky.setClock(date)` pins any moment; `sky.state` is what was last painted.
+
+- The Proving Ground (2026-11-16), asked for by the owner ("Create a Seperate Crown Bound world
+  for Testing where I can create my own commands such as reset my stamina to full, Level me up
+  to sage, etc"). A second world on the same page: `?test=1`. The Tome's last section is the
+  door both ways; the banner's Leave and the `leave` command go back. What a future session
+  must know:
+  - The separation is one constant. `SAVE_KEY` (proving.js) is `crownbound_save`, or in the
+    test world `crownbound_test_save`, and state.js reads and writes nothing else. In the test
+    world the true save is read by one function (`copyTrueSave()`, the `copy` command) and
+    written by none; the dev save mirror is inert there. `commit()`, `wipeSave()` and
+    `copyTrueSave()` (state.js) return at once outside the test world, so nothing in the true
+    world can hand-edit the save. The `proving` smoke scenario ends by checking that the true
+    save's text is the same to the letter after every command has run.
+  - Shared by both worlds, being the device's and not the save's: the Sage's key (so the
+    Sage and the Chronicler work — and spend — in the test world too) and the mouse feel.
+  - The moved clock. The test world swaps `globalThis.Date` for `MovedDate`, which runs
+    `shift` ms ahead for "now" only (`new Date()`, `Date.now()`); dates built from a value are
+    untouched. So `nextday` is a stored count of days plus a reload, and the ordinary load
+    path — rollover, market day, the dawn verdict, the sky, the Chronicler's weeks — finds a
+    new day with no test-only branch anywhere in the game. This is why
+    `import './proving/proving.js'` must stay the first line of main.js. `time 7:30` moves the
+    hour at once (same day, nothing to roll over). Stored in `crownbound_test_clock`
+    `{ days, ms }`; cleared by `time real`, `reset world` and `copy`.
+  - Commands are a table: commands.js `COMMANDS`, each `{ name, also, group, usage, about,
+    run(args, game) }` — `help` is drawn from it. Where the game has a function the command
+    calls it, so it tests the real rule: `rank king` holds the real Coronation (addXp),
+    `stamina 0` the real walk home (drainStamina), `daily` the real completion. Only what no
+    rule does (set a level, a streak, a purse) is edited on `getState()` and then
+    `commit('coins' | 'stats' | …)`-ed. `game` is the handle main.js gives `initConsole`:
+    player, world, rouse, moveTo, applyPurchases, abed, typing, busy.
+  - The built-ins: stamina, heal, hp · rank, level, xp · coins, streak · daily, weekly,
+    monthly · nextday, time · tp, market, give, take, farm · reset, copy, leave. "Sage" is
+    not a rank — `rank sage` answers with the ladder (Peasant … King) and changes nothing.
+    Setting levels below King takes the crown back, so the Coronation can be tried again.
+  - The owner's own commands: `make fresh = stamina full; heal` then `fresh`; `forget fresh`.
+    `$1`, `$2` are filled from the words typed after the name; `;` chains commands, stopping
+    at the first refused. Kept in `crownbound_test_commands`, outside the save, so
+    `reset world` keeps them. They cannot take a built-in's name.
+  - The command line is not a panel: the sim runs on under it, so a command's effect is seen
+    at once. Its input stops key events reaching the game, and `typing(true)` lets go of the
+    player and frees the mouse (so the first Esc closes the line instead of being spent on
+    the pointer lock). `/` or the backquote opens it — not under a panel or mid-nap, but it
+    does abed.
+    Commands that only take hold on a load (nextday, market, copy, reset world, reset rats)
+    reload the page and leave their line in sessionStorage to be shown on return.
+  - `rouse()` (main.js) is for the console alone: stamina handed back gets him up from any
+    stage of going to bed spent. `restTimer` holds the tuck-in's and the hurry's timeouts so
+    it can call them off.
+  - `importSave` now seals the session (`sealed`, state.js): once the stored save has been
+    replaced — a Scribe restore in either world, a wipe, a copy — nothing more is written
+    before the reload, so a stray step cannot put the old save back.
+  - Not told in the game: the Charter has no section for it (it is a tool, not a rule).
+    CROWNBOUND-Guide.docx has one.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;

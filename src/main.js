@@ -1,3 +1,4 @@
+import { PROVING } from './proving/proving.js'; // must stay first: the test world's clock is set before anything asks the time
 import * as THREE from 'three';
 import './ui/ui.css';
 import { buildWorld } from './scene/world.js';
@@ -19,9 +20,10 @@ import { initAudio, sfx } from './ui/audio.js';
 import { createDummy } from './combat/dummy.js';
 import { createRats } from './combat/rats.js';
 import { CONFIG } from './state/config.js';
+import { initConsole } from './proving/console.js';
 
 const { messages: bootMessages } = loadState();
-initMirror(); // dev-only: shadow the save to saves/crownbound-save.json (adopts it on an empty boot)
+initMirror(); // dev-only: shadow the save to saves/crownbound-save.json (adopts it on an empty boot; never in the test world)
 
 // Market days bring the chapman's cart. Sessions are short, so the flag is
 // fixed per load like the rollover; ?market=1|0 overrides it (smoke tests).
@@ -159,6 +161,7 @@ let resting = false; // abed, the rest card up
 let homeward = false; // on the walk home
 let spentPending = false; // spent, waiting for a swing or a leap to finish first
 let bedtimeIso = null; // a bedtime marked from the rest card since he lay down
+let restTimer = null; // the last moments before the rest card: the tuck-in, or the hurry's fade
 const abed = () => resting || homeward || spentPending;
 let lastHomeward = null; // how the last walk home ended: 'walked' | 'hurried' (smoke tests)
 const watch = { t: 0, x: 0, z: 0 }; // a stall on the way home: hurried there instead
@@ -202,7 +205,7 @@ function tuckIn() {
   homeward = false;
   lastHomeward = 'walked';
   player.startSleep(world.bedRest);
-  setTimeout(() => goToRest(), 1700);
+  restTimer = setTimeout(goToRest, 1700);
 }
 
 // skipped, stuck, or no way through: a fade, and he wakes abed
@@ -212,7 +215,7 @@ function hurryHome() {
   lastHomeward = 'hurried';
   player.route = null;
   fadeEl.classList.add('show');
-  setTimeout(() => {
+  restTimer = setTimeout(() => {
     player.lieDownAt(world.bedRest);
     fadeEl.classList.remove('show');
     goToRest();
@@ -224,6 +227,7 @@ function drawRest() {
 }
 
 function goToRest() {
+  restTimer = null;
   resting = true;
   player.setEnabled(false);
   orbitCam.unlock(); // the mouse is wanted for the card's buttons
@@ -248,6 +252,26 @@ function wakeFromRest() {
   player.respawn(world.wakeSpot.x, world.wakeSpot.z); // on his feet beside the cot
   toast('The deed is done — strength floods back. Up, and onward!', 'gold');
   if (!isPanelOpen()) player.setEnabled(true); // else when the board closes
+}
+
+// The Proving Ground's console only (stamina handed back by a command): on
+// his feet again, from whatever stage of going to bed spent he had reached.
+function rouse() {
+  if (!abed() && !restTimer) return;
+  clearTimeout(restTimer);
+  restTimer = null;
+  const lying = resting || player.mode === 'sleep';
+  resting = homeward = spentPending = false;
+  fadeEl.classList.remove('show');
+  document.body.classList.remove('abed');
+  setRestVisible(false);
+  if (lying) {
+    player.respawn(world.wakeSpot.x, world.wakeSpot.z); // up beside the cot
+  } else {
+    player.route = null; // stopped where he stood on the road home
+    player.invulnerable = false;
+  }
+  if (!isPanelOpen()) player.setEnabled(true);
 }
 
 onChange((reason) => {
@@ -542,6 +566,32 @@ window.addEventListener('keydown', (e) => {
     openPanel(a.id);
   }
 });
+
+// The Proving Ground (?test=1): the test world's command line, and what its
+// commands may lay hands on. Nothing here exists in the true world.
+if (PROVING) {
+  initConsole({
+    player,
+    world,
+    rouse,
+    applyPurchases,
+    abed,
+    // set him down somewhere else, on his feet and no healthier than he was
+    moveTo(x, z) {
+      const hp = player.hp;
+      player.respawn(x, z);
+      player.hp = hp;
+      player.onHpChange(hp, player.maxHp);
+    },
+    // while the line is typed the keys let go of him (they come back with it
+    // shut), and the mouse is freed — or the first Esc would be spent on that
+    typing(on) {
+      player.setEnabled(!on && !isPanelOpen() && !abed());
+      if (on) orbitCam.unlock();
+    },
+    busy: () => isPanelOpen() || sleeping, // no command line under a panel or mid-nap
+  });
+}
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {

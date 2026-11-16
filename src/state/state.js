@@ -1,4 +1,5 @@
 import { CONFIG, rankForTotalLevels } from './config.js';
+import { PROVING, SAVE_KEY } from '../proving/proving.js';
 import { todayStr, yesterdayStr, weekStartStr, monthStartStr, monthKey, prevMonthKey, nextMonthKey } from './dates.js';
 
 export const STAT_NAMES = {
@@ -23,8 +24,15 @@ function emit(reason) {
   for (const fn of listeners) fn(reason, state);
 }
 
+// Once the stored save has been replaced under this session (a restored
+// copy, a wiped test world), the page is about to reload onto it: nothing
+// more is written, or a stray step taken meanwhile would put the old save back.
+let sealed = false;
+
+// SAVE_KEY is the true save's slot — or the test world's own (proving.js)
 export function save() {
-  localStorage.setItem(CONFIG.saveKey, JSON.stringify(state));
+  if (sealed) return;
+  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
 }
 
 // ---------- backup (the Scribe) ----------
@@ -53,9 +61,10 @@ export function isSaveText(text) {
 export function importSave(text) {
   const parsed = parseSave(text);
   if (!parsed) return false;
-  const current = localStorage.getItem(CONFIG.saveKey);
-  if (current) localStorage.setItem(CONFIG.saveKey + '_prev', current);
-  localStorage.setItem(CONFIG.saveKey, JSON.stringify(parsed));
+  const current = localStorage.getItem(SAVE_KEY);
+  if (current) localStorage.setItem(SAVE_KEY + '_prev', current);
+  localStorage.setItem(SAVE_KEY, JSON.stringify(parsed));
+  sealed = true;
   return true;
 }
 
@@ -274,7 +283,7 @@ function rollover() {
 }
 
 export function loadState() {
-  const raw = localStorage.getItem(CONFIG.saveKey);
+  const raw = localStorage.getItem(SAVE_KEY);
   let messages = [];
   if (!raw) {
     state = defaultState();
@@ -779,4 +788,30 @@ export function recordRatKill() {
   save();
   emit('coins');
   return CONFIG.rewards.ratCoins;
+}
+
+// ---------- the Proving Ground (the test world, ?test=1) ----------
+// Its console sets things no rule of the game does — a level, a streak, a
+// full purse. A command edits getState() by hand, then calls commit() to save
+// and to tell the listeners which parts moved. All three are dead in the
+// true world: no code path can hand-edit the real save.
+
+export function commit(...reasons) {
+  if (!PROVING) return;
+  save();
+  for (const reason of reasons) emit(reason);
+}
+
+// the test world begun again: its save is thrown away (the caller reloads)
+export function wipeSave() {
+  if (!PROVING) return;
+  localStorage.removeItem(SAVE_KEY);
+  sealed = true;
+}
+
+// the true save copied over the test world's (the caller reloads). The true
+// save is only read. Returns false if there is none to copy.
+export function copyTrueSave() {
+  if (!PROVING) return false;
+  return importSave(localStorage.getItem(CONFIG.saveKey) ?? '');
 }

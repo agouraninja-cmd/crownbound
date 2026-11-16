@@ -22,6 +22,7 @@ import {
 } from '../state/state.js';
 import { CONFIG } from '../state/config.js';
 import { mouseFeelId, setMouseFeel } from '../state/prefs.js';
+import { PROVING, worldUrl } from '../proving/proving.js';
 import { todayStr } from '../state/dates.js';
 import { renderGuide } from './guide.js';
 import { renderMap } from './map.js';
@@ -405,6 +406,18 @@ function renderTome() {
               <button data-sage-set>Appoint</button>
             </div>`
       }
+    </div>
+    <div class="sheet-section">
+      <h2>The Proving Ground</h2>
+      ${
+        PROVING
+          ? `<p class="muted">Thou standest in the test world. Nothing done here touches thy true
+              chronicle. Press / for its commands.</p>
+            <div class="row right"><button data-world="true">Return to the true realm</button></div>`
+          : `<p class="muted">A second world for trying things out: its own save, commands to set
+              anything, and days that pass when told to. Nothing done there touches this chronicle.</p>
+            <div class="row right"><button data-world="test">Enter the test world</button></div>`
+      }
     </div>`;
 
   tomeBody.querySelector('[data-export]')?.addEventListener('click', () => {
@@ -466,6 +479,11 @@ function renderTome() {
     setSageKey(null);
     toast('The sage departs the village.', '');
     renderTome();
+  });
+
+  // the other world is this same page with ?test=1 on its address (or off it)
+  tomeBody.querySelector('[data-world]').addEventListener('click', (e) => {
+    location.href = worldUrl(e.target.dataset.world === 'test');
   });
 
   for (const inp of tomeBody.querySelectorAll('input')) {

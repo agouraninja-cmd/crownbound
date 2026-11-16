@@ -6,8 +6,10 @@
 // Scribe's restore. Inert in production builds and headless smoke runs
 // (import.meta.env.DEV is false there). localStorage stays the live save;
 // the file is backup and recovery, never a second source of truth mid-play.
+// Inert in the test world too (?test=1): the file shadows the true save only.
 import { CONFIG } from './config.js';
 import { onChange, exportSave } from './state.js';
+import { PROVING } from '../proving/proving.js';
 
 const ENDPOINT = '/__save';
 
@@ -37,7 +39,7 @@ function startPushing() {
 }
 
 export async function initMirror() {
-  if (!import.meta.env.DEV) return;
+  if (!import.meta.env.DEV || PROVING) return;
   if (!hadSave) {
     // Fresh browser. If the mirror file exists, adopt it instead of the
     // blank save loadState() just minted — then reload so it's loaded
