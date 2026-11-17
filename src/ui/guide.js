@@ -184,7 +184,7 @@ export function renderGuide(guideBody) {
       <div class="kv"><span>The Treasury</span><span class="v">thy true savings, kept at the Exchequer</span></div>
       <p class="muted">They never mix. Coins of the realm will never buy back a virtue,
       and thy true hoard answers to no game — the Treasury is real money, kept on thy honor, and
-      pays no XP or coins.</p>
+      pays no coins. One reward only: a savings goal won earns ${CONFIG.rewards.goalXp} Intelligence XP.</p>
       <p class="muted">At the Exchequer the clerk asks three things to open thy ledger: what thou art
       saving for, what thou hast saved, and a monthly pledge (what thou meanest to set aside). After
       that, lay in coin there whenever thou movest real money into savings — the coffer fills and the

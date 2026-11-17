@@ -178,7 +178,7 @@ f2 = para_after(f1, BODY, "The crop grows only across the days you turn up: shoo
 fill(purses, [
     ["", "What it is", "Where"],
     ["Coins", "Quest spoils, rat bounties and field wages. Spent at the chapman’s cart on gear, home comforts and bread.", "Shown on the HUD and in the Tome"],
-    ["The Treasury", "Your real-world savings, tracked by hand against a goal. Game coins never convert into it, and it pays no XP or coins.", "The Exchequer’s counting table"],
+    ["The Treasury", "Your real-world savings, tracked by hand against a goal. Game coins never convert into it and it pays no coins; a savings goal won earns Intelligence XP, its one reward.", "The Exchequer’s counting table"],
 ])
 set_text(P[29], "The Treasury is real money, on your honor. A coffer fills with coin as your savings near the goal, beside your savings in large numerals and a track to the goal that shows how far you are and when your monthly pledge gets you there.")
 w = P[29]

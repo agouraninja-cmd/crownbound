@@ -25,6 +25,8 @@ export const CONFIG = {
     weekly: { xp: 100, coins: 50 },
     monthly: { xp: 300, coins: 150 },
     ratCoins: 2,
+    // a savings goal won at a reckoning: Intelligence XP only — never coins (the two purses never mix)
+    goalXp: 300,
   },
 
   stamina: {

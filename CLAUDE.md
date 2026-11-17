@@ -321,8 +321,9 @@ scripts/build-guide.py  builds CROWNBOUND-Guide.docx (`npm run guide`): the pros
   turns invisibly. update(dt, playerPos) — main.js passes player.pos. All group rotations on
   existing meshes; gesture sfx deliberately omitted (reusing reward chimes would read as income).
 - The Reckoning (2026-07-03): the Treasury is a monthly statement of the player's real money — a
-  virtual summarized spreadsheet with NO game value (no XP, no coins, ever; quests reward the
-  deed of saving, the roll only records the fact). Two figures are needed per month (laid in
+  virtual summarized spreadsheet that never pays coins and pays XP for ONE thing only: a goal
+  won (see The Goal's Prize, Build status); otherwise quests reward the deed of saving and the
+  roll only records the fact. Two figures are needed per month (laid in
   the hoard, hoard counted true — the last reconciles `current`); earned and spent are optional
   since The Coffer (below), and kept and keep-rate are derived when they are given. The verdict
   judges laid-in against the standing `pledge` (fat ≥ pledge; else held / bled by earned − spent
@@ -1077,6 +1078,22 @@ headlessly; everything else covered by the regression suite below.
   lock: the mouse being freed as the command line opens, and taken back by the next
   movement key.
   Details: "The Proving Ground" under Noted decisions.
+
+- [x] Post-v1 — "The Goal's Prize" (2026-11-16), the owner's rule change ("Real money should
+  never mix however there should be some type of reward for hitting your goal... maybe
+  intelligence XP?"): a savings goal won at a reckoning pays `CONFIG.rewards.goalXp` (300 —
+  a monthly campaign's worth, Claude's pick) Intelligence XP through `addXp`, so it can level
+  him and even crown him. XP only, NEVER coins — the two purses still never mix. At most one
+  goal a month (one filing, one goal), and laying in coin or editing the goal still wins
+  nothing. `fileReckoning` returns `{ roll, conquered, xp, levelUps }`; the history deed is
+  tagged `int`. The panel says the prize under the goal's track, in the opening questions'
+  footer and in the how-to; the Charter's Two Purses reads the number from config. Same day:
+  the opening's three bars are named (The goal / Saved so far / Each month) instead of
+  "Question N of 3", the goal field says it is the full total and not a monthly sum, and the
+  savings question answers as it is typed (warning when savings already stand past the
+  goal). build-guide.py's Treasury line was reworded but the .docx NOT rebuilt (no Python on
+  the owner's machine) — run `npm run guide` where there is. `reckoning` smoke scenario
+  checks the 300 XP (Intelligence 1 → 3), the `int` deed and that no coin is paid.
 
 - [x] Post-v1 — "No Mouse Needed" (2026-11-16): a laptop plays on the keys alone. The arrow
   keys turn (← →) and tilt (↑ ↓) the camera, − and = zoom it, F swings the stick; W with ← or

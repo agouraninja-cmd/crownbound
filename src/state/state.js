@@ -703,7 +703,7 @@ export function reckoningDue(now = new Date()) {
 // — the reconciliation, what the accounts truly say, which becomes the new
 // hoard total. `earned` and `spent` are optional (given together or not at
 // all); a roll filed without them simply does not carry them.
-// Returns { roll, conquered } or null if nothing is due.
+// Returns { roll, conquered, xp, levelUps } or null if nothing is due.
 export function fileReckoning({ earned, spent, saved, counted }, now = new Date()) {
   const due = reckoningDue(now);
   if (!due) return null;
@@ -745,14 +745,18 @@ export function fileReckoning({ earned, spent, saved, counted }, now = new Date(
     state.history.push({
       date: todayStr(),
       questText: `${conquered.name} — the hoard reached ${conquered.goal.toLocaleString()}`,
-      statTrained: null,
+      statTrained: 'int',
       type: 'treasury',
     });
   }
 
   save();
   emit('treasury');
-  return { roll, conquered };
+  // the one thing the Treasury ever pays: a goal won is a great deed of judgment, and earns
+  // Intelligence XP (never coins). At most one goal can be won a month — one filing, one goal.
+  const xp = conquered ? CONFIG.rewards.goalXp : 0;
+  const levelUps = conquered ? addXp('int', xp) : [];
+  return { roll, conquered, xp, levelUps };
 }
 
 // raise the next summit after a conquest (or rename/re-aim the current one)
