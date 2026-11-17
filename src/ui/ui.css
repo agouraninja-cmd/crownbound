@@ -835,6 +835,7 @@ button.tr-quiet:hover { background: rgba(43, 32, 20, 0.07); color: var(--ink); }
 }
 .tr-chips button:hover { border-color: var(--gold); background: rgba(201, 162, 39, 0.2); }
 .tr-pace { margin: 6px 0 2px; font-size: 15px; font-style: italic; min-height: 1.3em; }
+.tr-pace.warn { color: var(--wax); font-style: normal; }
 
 /* the optional lines of the reckoning */
 .tr-more { margin: 6px 0 2px; font-size: 15px; }

@@ -280,11 +280,13 @@ function renderSetup() {
       <p class="muted">A goal with a name is a goal half won. Pick one, or write thy own.</p>
       <div class="tr-chips">${CHIPS.map((c) => `<button type="button" data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>
       ${field('data-w-name', 'Its name', 'what the money is for', esc(s.name), 'text', 'e.g. The War Chest')}
-      ${field('data-w-goal', 'How much it needs', 'the sum thy savings must reach', s.goal, 'number', '1000')}`;
+      ${field('data-w-goal', 'The full sum to reach', 'the whole total thy savings must grow to — not a monthly amount (that is asked last)', s.goal, 'number', '10000')}`;
   } else if (s.step === 2) {
-    question = `<h2>What hast thou saved already?</h2>
-      <p class="muted">Look at thy account and write what it shows. Nothing yet is an honest start.</p>
-      ${field('data-w-current', 'Savings today', 'real money, on thy honor', s.current, 'number', '0')}`;
+    question = `<h2>How much is in thy savings today?</h2>
+      <p class="muted">All of it, as thy account shows — every coin already saved counts toward the
+      ${money(s.goal)} thou hast named. Nothing yet is an honest start.</p>
+      ${field('data-w-current', 'Savings today', 'the whole of it, on thy honor', s.current, 'number', '0')}
+      <p class="tr-pace" data-w-have></p>`;
   } else {
     question = `<h2>What wilt thou set aside each month?</h2>
       <p class="muted">Thy monthly pledge — small and kept beats grand and broken. The clerk judges each month by it.</p>
@@ -317,6 +319,21 @@ function renderSetup() {
       q('[data-w-goal]').focus();
     });
   }
+  // the second question answers as it is typed: how far along the goal that puts him —
+  // and, if it is already past the goal, that the goal was likely meant as a monthly sum
+  const have = q('[data-w-have]');
+  if (have) {
+    const showHave = () => {
+      const current = Number(q('[data-w-current]').value) || 0;
+      const over = current >= s.goal;
+      have.classList.toggle('warn', over);
+      have.textContent = over
+        ? `That is already at or past thy goal of ${money(s.goal)}. The goal is the full total thy savings must reach, not a monthly sum — go Back and set it higher than what thou hast.`
+        : `${money(current)} of ${money(s.goal)} — ${money(s.goal - current)} still to save.`;
+    };
+    q('[data-w-current]').addEventListener('input', showHave);
+    showHave();
+  }
   const pace = q('[data-w-pace]');
   if (pace) {
     const left = Math.max(0, Number(s.goal) - (Number(s.current) || 0));
@@ -324,7 +341,7 @@ function renderSetup() {
       const pledge = Number(q('[data-w-pledge]').value);
       pace.textContent =
         left <= 0
-          ? 'Thy savings already stand at the goal — the first reckoning will win it.'
+          ? 'Thy savings already stand at the goal, so the first reckoning will win it. If that was not thy meaning, go Back twice and set the goal higher — it is the full total, not a monthly sum.'
           : pledge > 0
             ? `${money(left)} to go: ${paceLine(left, pledge)}.`
             : `${money(left)} to go. Name a sum and the clerk reckons how long the road is.`;
@@ -477,7 +494,7 @@ function renderLedger(t) {
           t.conquered.length ? 'A goal is won. What is the next thing worth saving for?' : 'What art thou saving for, and how much does it need?'
         }</p>
         ${field('data-s-name', 'Its name', 'what the money is for', '', 'text', 'e.g. The War Chest')}
-        ${field('data-s-goal', 'How much it needs', 'the sum thy savings must reach')}
+        ${field('data-s-goal', 'The full sum to reach', 'the whole total thy savings must grow to — not a monthly amount')}
         <div class="row right"><button type="button" class="primary" data-s-set>Raise the goal</button></div>
       </div>`;
 
