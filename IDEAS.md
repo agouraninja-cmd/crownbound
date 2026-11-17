@@ -14,6 +14,7 @@ Each entry has a name, the idea as the owner gave it, then the questions it leav
 | **The Four Crowns** | Kingdoms shape B: four kingdoms you choose between, for good |
 | **The Four Realms** | Each kingdom has its own map — and its own kind, era or species |
 | **The Trials** | Challenges set by the Crownbound devs, with groups anyone can join |
+| **The Schoolhouse** | Tutoring centres and schools where players work on schoolwork, taught by AI now, real people later |
 
 The Homelands and The Four Crowns are two different answers to the same question — what a
 kingdom *is*. They are alternatives; the owner has not picked one.
@@ -150,3 +151,23 @@ Open questions:
 - Everything technical, as with Kingdoms: the devs publishing challenges to every player and
   players joining groups both need a server and accounts; today the game lives only in the
   player's own browser.
+
+---
+
+## The Schoolhouse — tutoring centres and schools
+
+*Noted 2026-11-16.*
+
+- A **tutoring centre or school** in Crowbound where players who want to work on their
+  schoolwork can go to study.
+- Taught **by AI at first**, and **eventually by real people** in the future.
+
+Open questions:
+- Where it sits in the village — a building of its own, or a room in an existing one.
+- What "working on schoolwork" counts as in the game: a quest logged on the Quest Board, a
+  lesson with the teacher, or both. Which virtue it trains (likely Wisdom, which is learning).
+- How the AI teacher works: a chat like the Sage's, a set lesson, or a course. Which subjects.
+- What the real-person teachers would be in the future, and how they would be found, paid and
+  checked. The sacred rule still applies: coins buy comfort, never virtue.
+- Everything technical: a teacher AI is another use of the Anthropic API (the browser-direct
+  plumbing the Sage already uses), but real teachers would need a server and accounts.
