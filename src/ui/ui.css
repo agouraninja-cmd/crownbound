@@ -813,10 +813,14 @@ button.tr-quiet:hover { background: rgba(43, 32, 20, 0.07); color: var(--ink); }
 .tr-foot { text-align: center; }
 
 /* the opening questions */
-.tr-pips { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13.5px; color: var(--ink-faded); font-style: italic; }
-.tr-pips i { width: 26px; height: 5px; border-radius: 3px; background: rgba(43, 32, 20, 0.2); }
-.tr-pips i.on { background: var(--wax); }
-.tr-pips span { margin-left: 6px; }
+.tr-pips { display: flex; gap: 8px; margin-bottom: 12px; }
+.tr-pip { flex: 1; font-size: 14px; font-style: italic; color: var(--ink-faded); opacity: 0.6; }
+.tr-pip i { display: block; height: 5px; border-radius: 3px; margin-bottom: 4px; background: rgba(43, 32, 20, 0.2); }
+.tr-pip.done { opacity: 1; }
+.tr-pip.done i { background: var(--wax); }
+.tr-pip.done span::after { content: ' ✓'; font-style: normal; color: var(--wax); }
+.tr-pip.now { opacity: 1; color: var(--ink); font-style: normal; }
+.tr-pip.now i { background: var(--wax); }
 .tr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
 .tr-chips button {
   font-variant: normal;

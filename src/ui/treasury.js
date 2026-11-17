@@ -259,12 +259,21 @@ function outcome(roll, t) {
 
 // ---------- the opening questions (an untouched ledger) ----------
 
+// what each opening question is about — the labels under the three bars
+const STEPS = ['The goal', 'Saved so far', 'Each month'];
+
 const CHIPS = ['A rainy-day fund', 'A great purchase', 'A lord’s fortune'];
 
 function renderSetup() {
   if (!setup) setup = { step: 1, name: '', goal: '', current: '', pledge: '' };
   const s = setup;
-  const pips = [1, 2, 3].map((n) => `<i class="${n <= s.step ? 'on' : ''}"></i>`).join('');
+  // the three bars, each named for what its question is about, so the road ahead is
+  // seen before it is walked: done ones in wax, the one in hand in ink, the rest faint
+  const pips = STEPS.map((label, i) => {
+    const n = i + 1;
+    const state = n < s.step ? 'done' : n === s.step ? 'now' : '';
+    return `<div class="tr-pip ${state}"><i></i><span>${label}</span></div>`;
+  }).join('');
   let question;
   if (s.step === 1) {
     question = `<h2>What art thou saving for?</h2>
@@ -292,7 +301,7 @@ function renderSetup() {
       </div>
     </div>
     <div class="tr-card" data-card>
-      <div class="tr-pips">${pips}<span>Question ${s.step} of 3</span></div>
+      <div class="tr-pips">${pips}</div>
       ${question}
       <div class="row right">
         ${s.step > 1 ? '<button type="button" data-w-back>Back</button>' : ''}
