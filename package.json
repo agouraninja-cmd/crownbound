@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "smoke": "vite build && node scripts/smoke.mjs",
-    "guide": "python scripts/build-guide.py"
+    "guide": "node scripts/guide.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

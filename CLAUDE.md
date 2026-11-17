@@ -82,6 +82,7 @@ src/ui/wares.js       the wares pictured and explained: an ink-and-wash SVG per 
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
 scripts/smoke.mjs     the headless regression suite (see Session notes)
 scripts/build-guide.py  builds CROWNBOUND-Guide.docx (`npm run guide`): the prose, with every number read from config.js via scripts/guide-config.mjs, laid over scripts/guide-template.docx
+scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / python) and runs build-guide.py
 ```
 
 ## Data model (localStorage `crownbound_save`)
@@ -1216,7 +1217,8 @@ headlessly; everything else covered by the regression suite below.
   `exchequer` and `market` failed the same way — a prompt read 400ms after the player was
   moved — and now wait for the prompt to appear, `promptOffered()` in smoke.mjs.)
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
-- The guide on the owner's machine: `npm run guide` calls `python`, which is not on PATH there
-  (only the Microsoft Store alias); run `py scripts/build-guide.py` instead. python-docx is
-  installed for that Python (`py -m pip install --user python-docx`, 2026-11-17).
+- `npm run guide` runs scripts/guide.mjs, which finds a real Python 3 (`py -3`, then
+  `python3`, then `python` — on the owner's machine `python` is only the Microsoft Store
+  alias) and runs build-guide.py with it. python-docx is installed for the owner's Python
+  (`py -m pip install --user python-docx`, 2026-11-17).
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
