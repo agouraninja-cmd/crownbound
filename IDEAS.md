@@ -15,6 +15,7 @@ Each entry has a name, the idea as the owner gave it, then the questions it leav
 | **The Four Realms** | Each kingdom has its own map — and its own kind, era or species |
 | **The Trials** | Challenges set by the Crownbound devs, with groups anyone can join |
 | **The Schoolhouse** | Tutoring centres and schools where players work on schoolwork, taught by AI now, real people later |
+| **The Squire's Arms** | At Squire: a wooden sword, a person to train with, a bow and arrows, a spear, and a choice of specialty |
 
 The Homelands and The Four Crowns are two different answers to the same question — what a
 kingdom *is*. They are alternatives; the owner has not picked one.
@@ -171,3 +172,32 @@ Open questions:
   checked. The sacred rule still applies: coins buy comfort, never virtue.
 - Everything technical: a teacher AI is another use of the Anthropic API (the browser-direct
   plumbing the Sage already uses), but real teachers would need a server and accounts.
+
+---
+
+## The Squire's Arms — weapons and a training partner at Squire
+
+*Noted 2026-11-17. "Squire" is the rank reached at 12 total virtue levels.*
+
+- On reaching **Squire**, the player gets:
+  - a **wooden sword**,
+  - **a person to train with**,
+  - a **bow and arrow**,
+  - a **spear**.
+- The player **chooses a specialty**.
+
+Open questions:
+- The specialties: which ones exist, and does each one lean on a different weapon, or on a
+  different virtue or substat?
+- What the specialty changes in play: which weapon he is best with, what he is taught by the
+  training partner, or something else. Can he change it later?
+- Is the wooden sword the same as the stick he already holds, or a new item in the chest and
+  shop? How does it sit with the sacred rule — gear is given at the rank, never sold for coins
+  or handed out for virtue?
+- Who the training partner is: a villager (a v2 NPC candidate, with the Sage-style AI), a dummy
+  with a voice, or a sparring partner who fights back? Does training earn virtue (Athleticism
+  for the blows, or a deed logged on the Quest Board), or is it play only?
+- The bow and spear are new combat: a bow needs arrows (a stock, a count, a pickup?) and aiming
+  where the camera points; a spear needs a reach and a hit window. Are they used on the rats,
+  the dummy, or later real enemies (v5)?
+- Does the spear or bow need its own animations and rig poses, as the three sword blows did?
