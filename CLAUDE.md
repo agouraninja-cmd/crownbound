@@ -1091,8 +1091,8 @@ headlessly; everything else covered by the regression suite below.
   the opening's three bars are named (The goal / Saved so far / Each month) instead of
   "Question N of 3", the goal field says it is the full total and not a monthly sum, and the
   savings question answers as it is typed (warning when savings already stand past the
-  goal). build-guide.py's Treasury line was reworded but the .docx NOT rebuilt (no Python on
-  the owner's machine) — run `npm run guide` where there is. `reckoning` smoke scenario
+  goal). build-guide.py's Treasury line was reworded (the .docx rebuilt 2026-11-17, along
+  with No Mouse Needed's). `reckoning` smoke scenario
   checks the 300 XP (Intelligence 1 → 3), the `int` deed and that no coin is paid.
 
 - [x] Post-v1 — "No Mouse Needed" (2026-11-16): a laptop plays on the keys alone. The arrow
@@ -1106,8 +1106,8 @@ headlessly; everything else covered by the regression suite below.
   change (a tap kept for one step, − by its character) `keys`, render, `walk`, `body`,
   `hearth`, `combat`, `proving`, `spent`, `map` and `guide` pass again. Seen in the Browser
   pane on the real GPU: real ←/↓/−/F key events turn, tilt, zoom and swing. Untested by hand:
-  a real touchpad's glide and pinch (synthetic wheel events only). CROWNBOUND-Guide.docx NOT
-  rebuilt — build-guide.py is updated, but this machine's Python has no python-docx.
+  a real touchpad's glide and pinch (synthetic wheel events only). CROWNBOUND-Guide.docx rebuilt
+  2026-11-17 on the owner's machine, The Goal's Prize included (see Session notes).
   Details: "No mouse needed" under Noted decisions.
 
 ### Session notes
@@ -1216,4 +1216,7 @@ headlessly; everything else covered by the regression suite below.
   `exchequer` and `market` failed the same way — a prompt read 400ms after the player was
   moved — and now wait for the prompt to appear, `promptOffered()` in smoke.mjs.)
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
+- The guide on the owner's machine: `npm run guide` calls `python`, which is not on PATH there
+  (only the Microsoft Store alias); run `py scripts/build-guide.py` instead. python-docx is
+  installed for that Python (`py -m pip install --user python-docx`, 2026-11-17).
 - Git identity is passed per-commit via `-c` flags (no global git config on this machine).
