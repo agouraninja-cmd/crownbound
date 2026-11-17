@@ -255,7 +255,7 @@ const CHEST_SWAP =
 const BOUGHT = (inChest) => (inChest ? '' : 'Once bought it goes straight to thy hand. ');
 
 const SWING =
-  'Swing with the left mouse button (or a plain click where the mouse cannot be captured). ' +
+  'Swing with the left mouse button or the F key (or a plain click where the mouse cannot be captured). ' +
   'Swings in quick succession chain chop, backhand and sweep.';
 
 const LORE = {

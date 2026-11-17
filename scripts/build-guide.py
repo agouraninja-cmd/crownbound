@@ -89,7 +89,7 @@ set_text(P[3], f"Crownbound is a third-person, low-poly medieval life RPG that d
 set_text(P[5], f"**The crown is earned, not scheduled.** There is no date and no countdown: the Coronation happens the moment your four virtues total {KING} levels and your rank reaches King. The Quest Board and the Tome show the road — “N of {KING} virtue levels won” — and, ever after, the day you were crowned.")
 
 # ---- getting started ----
-set_text(P[7], "Open **https://agouraninja-cmd.github.io/crownbound/** in a browser — or, in the project folder, start the dev server (**npm run dev**) and open **http://localhost:5173**. Press any movement key or click the scene to take control of the camera; **Esc** releases it. Where a browser will not lock the mouse, hold the left button and drag to look around. Your progress saves automatically in the browser after every action — but each address keeps its **own** save, so carry your chronicle between them with the Scribe (see Saving Your Chronicle).")
+set_text(P[7], "Open **https://agouraninja-cmd.github.io/crownbound/** in a browser — or, in the project folder, start the dev server (**npm run dev**) and open **http://localhost:5173**. Press any movement key or click the scene to take control of the camera; **Esc** releases it. Where a browser will not lock the mouse, hold the left button and drag to look around. **No mouse?** A laptop plays on the keys alone: the arrow keys turn and tilt the camera and **F** swings. Your progress saves automatically in the browser after every action — but each address keeps its **own** save, so carry your chronicle between them with the Scribe (see Saving Your Chronicle).")
 fill(controls, [
     ["Input", "Action"],
     ["W A S D", f"Move — walking costs a little stamina ({plain(ST['walkDrain'])} a second)"],
@@ -97,8 +97,10 @@ fill(controls, [
     ["Space", "Jump (free)"],
     ["C (hold)", "Crouch — a careful, low shuffle"],
     ["Double-tap W/A/S/D", f"Dodge-roll in that direction (costs {ST['dodgeCost']} stamina)"],
-    ["Left click", f"Attack (costs {ST['attackCost']} stamina). Swing again quickly and the blows chain: chop, backhand, sweep"],
-    ["Mouse / wheel", "Orbit and zoom the camera. The mouse’s feel — gentle, steady or swift — is chosen in the Tome"],
+    ["Left click or F", f"Attack (costs {ST['attackCost']} stamina). Swing again quickly and the blows chain: chop, backhand, sweep"],
+    ["Mouse / wheel", "Orbit and zoom the camera. On a touchpad, glide a finger to turn, two fingers or a pinch to zoom. The feel — gentle, steady or swift — is chosen in the Tome"],
+    ["Arrow keys", "No mouse needed: ← → turn the camera, ↑ ↓ tilt it. Walking with W while turning with ← or → walks a curve. The Tome’s feel sets how fast they turn"],
+    ["− and =", "Zoom the camera out and in"],
     ["E", "Interact — one key for everything; the nearest thing in range wins"],
     ["M", "Unroll the Map of the Kingdom (M or Esc rolls it up)"],
     ["Esc", "Close an open panel / release the mouse"],
@@ -108,7 +110,7 @@ fill(controls, [
 fill(tour, [
     ["Landmark", "What it is"],
     ["The Quest Board", "Where deeds are posted and marked complete — the heart of the game. Press E to open it."],
-    ["The Tome", "A stone pedestal bearing your Character Sheet: rank ladder, virtues, coins, the Weekly Chronicle, the list of every deed recorded, the Sage, the mouse’s feel, and the Scribe (save backup)."],
+    ["The Tome", "A stone pedestal bearing your Character Sheet: rank ladder, virtues, coins, the Weekly Chronicle, the list of every deed recorded, the Sage, the camera’s feel (mouse, touchpad and arrow keys), and the Scribe (save backup)."],
     ["The Village Charter", "A parchment on a post by the path: the rules of the realm in one sheet, with every number read live from the game."],
     ["Your hovel", "Home. E opens the hinged door (closed, it is solid). Inside: your straw cot (stand at its open corner, E to sleep), the chest beside it (weapons and bread) and the Sleep Ledger board. You wake here after death or a night’s rest."],
     ["The campfire", f"The living face of your streak. It swells and shrinks with your discipline — see The Streak below. Stand still beside it for {WORDS.get(PL['sitDelay'], PL['sitDelay'])} seconds and he sits down to warm his hands."],

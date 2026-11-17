@@ -21,6 +21,11 @@ export function mouseSens() {
   return feel.sens;
 }
 
+// the feel as a multiple of the default one — the arrow keys turn by it too
+export function lookScale() {
+  return feel.sens / feelById(CONFIG.mouse.defaultFeel).sens;
+}
+
 export function setMouseFeel(id) {
   const next = feelById(id);
   if (!next) return;

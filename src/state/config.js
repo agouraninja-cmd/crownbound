@@ -117,6 +117,16 @@ export const CONFIG = {
     ],
   },
 
+  // The eye on the keys, for a laptop with no mouse: ← → turn the view, ↑ ↓
+  // tilt it, − = draw it back and near. Speeds are at the Steady feel; the
+  // Tome's feel scales them as it scales the mouse.
+  keyLook: {
+    turn: 2.2, // radians a second, held
+    tilt: 1.1, // radians a second, held
+    zoom: 7, // units a second, held
+    ease: 12, // how fast a held key comes up to speed and a let-go one stops (a tap nudges)
+  },
+
   player: {
     maxHp: 20,
     regenPerSecond: 0.35, // out-of-combat trickle

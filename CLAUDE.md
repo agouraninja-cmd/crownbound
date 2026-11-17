@@ -61,7 +61,7 @@ src/scene/world.js    assembles scene, exposes interactables + terrainHeight; up
 src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements; the hoe and sickle, hidden in the stick hand
 src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
 src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
-src/player/camera.js  pointer-lock third-person orbit camera
+src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed)
 src/player/pathfind.js  the walk home: grid A* around the colliders, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
@@ -226,6 +226,22 @@ scripts/build-guide.py  builds CROWNBOUND-Guide.docx (`npm run guide`): the pros
   Ctrl+W closes the browser tab); M opens the Map of the Kingdom; E is the one interact key — quest board, tome, cot, and the hovel
   door all use it, nearest target wins (a separate F-for-doors binding was tried and consolidated
   away). None work while a UI panel is open.
+- No mouse needed (2026-11-16, the owner: "Make it easier to play crowbound on a labtop if you
+  dont have a mouse"). The keys do everything the mouse does: ← → turn the camera, ↑ ↓ tilt it
+  (↑ looks up, as the mouse pushed forward does), − and = zoom, F swings (the mouse's click
+  still does). The arrows were free — they only ever took the pointer lock — so WASD stays the
+  walk and the arrows are the right hand's "mouse"; W with ← or → walks a curve. Speeds are
+  `CONFIG.keyLook` at the Steady feel, scaled by the Tome's feel (`lookScale()`, prefs.js); each
+  axis eases up and down over ~0.1s so a tap nudges. A press let go before any frame saw it is
+  kept for one step (`held` in camera.js: `seen` / `up`), so a quick tap always moves the view
+  however slow the frames are. − and = are known by their character too (`LOOK_CHARS`), so
+  layouts that put them elsewhere still zoom. A panel or a text box takes the keys and
+  stops the eye dead. Two things fixed on the way: the showcase orbit only stopped on a mouse
+  movement, so a keyboard player's view drifted round forever — now the first movement or look
+  key stops it; and a touchpad's two-finger glide (dozens of tiny wheel turns) leapt the zoom
+  end to end — the wheel now zooms by how far it turned (a mouse notch is still one 0.7 step),
+  and a pinch (a wheel with Ctrl) zooms the camera instead of the page. Ctrl is still no game
+  key (Ctrl+W). The Tome's "Reins" now say they set mouse, touchpad and arrow keys alike.
 - Hovel interior (post-v1 "Hearth & Home"): same footprint, walls became hollow shell + furniture;
   the hovel must stay unrotated (rotY 0) — its colliders are axis-aligned rects (collision system
   supports circles + AABBs only). Interior floor is the terrain itself with a packed-earth dirt
@@ -1062,6 +1078,21 @@ headlessly; everything else covered by the regression suite below.
   movement key.
   Details: "The Proving Ground" under Noted decisions.
 
+- [x] Post-v1 — "No Mouse Needed" (2026-11-16): a laptop plays on the keys alone. The arrow
+  keys turn (← →) and tilt (↑ ↓) the camera, − and = zoom it, F swings the stick; W with ← or
+  → walks a curve. The Tome's feel sets their speed too. A touchpad's two-finger glide now
+  zooms smoothly and its pinch zooms the camera, not the page; the showcase orbit stops at
+  the first key, not only at a mouse movement. Charter, first-boot hint, the stick's read-more
+  and build-guide.py name the keys. No rule or save change. New smoke scenario `keys`.
+  All 24 scenarios pass on the owner's machine (headless Edge) — `keys` once its checks
+  stepped the camera by hand (timed key holds read stalled frames); after the last camera
+  change (a tap kept for one step, − by its character) `keys`, render, `walk`, `body`,
+  `hearth`, `combat`, `proving`, `spent`, `map` and `guide` pass again. Seen in the Browser
+  pane on the real GPU: real ←/↓/−/F key events turn, tilt, zoom and swing. Untested by hand:
+  a real touchpad's glide and pinch (synthetic wheel events only). CROWNBOUND-Guide.docx NOT
+  rebuilt — build-guide.py is updated, but this machine's Python has no python-docx.
+  Details: "No mouse needed" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1081,7 +1112,7 @@ headlessly; everything else covered by the regression suite below.
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy/rats/miller-tally greeting/death
   (respawn at the cot) ·
-  `walk` movement · `body` the player's weight and limbs, stepped by hand at a fixed rate:
+  `walk` movement · `keys` no mouse, the camera stepped by hand: F swings (5 stamina), ← held 1s turns 2.2 rad and stops dead on letting go, → turns back, a tap nudges (even one let go before any frame saw it), − known by its character alone, ↑ ↓ to the pitch bounds, − = to the zoom bounds, a touchpad glide zooms by how far and a pinch zooms the eye not the page, W + → walks a curve, a panel opened mid-turn stops the eye and the arrows do nothing under it, the Charter lists F and the arrows · `body` the player's weight and limbs, stepped by hand at a fixed rate:
   sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole
   planted, the leap's wind-up + height + landing fold, a wall taking his speed, the roll's
   reach and upright finish, planted feet skating under 25%, no NaN joint, the three swings
@@ -1146,6 +1177,10 @@ headlessly; everything else covered by the regression suite below.
   `time real`, `market on`, `copy`, `reset world` — and at the end THE TRUE SAVE UNCHANGED to
   the letter, then `leave` back onto it (screenshot → scripts/smoke-proving.png) ·
   `aerial`/`front` screenshots.
+- Two sessions sharing this folder (no worktree) both serve the suite on port 5199 by default,
+  and whichever binds second silently tests the other's server — an old build ("getView is
+  not a function"). Give one `SMOKE_PORT=5198` (2026-11-16). They still share dist/: a build
+  in one lands under the other's run.
 - If headless Edge quits at once ("Failed to launch the browser process: Code: 0" — seen
   2026-11-13 with Edge already open), point the suite at Chrome:
   `SMOKE_BROWSER="C:\Program Files\Google\Chrome\Application\chrome.exe" node scripts/smoke.mjs <scenario>`.

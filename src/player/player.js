@@ -121,6 +121,14 @@ export function createPlayer(scene, spawn) {
     startAttack();
   });
 
+  // F swings too — for a laptop with no mouse, where a touchpad's click is
+  // hard to reach mid-stride (and is often switched off while keys are down)
+  window.addEventListener('keydown', (e) => {
+    if (!enabled || e.code !== 'KeyF' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    startAttack();
+  });
+
   function startAttack() {
     if (player.mode === 'sit') {
       standUp(); // a click by the fire only gets him to his feet

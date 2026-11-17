@@ -382,7 +382,7 @@ function renderTome() {
     </div>
     <div class="sheet-section">
       <h2>The Reins</h2>
-      <p class="muted">How sharply the camera answers thy mouse. Kept to this browser, outside thy save.</p>
+      <p class="muted">How sharply the camera answers thy mouse, touchpad and arrow keys. Kept to this browser, outside thy save.</p>
       <div class="stat-pick">
         ${CONFIG.mouse.feels
           .map(

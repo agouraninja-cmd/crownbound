@@ -19,7 +19,9 @@ if (!executablePath) {
   process.exit(2);
 }
 
-const PORT = 5199;
+// SMOKE_PORT=<n> serves on another port — two sessions sharing this folder
+// must not both bind 5199, or one tests the other's build
+const PORT = Number(process.env.SMOKE_PORT) || 5199;
 // Every load holds the sky at one in the afternoon (main.js ?hour=), so the
 // screenshots look the same whatever hour the suite is run.
 const DAY = '&hour=13';
@@ -700,6 +702,172 @@ try {
     const moved = Math.hypot(after.x - before.x, after.z - before.z);
     console.log(`walk check: moved ${moved.toFixed(2)} units`);
     if (moved < 2) errors.push(`walk: player barely moved (${moved.toFixed(2)} units)`);
+  } else if (scenario === 'keys') {
+    // No mouse: a laptop plays on the keys alone. The arrows turn and tilt the
+    // eye, − and = draw it back and near, F swings, and the first key stops
+    // the showcase orbit. Each check presses its keys and steps the camera
+    // (and, walking, the player) by hand at the loop's 50ms slice inside ONE
+    // evaluate — a held key timed in real milliseconds is at the mercy of the
+    // software renderer, whose stalled frames deliver the key-up late.
+    await page.evaluate(() => {
+      const g = window.__game;
+      const send = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, cancelable: true }));
+      window.__keys = {
+        down: (code) => send('keydown', code),
+        up: (code) => send('keyup', code),
+        run(seconds, walk) {
+          for (let t = 0; t < seconds - 1e-9; t += 0.05) {
+            if (walk) g.player.update(0.05, g.orbitCam.getYaw(), g.colliders);
+            g.orbitCam.update(0.05, g.player.pos);
+          }
+          return g.orbitCam.getView();
+        },
+        // held for `seconds`, then let go and given 0.6s to ease to a dead stop
+        hold(code, seconds) {
+          this.down(code);
+          this.run(seconds);
+          this.up(code);
+          return this.run(0.6);
+        },
+      };
+    });
+    const v0 = await page.evaluate(() => window.__game.orbitCam.getView());
+    if (v0.taken) errors.push('keys: the showcase orbit was already stopped at load');
+
+    // F swings — before any walking, so no stride's toll muddies the stamina
+    const swing = await page.evaluate(() => {
+      const g = window.__game;
+      const before = g.getState().stamina.current;
+      window.__keys.down('KeyF');
+      const r = { mode: g.player.mode, spent: before - g.getState().stamina.current };
+      window.__keys.up('KeyF');
+      return r;
+    });
+    console.log('F:', JSON.stringify(swing));
+    if (swing.mode !== 'attack') errors.push(`keys: F gave mode ${swing.mode}, not a swing`);
+    if (swing.spent !== 5) errors.push(`keys: F spent ${swing.spent} stamina, not the swing's 5`);
+    await new Promise((r) => setTimeout(r, 600)); // the swing ends
+
+    const look = await page.evaluate(() => {
+      const k = window.__keys;
+      const g = window.__game;
+      g.orbitCam.setView(1, 0.38, 6);
+      const r = { a: g.orbitCam.getView() };
+      // ← turns the view left (yaw grows, as the mouse moved left does) and stops on letting go
+      r.left = k.hold('ArrowLeft', 1.0);
+      r.still = k.run(0.6);
+      r.right = k.hold('ArrowRight', 0.5);
+      // a tap nudges: one slice down, then let go
+      k.down('ArrowLeft');
+      k.run(0.05);
+      k.up('ArrowLeft');
+      r.tap = k.run(0.6);
+      // ...even let go before any step has seen it (a quick tap between slow frames)
+      k.down('ArrowLeft');
+      k.up('ArrowLeft');
+      r.blink = k.run(0.6);
+      // − known by its character alone (no key code — another layout, a synthetic key)
+      const char = (type) => window.dispatchEvent(new KeyboardEvent(type, { key: '-', bubbles: true, cancelable: true }));
+      char('keydown');
+      k.run(0.3);
+      char('keyup');
+      r.byChar = k.run(0.6);
+      g.orbitCam.setView(r.byChar.yaw, 0.38, 6);
+      // ↑ looks up (the eye drops), ↓ looks down, both held in bounds
+      r.up = k.hold('ArrowUp', 1.5);
+      r.down = k.hold('ArrowDown', 2.5);
+      // − draws the eye back to its farthest, = near to its nearest
+      r.far = k.hold('Minus', 1.2);
+      r.near = k.hold('Equal', 1.5);
+      return r;
+    });
+    const turned = look.left.yaw - look.a.yaw;
+    const tapped = look.tap.yaw - look.right.yaw;
+    console.log(
+      `← 1s turned ${turned.toFixed(3)} rad, then ${(look.still.yaw - look.left.yaw).toFixed(4)}; → 0.5s ${(look.right.yaw - look.still.yaw).toFixed(3)};`,
+      `a tap ${tapped.toFixed(3)}, a blink ${(look.blink.yaw - look.tap.yaw).toFixed(3)}, − by character ${look.byChar.dist.toFixed(2)}; pitch ↑ ${look.up.pitch.toFixed(2)} ↓ ${look.down.pitch.toFixed(2)}; zoom − ${look.far.dist} = ${look.near.dist}`
+    );
+    if (!look.left.taken) errors.push('keys: an arrow did not stop the showcase orbit');
+    if (Math.abs(turned - 2.2) > 0.1) errors.push(`keys: ← held 1s turned ${turned.toFixed(2)} rad (want 2.2 at the Steady feel)`);
+    if (look.still.yaw !== look.left.yaw) errors.push('keys: the view kept turning after ← was let go');
+    if (!(look.right.yaw < look.still.yaw - 0.9)) errors.push('keys: → held 0.5s did not turn the view back ~1.1 rad');
+    if (!(tapped > 0.01 && tapped < 0.2)) errors.push(`keys: a tap of ← turned ${tapped.toFixed(3)} rad, not a small nudge`);
+    const blinked = look.blink.yaw - look.tap.yaw;
+    if (!(blinked > 0.01 && blinked < 0.2)) errors.push(`keys: a tap let go before any frame turned ${blinked.toFixed(3)} rad, not a small nudge`);
+    if (!(look.byChar.dist > 7)) errors.push(`keys: a − with no key code left the eye at ${look.byChar.dist.toFixed(2)}, not drawn back`);
+    if (Math.abs(look.up.pitch - -0.08) > 1e-6) errors.push(`keys: ↑ held left pitch at ${look.up.pitch.toFixed(2)}, not its floor -0.08`);
+    if (Math.abs(look.down.pitch - 1.2) > 1e-6) errors.push(`keys: ↓ held left pitch at ${look.down.pitch.toFixed(2)}, not its ceiling 1.2`);
+    if (look.far.dist !== 10) errors.push(`keys: − held left the eye at ${look.far.dist.toFixed(2)}, not 10`);
+    if (look.near.dist !== 3) errors.push(`keys: = held left the eye at ${look.near.dist.toFixed(2)}, not 3`);
+
+    // a touchpad's glide is many small wheel turns: it zooms by how far, not
+    // a full step per turn; its pinch (a wheel with Ctrl) zooms the eye, not the page
+    const wheel = await page.evaluate(() => {
+      const g = window.__game;
+      g.orbitCam.setView(g.orbitCam.getView().yaw, 0.38, 6);
+      const canvas = g.renderer.domElement;
+      for (let i = 0; i < 10; i++) canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: 4, bubbles: true, cancelable: true }));
+      const glide = g.orbitCam.getView().dist;
+      const notch = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+      canvas.dispatchEvent(notch);
+      const afterNotch = g.orbitCam.getView().dist;
+      const pinch = new WheelEvent('wheel', { deltaY: -20, ctrlKey: true, bubbles: true, cancelable: true });
+      canvas.dispatchEvent(pinch);
+      return { glide, afterNotch, pinched: g.orbitCam.getView().dist, pagePrevented: pinch.defaultPrevented, notchPrevented: notch.defaultPrevented };
+    });
+    console.log('wheel:', JSON.stringify(wheel));
+    if (Math.abs(wheel.glide - 6.28) > 0.01) errors.push(`keys: ten small wheel turns zoomed to ${wheel.glide.toFixed(2)} (want 6.28)`);
+    if (Math.abs(wheel.afterNotch - wheel.glide - 0.7) > 0.01) errors.push('keys: a mouse notch no longer zooms one 0.7 step');
+    if (!(wheel.pinched < wheel.afterNotch - 0.3)) errors.push('keys: a pinch did not draw the eye near');
+    if (!wheel.pagePrevented) errors.push('keys: a pinch was left to zoom the page');
+    if (wheel.notchPrevented) errors.push('keys: a plain wheel turn was swallowed');
+
+    // W with → held walks a curve: the walk follows the turning eye. From the
+    // spawn, looking -z (away from the fire), a straight start, then → as well
+    const curve = await page.evaluate(() => {
+      const g = window.__game;
+      const k = window.__keys;
+      g.player.respawn(-5, 4);
+      g.orbitCam.setView(0, 0.38, 6);
+      const where = () => ({ f: g.player.facing, x: g.player.pos.x, z: g.player.pos.z });
+      k.down('KeyW');
+      k.run(0.5, true);
+      const from = where();
+      k.down('ArrowRight');
+      k.run(0.9, true);
+      k.up('ArrowRight');
+      const to = where();
+      k.up('KeyW');
+      k.run(0.6, true);
+      return { from, to };
+    });
+    let swung = (curve.to.f - curve.from.f) % (Math.PI * 2);
+    if (swung > Math.PI) swung -= Math.PI * 2;
+    if (swung < -Math.PI) swung += Math.PI * 2;
+    const walked = Math.hypot(curve.to.x - curve.from.x, curve.to.z - curve.from.z);
+    console.log(`W + →: walked ${walked.toFixed(2)}, facing turned ${swung.toFixed(2)} rad`);
+    if (walked < 2) errors.push(`keys: W + → walked only ${walked.toFixed(2)}`);
+    if (swung > -1.2 || swung < -2.4) errors.push(`keys: W + → turned him ${swung.toFixed(2)} rad — the walk did not follow the eye round to the right`);
+
+    // a panel opened mid-turn stops the eye dead, and under it the arrows are the panel's
+    const panel = await page.evaluate(() => {
+      const g = window.__game;
+      const k = window.__keys;
+      k.down('ArrowLeft');
+      k.run(0.3);
+      g.openPanel('guide');
+      const opened = g.orbitCam.getView().yaw;
+      k.run(0.6); // held on under the parchment
+      k.up('ArrowLeft');
+      k.down('ArrowLeft'); // pressed afresh under it
+      const after = k.run(0.6).yaw;
+      k.up('ArrowLeft');
+      return { opened, after };
+    });
+    if (panel.after !== panel.opened) errors.push(`keys: the view turned ${(panel.after - panel.opened).toFixed(3)} rad under an open panel`);
+    const charter = await page.evaluate(() => document.body.innerText);
+    if (!/left click or F/.test(charter) || !/arrows turn the eye/.test(charter)) errors.push('keys: the Charter does not list F and the arrows');
+    await page.keyboard.press('Escape');
   } else if (scenario === 'body') {
     // The Living Body: weight, knees and feet. Each check drives player.update
     // by hand at a fixed step inside one evaluate, so its numbers don't hang on
