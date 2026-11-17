@@ -259,7 +259,7 @@ function outcome(roll, t) {
 
 // ---------- the opening questions (an untouched ledger) ----------
 
-const CHIPS = ['A rainy-day fund', 'A great purchase', 'Building wealth'];
+const CHIPS = ['A rainy-day fund', 'A great purchase', 'A lord’s fortune'];
 
 function renderSetup() {
   if (!setup) setup = { step: 1, name: '', goal: '', current: '', pledge: '' };
