@@ -834,6 +834,7 @@ button.tr-quiet:hover { background: rgba(43, 32, 20, 0.07); color: var(--ink); }
   box-shadow: none;
 }
 .tr-chips button:hover { border-color: var(--gold); background: rgba(201, 162, 39, 0.2); }
+.tr-prize { margin: 4px 0 0; font-size: 14px; font-style: italic; color: var(--ink-faded); }
 .tr-pace { margin: 6px 0 2px; font-size: 15px; font-style: italic; min-height: 1.3em; }
 .tr-pace.warn { color: var(--wax); font-style: normal; }
 

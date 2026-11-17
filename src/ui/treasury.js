@@ -28,6 +28,7 @@ import {
 } from '../state/state.js';
 import { monthKey, prevMonthKey, nextMonthKey } from '../state/dates.js';
 import { makeRng } from '../scene/meshUtils.js';
+import { CONFIG } from '../state/config.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
@@ -310,7 +311,7 @@ function renderSetup() {
         <button type="button" class="primary" data-w-next>${s.step < 3 ? 'Next' : 'Seal the ledger'}</button>
       </div>
     </div>
-    <p class="muted tr-foot">Game coins never enter here, and the Treasury pays no XP or coins.</p>`;
+    <p class="muted tr-foot">Win the goal and thou earnest <b>${CONFIG.rewards.goalXp} Intelligence XP</b>. Game coins never enter here, and nothing else is paid.</p>`;
 
   const q = (sel) => body.querySelector(sel);
   for (const chip of body.querySelectorAll('[data-chip]')) {
@@ -434,6 +435,8 @@ function renderLedger(t) {
             : `<b>${Math.floor(pct)}%</b> of the way · <b>${money(left)}</b> to go`
         }</span>
         <span>${left > 0 ? paceLine(left, t.pledge, now) || 'set a monthly pledge to see how long the road is' : ''}</span>
+      </div>
+      <div class="tr-prize" data-prize>Winning this goal earns <b>${CONFIG.rewards.goalXp} Intelligence XP</b>.
       </div>`
     : '';
 
@@ -618,10 +621,10 @@ function renderLedger(t) {
        <li><b>Lay in coin.</b> Whenever thou movest real money into savings, say so here. The coffer fills, and the month&#8217;s pledge with it.</li>
        <li><b>The monthly reckoning.</b> When a month ends the clerk asks two figures and seals it:
          <b>fat</b> (${VERDICTS.fat.means}), <b>held</b> (${VERDICTS.held.means}) or <b>bled</b> (${VERDICTS.bled.means}).</li>
-       <li><b>Goals are won at a reckoning</b> that finds thy savings at the goal. Then thou namest the next.</li>
+       <li><b>Goals are won at a reckoning</b> that finds thy savings at the goal. A goal won earns <b>${CONFIG.rewards.goalXp} Intelligence XP</b>. Then thou namest the next.</li>
      </ol>
-     <p class="muted">Real money, on thy honor. Game coins never enter here and the Treasury pays no XP or coins —
-     but a saving deed posted at the Quest Board earns virtue like any other.</p>`
+     <p class="muted">Real money, on thy honor. Game coins never enter here, and the Treasury pays no coins. Its one reward is the
+     ${CONFIG.rewards.goalXp} Intelligence XP for a goal won — and a saving deed posted at the Quest Board earns virtue like any other.</p>`
   );
 
   body.innerHTML = `${hero}${nextGoal}${clerk}${months}${won}${plan}${how}`;
@@ -779,6 +782,8 @@ function renderLedger(t) {
     if (res.conquered) {
       sfx.levelUp();
       toast(`${esc(res.conquered.name)} — conquered! Thy savings stand at ${money(getState().treasury.current)}.`, 'gold');
+      toast(`A goal won: +${res.xp} Intelligence XP.`, 'gold');
+      for (const lvl of res.levelUps) toast(`Intelligence rises to level ${lvl}!`, 'gold');
     }
     renderTreasury();
   });

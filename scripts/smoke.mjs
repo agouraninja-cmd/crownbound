@@ -1726,6 +1726,10 @@ try {
         conquered: t.conquered.length,
         conqueredGoal: t.conquered[0]?.goal,
         histType: st.history[st.history.length - 1]?.type,
+        histStat: st.history[st.history.length - 1]?.statTrained,
+        intLevel: st.stats.int.level,
+        intXp: st.stats.int.xp,
+        coins: st.coins,
         summitForm: !!document.querySelector('#treasury-body [data-s-name]'),
       };
     });
@@ -1741,6 +1745,11 @@ try {
       errors.push('reckoning: the 1000 summit was not conquered');
     if (filed.histType !== 'treasury') errors.push(`reckoning: history type ${filed.histType} != treasury`);
     if (!filed.summitForm) errors.push('reckoning: no next-summit form after conquest');
+    // a goal won pays 300 Intelligence XP (level 1 → 3 exactly) and never a coin
+    if (filed.intLevel !== 3 || filed.intXp !== 0)
+      errors.push(`reckoning: Intelligence at level ${filed.intLevel} / ${filed.intXp} XP, expected 3 / 0 after a goal won`);
+    if (filed.histStat !== 'int') errors.push('reckoning: the goal won is not recorded as an Intelligence deed');
+    if (filed.coins !== 0) errors.push(`reckoning: a goal won paid ${filed.coins} coins — the purses must not mix`);
 
     // 4) raise the next summit; the month refuses a second filing
     const raised = await page.evaluate(() => {
