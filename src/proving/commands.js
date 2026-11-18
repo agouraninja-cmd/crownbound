@@ -350,6 +350,19 @@ export const COMMANDS = [
     },
   },
 
+  {
+    name: 'day',
+    also: ['daytime'],
+    group: 'The clock',
+    usage: 'day',
+    about: 'Make it day: the hour moves to noon, sky and clock both. (“time real” returns to the real hour.)',
+    run(_args, game) {
+      setHour(12, 0);
+      game.world.sky.refresh();
+      return `The sun stands high. It is ${clockText()}.`;
+    },
+  },
+
   // ----- the village -----
   {
     name: 'tp',
