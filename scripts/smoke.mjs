@@ -1643,13 +1643,7 @@ try {
     };
 
     // the page was opened with ?hour=13: the sky stands at one o'clock
-    // (by the sun that is noon, where summer time is being kept)
-    const pinnedHour = await page.evaluate(() => {
-      const g = window.__game;
-      const d = new Date();
-      d.setHours(13, 0, 0, 0);
-      return { hour: g.sky.state.hour, want: g.solarHour(d) };
-    });
+    const pinnedHour = await page.evaluate(() => ({ hour: window.__game.sky.state.hour, want: 13 }));
     console.log('pinned:', JSON.stringify(pinnedHour));
     if (Math.abs(pinnedHour.hour - pinnedHour.want) > 0.02) errors.push(`sky: ?hour=13 shows hour ${pinnedHour.hour}, want ${pinnedHour.want}`);
 
@@ -1658,9 +1652,9 @@ try {
     const noon = await at(2026, 10, 16, 12);
     await shot('noon', 'sun');
     const evening = await at(2026, 10, 16, 15);
-    const sunset = await at(2026, 10, 16, 16, 35);
+    const sunset = await at(2026, 10, 16, 17, 55);
     await shot('sunset', 'sun');
-    const dusk = await at(2026, 10, 16, 17, 10);
+    const dusk = await at(2026, 10, 16, 18, 35);
     const midnight = await at(2026, 10, 17, 0, 30);
     console.log('morning:', JSON.stringify(morning));
     console.log('noon:', JSON.stringify(noon));
@@ -1674,7 +1668,7 @@ try {
     if (!(noon.sunAlt > 20 && noon.sunAlt > morning.sunAlt && noon.sunAlt > evening.sunAlt)) errors.push('sky: the sun is not highest at noon');
     if (noon.keyPower < 2.5 || noon.night !== 0 || noon.stars) errors.push(`sky: noon is not full day (key ${noon.keyPower}, night ${noon.night}, stars ${noon.stars})`);
     if (noon.fog < 0.5) errors.push(`sky: the noon haze is dark (${noon.fog})`);
-    if (Math.abs(sunset.sunAlt) > 3) errors.push(`sky: 16:35 in November is not sunset (sun at ${sunset.sunAlt})`);
+    if (Math.abs(sunset.sunAlt) > 3) errors.push(`sky: 17:55 is not sunset (sun at ${sunset.sunAlt})`);
     if (!(sunset.keyPower > 0.5 && sunset.keyPower < noon.keyPower)) errors.push(`sky: the setting sun's light (${sunset.keyPower}) is not weaker than noon's`);
     if (sunset.beamUp < Math.sin((17.5 * Math.PI) / 180)) errors.push(`sky: the beam lies flat at sunset (${sunset.beamUp})`);
     if (dusk.keyPower > 0.3) errors.push(`sky: the key light still burns at dusk (${dusk.keyPower})`);
@@ -1684,14 +1678,20 @@ try {
     if (midnight.fog > 0.2) errors.push(`sky: the night haze is bright (${midnight.fog})`);
     if (midnight.beamUp < Math.sin((17.5 * Math.PI) / 180)) errors.push('sky: the beam lies flat at night');
 
-    // the seasons: a high sun and a long evening in June, a low sun and an early dark in December
+    // the seasons: a high sun in June, a low one in December — but the sun is
+    // up at 17:45 and down at 18:15 by the clock in both, summer time or not
     const june = await at(2026, 5, 21, 12);
-    const juneEve = await at(2026, 5, 21, 19);
+    const juneEve = await at(2026, 5, 21, 17, 45);
+    const juneDark = await at(2026, 5, 21, 18, 15);
     const december = await at(2026, 11, 21, 12);
-    const decemberEve = await at(2026, 11, 21, 17);
-    console.log('seasons:', JSON.stringify({ june: june.sunAlt, juneEve: juneEve.sunAlt, december: december.sunAlt, decemberEve: decemberEve.sunAlt }));
+    const decemberEve = await at(2026, 11, 21, 17, 45);
+    const decemberDark = await at(2026, 11, 21, 18, 15);
+    const decemberDawn = await at(2026, 11, 21, 6, 15);
+    console.log('seasons:', JSON.stringify({ june: june.sunAlt, juneEve: juneEve.sunAlt, juneDark: juneDark.sunAlt, december: december.sunAlt, decemberEve: decemberEve.sunAlt, decemberDark: decemberDark.sunAlt, decemberDawn: decemberDawn.sunAlt }));
     if (!(june.sunAlt > december.sunAlt + 40)) errors.push('sky: midsummer noon is no higher than midwinter noon');
-    if (!(juneEve.sunAlt > 0 && decemberEve.sunAlt < 0)) errors.push('sky: the days do not lengthen in summer');
+    if (!(juneEve.sunAlt > 0 && decemberEve.sunAlt > 0)) errors.push('sky: the sun is down before six in the evening');
+    if (!(juneDark.sunAlt < 0 && decemberDark.sunAlt < 0)) errors.push('sky: the sun is still up after six in the evening');
+    if (!(decemberDawn.sunAlt > 0)) errors.push('sky: the sun is not up by a quarter past six in the morning');
 
     // the moon: full and high at a winter midnight, dark when new
     const full = await at(2026, 10, 24, 23, 30);
@@ -1702,18 +1702,24 @@ try {
     if (!(full.keyPower > midnight.keyPower)) errors.push('sky: a full moon lights the night no better than none');
     if (newMoon > 0.05) errors.push(`sky: the new moon of 11 Jan 2024 is lit (${newMoon})`);
 
-    // summer time: the clocks go forward, the sun does not
+    // summer time: the sky keeps the wall clock's hour, so six is sunset in July too
     await page.emulateTimezone('America/New_York');
-    const clocks = await page.evaluate(() => ({
-      july: window.__game.solarHour(new Date(2026, 6, 1, 13, 0)),
-      january: window.__game.solarHour(new Date(2026, 0, 15, 13, 0)),
-    }));
+    const clocks = await page.evaluate(() => {
+      const g = window.__game;
+      const C = g.CONFIG.sky;
+      return {
+        july: g.clockHour(new Date(2026, 6, 1, 13, 0)),
+        january: g.clockHour(new Date(2026, 0, 15, 13, 0)),
+        julySet: g.skyAt(new Date(2026, 6, 1, 18, 0), C.latitude, C.sunrise, C.sunset).sunAlt,
+      };
+    });
     await page.emulateTimezone(null);
     console.log('summer time:', JSON.stringify(clocks));
-    if (clocks.july !== 12 || clocks.january !== 13) errors.push(`sky: summer time misread (${JSON.stringify(clocks)})`);
+    if (clocks.july !== 13 || clocks.january !== 13) errors.push(`sky: the clock misread (${JSON.stringify(clocks)})`);
+    if (Math.abs(clocks.julySet) > 0.5) errors.push(`sky: six in the evening in a New York July is not sunset (${clocks.julySet})`);
 
     // leave the dusk up for the last screenshot
-    await at(2026, 10, 16, 16, 55);
+    await at(2026, 10, 16, 18, 15);
     await shot('dusk', 'sun');
   } else if (scenario === 'map') {
     // the Map of the Kingdom: M unrolls it, the realm and the village plan

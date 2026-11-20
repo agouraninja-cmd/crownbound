@@ -197,11 +197,12 @@ export const CONFIG = {
     strokeTime: 0.5, // seconds each takes
   },
 
-  // The sky keeps the hour of the player's own clock: sun, moon and stars
-  // stand where they would for someone at this latitude, today.
+  // The sky keeps the hour of the player's own clock: the sun rises and sets
+  // at fixed clock hours wherever he plays; the season sets only how high it rides.
   sky: {
-    latitude: 45, // degrees north of the equator: how long the days run, season by season.
-    //               Set it to where the game is played for truer dawns and dusks.
+    sunrise: 6, // the clock hour the sun clears the eastern hills (dawn's colours come before it)
+    sunset: 18, // the clock hour the sun meets the western hills (the golden hour comes before it)
+    latitude: 45, // degrees north of the equator: how high the sun rides, season by season
     refresh: 5, // seconds between repaints of the sky and its light (the sun moves a hair in that time)
   },
 

@@ -326,7 +326,7 @@ export function createSky(scene, clock = () => new Date()) {
   // the moon, in the phase she truly wears tonight, and the pale ring about her
   const moonHalo = heavenlySprite(softDotTexture(), 170);
   moonHalo.material.color.set(0x8fa6e0);
-  let moonDrawn = skyAt(clock(), CONFIG.sky.latitude).phase; // the phase her face was last drawn at
+  let moonDrawn = skyAt(clock(), CONFIG.sky.latitude, CONFIG.sky.sunrise, CONFIG.sky.sunset).phase; // the phase her face was last drawn at
   const moonDisc = heavenlySprite(moonTexture(moonDrawn), 30);
   group.add(moonHalo, moonDisc);
 
@@ -389,7 +389,7 @@ export function createSky(scene, clock = () => new Date()) {
   // Repaint everything for the present moment.
   function refresh() {
     sinceRefresh = 0;
-    const now = skyAt(pinned ?? clock(), CONFIG.sky.latitude);
+    const now = skyAt(pinned ?? clock(), CONFIG.sky.latitude, CONFIG.sky.sunrise, CONFIG.sky.sunset);
     lookFor(now.sunAlt, look);
     const night = 1 - smoothstep(now.sunAlt, -14, -4);
     // how much the moon gives: her bright share, once she has cleared the hills

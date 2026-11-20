@@ -596,15 +596,16 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   you are in so it can have a daylight cycle based on what time it is you are playing").
   Looks only: no rule, reward or save changed. What a future session must know:
   - The clock is the browser's. `new Date()` is already in the player's time zone, so nothing
-    is asked of him and nothing is stored. daylight.js `skyAt(date, latitude)` is the whole
-    reckoning and is pure: the sun from the hour and the day of the year (so days are long in
-    June and dark by five in December), the moon from her true age (a new moon in 2000 counted
-    forward — her phase in the game is tonight's real phase), summer time taken back off
-    (`solarHour`: the clocks go forward, the sun does not). What it cannot know is WHERE the
-    player is: `CONFIG.sky.latitude` (45°N) sets the length of the days, and his place inside
-    his time zone is unknown, so dawn and dusk can run ~20–30 minutes off the window. Asking
-    the browser for his location would fix that and was deliberately not done (a permission
-    prompt for a few minutes of sunset).
+    is asked of him and nothing is stored. daylight.js `skyAt(date, latitude, rise, set)` is
+    the whole reckoning and is pure. The sun keeps a FIXED TIMETABLE by the wall clock
+    (2026-11-20, the owner: "it should start setting at 6pm wherever the user is playing"):
+    it clears the hills at `CONFIG.sky.sunrise` (6) and meets them at `sunset` (18), every
+    day, in every time zone, summer time or not (`clockHour` — no summer-time correction).
+    The season still sets how HIGH it rides (`latitude`, 45°N: high in June, low in December):
+    the day's arc is spread evenly over the twelve hours and the night's beneath
+    (`sunAngle`/`halfDay`). So the golden hour comes before six and dusk after it. Before
+    that change the sun kept true solar time and set ~4:30 in a November at 45°N. The moon
+    is placed from the sun's (warped) hour angle and her true age — tonight's real phase.
   - sky.js paints it. `LOOKS` is the whole palette: six rows keyed by the sun's height
     (night −14°, late dusk −8°, dusk −4°, sunset 0°, golden 6°, day 20°+), every colour and
     light strength blended between rows; dawn wears dusk's rows. The day row IS the old fixed
@@ -1000,10 +1001,14 @@ headlessly; everything else covered by the regression suite below.
 
 - [x] Post-v1 — "The Turning Sky" (2026-11-16): the sky keeps the hour of the player's own
   clock. The sun rises in the east, crosses the south and sets in the west at the real time
-  of day (long days in summer, early dark in winter); dawn and dusk colour the sky, the
+  of day (since 2026-11-20 up at 6 and down at 6 PM by the clock, high in summer, low in winter); dawn and dusk colour the sky, the
   clouds and the light; night brings stars, the moon in her true phase, moonlight, a lit
   window in the hovel and the campfire as the village's light. Birds and butterflies keep
-  the sun's hours. Looks only — no rule or save change. New smoke scenario `sky`. After merging
+  the sun's hours. Looks only — no rule or save change. New smoke scenario `sky`.
+  (2026-11-20: the sun now rises at 6 and sets at 6 PM by the player's clock everywhere —
+  `CONFIG.sky.sunrise`/`sunset`; `sky` passes, cloud container. In this container headless
+  Chromium never reaches `networkidle2` — the Google Fonts connection stays open — so the
+  suite was run from a copy with `load` in its place.) After merging
   The Hearthside, The Honest Grip and To Bed, Spent, all 24 scenarios pass first time (cloud
   container, headless Chromium; `exchequer` and `market` now wait for their prompt instead
   of a blind 400ms — see Session notes). After merging The Chapman's Pictures as well (UI only),
@@ -1181,9 +1186,9 @@ headlessly; everything else covered by the regression suite below.
   closes, M does nothing under the Charter, the Charter lists the key (screenshots →
   scripts/smoke-map.png, scripts/smoke-map-bounds.png) ·
   `sky` the pinned ?hour=, the sun east in the morning / due south at noon / west in the
-  evening, noon's light and haze, sunset at the right clock time for November, no key light
+  evening, noon's light and haze, sunset at six by the clock (up at 17:45, down at 18:15, June and December alike, a New York July too), no key light
   at dusk, stars + moonlight + dark haze at midnight, the beam never flatter than 18°, June
-  against December, a known full moon and new moon, summer time under an emulated New York
+  against December, a known full moon and new moon, the wall clock read as is under an emulated New York
   clock (screenshots → scripts/smoke-sky-noon.png, -sunset.png, -dusk.png, -night.png) ·
   `proving` the test world: the true world has no command line, the Tome's door leads to
   `?test=1`, a save of its own and the banner, `/` opens the line and typing there moves no
