@@ -184,10 +184,10 @@ set_text(P[29], "The Treasury is real money, on your honor. A coffer fills with 
 w = P[29]
 for kind, line in [
     (BULLET, "**Opening the ledger.** The first time, the clerk asks three questions, one at a time: what you are saving for and how much it needs, what you have saved already, and what you will set aside each month (your pledge)."),
-    (BULLET, "**Lay in coin.** Whenever you move real money into savings, tell the clerk. The coffer and this month’s pledge meter fill at once. “Recount” corrects the figure to what your account truly shows."),
-    (BULLET, "**The monthly reckoning.** When a month ends the clerk asks two figures: what you put into savings that month (already tallied from the coin you laid in) and what your savings stand at now. Income and spending are optional. One reckoning per month, and it cannot be undone."),
-    (BULLET, "**The verdict.** Each month is sealed in wax: **fat** (pledge kept), **held** (no ground lost) or **bled** (ground lost). A skipped month is marked unreckoned."),
-    (BULLET, "**Goals.** A goal is won when a filed reckoning finds your savings at it; then you name the next. Months past, goals won and the plan are folded away at the bottom of the panel."),
+    (BULLET, "**The day book.** Enter money the day it moves: **Money in**, **Money out** or **Into savings**, each with an optional note. Money put into savings fills the coffer and this month’s pledge meter at once. A mistaken entry is struck out with its ×; “Recount” corrects your savings to what your account truly shows."),
+    (BULLET, "**The month closes itself.** On the 1st, the clerk adds up the month just ended from your entries and enters it on the rolls — there is nothing to remember and nothing to file. With both money in and money out entered he judges by them; otherwise by whether your savings grew."),
+    (BULLET, "**The verdict.** Each month is sealed in wax: **fat** (pledge kept), **held** (no ground lost) or **bled** (ground lost). A month with nothing entered is marked unreckoned."),
+    (BULLET, "**Goals.** A goal is won when a month closes with your savings at it; then you name the next. Months past, goals won and the plan are folded away at the bottom of the panel."),
 ]:
     w = para_after(w, kind, line)
 

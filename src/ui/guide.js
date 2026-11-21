@@ -187,11 +187,11 @@ export function renderGuide(guideBody) {
       pays no coins. One reward only: a savings goal won earns ${CONFIG.rewards.goalXp} Intelligence XP.</p>
       <p class="muted">At the Exchequer the clerk asks three things to open thy ledger: what thou art
       saving for, what thou hast saved, and a monthly pledge (what thou meanest to set aside). After
-      that, lay in coin there whenever thou movest real money into savings — the coffer fills and the
-      month&#8217;s pledge with it. When each month ends, tell the clerk two figures: what went into
-      savings, and what thy savings now stand at (income and spending as thou wilt). He seals the
-      month — fat if the pledge was kept, held if no ground was lost, bled if it was. A goal is won
-      when a filed reckoning reaches it.</p>
+      that, keep his day book: enter money in, money out and money put into savings on the day it
+      happens — putting money into savings fills the coffer at once. On the 1st of each month the
+      clerk closes the month just ended by himself, from those entries, and seals it — fat if the
+      pledge was kept, held if no ground was lost, bled if it was. A goal is won when a month closes
+      with thy savings at it.</p>
     </div>
     ${farmSection}
     ${marketSection}
