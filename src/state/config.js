@@ -8,7 +8,7 @@ export const CONFIG = {
     village: 'Brackenley', // the Chronicler is told to name it in every entry
     lake: 'Lake Laney', // the great lake at the kingdom's heart
   },
-  saveVersion: 12, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip
+  saveVersion: 13, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip; v13 the daily money book
 
   xpPerLevel: 100, // next level costs 100 × current level
 
@@ -25,7 +25,7 @@ export const CONFIG = {
     weekly: { xp: 100, coins: 50 },
     monthly: { xp: 300, coins: 150 },
     ratCoins: 2,
-    // a savings goal won at a reckoning: Intelligence XP only — never coins (the two purses never mix)
+    // a savings goal won when a month closes: Intelligence XP only — never coins (the two purses never mix)
     goalXp: 300,
   },
 

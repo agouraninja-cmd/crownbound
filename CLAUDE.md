@@ -19,13 +19,14 @@ happens the moment the character reaches King** (70 total virtue levels).
   round dot (sprites.js), the sun's disc and the moon's face (sky.js). Pictures in the UI
   (the Map, the shop's wares) are SVG built in code.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 12`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 13`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
   v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle;
   v8→v9 the chest — weapon in hand + loaf larder; v9→v10 the virtues renamed —
   str→ath, agi→int; v10→v11 Intelligence reset to level 1, rank recounted; v11→v12 the
-  miller's strip — the field begins fallow). The test world (`?test=1`, The Proving Ground)
+  miller's strip — the field begins fallow; v12→v13 the day book — coin laid in by month
+  becomes day-book entries). The test world (`?test=1`, The Proving Ground)
   keeps a save of its own under `crownbound_test_save` and never writes the true one.
 - Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
   one shadow-casting directional light, cheap particles, no post-processing.
@@ -74,7 +75,7 @@ src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
 src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Chest panel UIs; opens/closes every panel
-src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, lay in coin, the monthly reckoning, the seals and the climb chart (all SVG built here)
+src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, the day book (money in / out / into savings), the seals and the climb chart (all SVG built here)
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
@@ -88,7 +89,7 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 12,
+  saveVersion: 13,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
   stats: { ath|int|wis|inf: { level, xp } },     // Athleticism, Intelligence, Wisdom, Influence;
@@ -96,14 +97,14 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   coins,
   treasury: {                                    // real savings, manual, never converts with coins
     name, current, goal,                         // the named cumulative summit (goal 0 = none raised)
-    pledge,                                      // standing monthly laid-in commitment (verdict yardstick)
-    laid: { "YYYY-MM": n },                      // coin laid in between reckonings, by the month it was laid
-                                                 //   in; a month's sum is cleared when that month is filed
-                                                 //   (absent on old saves = {} — no version bump)
-    rolls: [ { month: "YYYY-MM", earned, spent, saved, counted,   // one reckoning per month, append-only;
-               verdict: fat|held|bled|unreckoned } ],             //   earned+spent are optional (a roll filed on
-                                                                  //   two figures has neither); unreckoned rolls
-                                                                  //   carry month+verdict only
+    pledge,                                      // standing monthly savings commitment (verdict yardstick)
+    log: [ { date: "YYYY-MM-DD", kind: in|out|save|fix,   // the day book: entries of months not yet closed;
+             amount, note? } ],                  //   'save' grows `current` when entered, 'fix' is a recount's
+                                                 //   signed delta; a month's entries leave when it is closed
+    rolls: [ { month: "YYYY-MM", earned, spent, saved, counted,   // one closed month each, append-only, closed
+               verdict: fat|held|bled|unreckoned } ],             //   by the clerk on load (closeMonths); earned+spent
+                                                                  //   only when both kinds were entered; unreckoned
+                                                                  //   rolls (nothing entered) carry month+verdict only
     conquered: [ { name, goal, conqueredAt } ]   // summits taken; conquests also land in history as "treasury"
   },
   streak: { current, best },
@@ -321,6 +322,35 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   group and gained a nose (plus cap brim / hood lip) because a bare sphere-and-cylinder head
   turns invisibly. update(dt, playerPos) — main.js passes player.pos. All group rotations on
   existing meshes; gesture sfx deliberately omitted (reusing reward chimes would read as income).
+- The Day Book (2026-11-21), the owner: "it is november and it is talking about income and
+  spending from the last month october… it should just be a daily tracker and then it will
+  keep track for you so you dont have to remember". The Treasury no longer asks for figures
+  at month's end. What a future session must know (it supersedes the reckoning form and
+  "lay in coin" described under The Reckoning and The Coffer below; verdicts, goals, the
+  pledge and the Goal's Prize are unchanged):
+  - The day book is `treasury.log`. The "Today" card has three buttons — Money in, Money
+    out, Into savings — each an amount and an optional note (`logMoney(kind, amount, note)`).
+    Into savings grows `current` at once (the coffer and pledge meter fill). Each entry has
+    a × to strike it out (`unlogMoney(index)`, undoing what it did to the savings). Recount
+    (`recount(n)`) sets the savings and logs the difference as a 'fix' entry, so the month it
+    happened in carries it. `setTreasury` is now only the opening questions' raw setter.
+    `layIn(n)` remains as `logMoney('save', n)`.
+  - The clerk closes months himself: `closeMonths()` runs in `rollover()` on every load and
+    turns each finished month (after the last roll; on a ledger with no rolls, from the first
+    month with an entry) into a roll from its entries — earned/spent only if both kinds were
+    entered (so a month with only spending isn't always "bled"), saved, and counted = today's
+    savings less the save/fix entries of later months. A month with no entries is
+    'unreckoned'. Its entries then leave the log. Goals fall only here (the typo rule
+    stands), at most one per close; the conquest's toasts and the XP come as boot messages.
+    `reckoningDue` and `fileReckoning` are gone; `monthTally(month)`, `monthsToClose`,
+    `loggedToday` are new. The clerk's greeting asks "Any coin come or gone today?" until
+    something is entered that day.
+  - v12→v13 turns each `laid[month]` into one 'save' entry dated that month's 1st (note
+    "laid in") and drops `laid`.
+  - Earlier days of this month are in an "Earlier in <Month>" fold, grouped by day.
+  - Smoke hooks: `data-log-open="in|out|save"`, `data-log-amount`, `data-log-note`,
+    `data-log-set`, `data-unlog`, `data-sums`, plus the old `data-count-*`, `data-s-*`,
+    `data-t-*`, `data-w-*`.
 - The Reckoning (2026-07-03): the Treasury is a monthly statement of the player's real money — a
   virtual summarized spreadsheet that never pays coins and pays XP for ONE thing only: a goal
   won (see The Goal's Prize, Build status); otherwise quests reward the deed of saving and the
@@ -1116,6 +1146,18 @@ headlessly; everything else covered by the regression suite below.
   2026-11-17 on the owner's machine, The Goal's Prize included (see Session notes).
   Details: "No mouse needed" under Noted decisions.
 
+- [x] Post-v1 — "The Day Book" (2026-11-21): the Treasury becomes a daily tracker. A
+  "Today" card enters money in, money out and money put into savings the day it happens
+  (an optional note each, a × to strike a mistake), with the month's running sums beneath;
+  on the 1st the clerk closes the month just ended by himself from those entries — no
+  more end-of-month form asking for last month's income and spending. Verdicts, goals,
+  the pledge and the 300 Intelligence XP for a goal won are unchanged. saveVersion 13
+  (coin laid in becomes day-book entries). Charter and build-guide.py reworded (the .docx
+  not rebuilt — no python-docx here). `reckoning` and `exchequer` rewritten; they and
+  `''`, `tome`, `crown`, `farm`, `chronicle`, `guide`, `proving`, `rollover`, `quests` pass
+  (cloud container, headless Chromium, with `networkidle2` swapped for `load` in a local
+  copy — see Session notes). Details: "The Day Book" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1149,7 +1191,7 @@ headlessly; everything else covered by the regression suite below.
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
-  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (chip fills the name, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + coin laid in (savings, the month's tally, pledge kept) + a recount leaves the tally + booth screenshot ·
+  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (chip fills the name, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + money put into savings from the Today card (savings, the month's saving, pledge kept, today's entry listed) + a recount leaves the month's saving + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
   (the cudgel's unfolds with its config damage and folds again; the chest's three pictures and
   a chest read-more without the buying talk checked later; shop panel →
@@ -1165,8 +1207,7 @@ headlessly; everything else covered by the regression suite below.
   and its history deed, back to stubble) + no XP earned + the Charter's section (screenshot →
   scripts/smoke-farm.png) · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
-  `reckoning` v6→v7 migration + verdict rules (with and without income/spending) + panel filing (pledge/fat, typed: blank figures refused, savings-now follows, live verdict) + conquest & next
-  summit + double-file guard + the month owed opening already tallied with coin laid in + unreckoned backfill + two-figure months on a pinned clock (held, then bled; laid cleared) + the climb's bars and the seals (months past unfolded → scripts/smoke-reckoning.png) ·
+  `reckoning` v6→current migration (no month closed on an empty ledger) + verdict rules (with and without income/spending) + a day's money through the panel (blank refused, in/out/save with notes, a mistake struck out, the month's sums) + the month closed on a pinned clock (fat from in/out/saved, conquest, 300 Intelligence XP, no coin, log cleared, no second close) & next summit + a v12 save's `laid` migrated and its owed months closed on load (two unreckoned, one held) + a recount and a later month's entry counted apart (bled, then held) + the climb's bars and the seals (months past unfolded → scripts/smoke-reckoning.png) ·
   `alive` villager breathing spread + head-track/greet for all three (off-axis stand, or the
   turn is ~0) + head returns at distance + fidget fires + miller walks his rounds & his prompt
   follows (screenshot → scripts/smoke-alive.png) ·
@@ -1221,6 +1262,11 @@ headlessly; everything else covered by the regression suite below.
   (2026-11-16: median frame ~400ms there, before The Turning Sky and after it alike.
   `exchequer` and `market` failed the same way — a prompt read 400ms after the player was
   moved — and now wait for the prompt to appear, `promptOffered()` in smoke.mjs.)
+- 2026-11-21, cloud container: `page.goto(..., { waitUntil: 'networkidle2' })` never settled
+  (no request pending — likely a connection the agent proxy holds open), so every scenario
+  died at "Navigation timeout". The game itself loads fine. Running a local copy with
+  `networkidle2` → `load` worked (`sed "s/networkidle2/load/g" scripts/smoke.mjs >
+  scripts/_smoke_local.mjs`, delete it after); the suites already wait 2s after each load.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - `npm run guide` runs scripts/guide.mjs, which finds a real Python 3 (`py -3`, then
   `python3`, then `python` — on the owner's machine `python` is only the Microsoft Store

@@ -4,14 +4,14 @@
 // The panel is built to be glanced at and used in a minute:
 //   - one picture: a coffer that fills with coin as the savings near the goal,
 //     the figure beside it in large numerals, and a track with quarter marks;
-//   - one thing to do: the clerk's card shows only what is wanted now — the
-//     three opening questions, last month's reckoning, or the next goal;
-//   - everything else (months past, goals won, the plan, the how-to) is folded
-//     away until asked for.
-// Between reckonings the player can "lay in coin" whenever real money is moved
-// into savings, so the coffer answers the deed on the day it is done.
+//   - one thing to do: a day book — money in, money out, into savings — entered
+//     the day it happens (or, on a fresh ledger, the three opening questions);
+//   - the clerk closes each month himself on the 1st from those entries
+//     (state.js closeMonths), so nobody has to remember last month's figures;
+//   - everything else (earlier days, months past, goals won, the plan, the
+//     how-to) is folded away until asked for.
 //
-// The rules live in state.js (layIn, fileReckoning, judgeReckoning); this file
+// The rules live in state.js (logMoney, closeMonths, judgeReckoning); this file
 // only draws and asks. The pictures are SVG built here, ink and wash like the
 // Map and the wares — no ids or gradients inside them.
 
@@ -20,13 +20,12 @@ import {
   setTreasury,
   setSummit,
   setPledge,
-  layIn,
-  lastCounted,
-  fileReckoning,
-  reckoningDue,
-  judgeReckoning,
+  logMoney,
+  unlogMoney,
+  recount,
+  monthTally,
 } from '../state/state.js';
-import { monthKey, prevMonthKey, nextMonthKey } from '../state/dates.js';
+import { todayStr, monthKey, nextMonthKey } from '../state/dates.js';
 import { makeRng } from '../scene/meshUtils.js';
 import { CONFIG } from '../state/config.js';
 import { toast } from './toasts.js';
@@ -43,7 +42,7 @@ const VERDICTS = {
   fat: { name: 'the hoard grew fat', short: 'Fat', means: 'pledge kept', fill: '#d0a52e', edge: '#6e5410', mark: INK },
   held: { name: 'held the line', short: 'Held', means: 'no ground lost', fill: '#a98a5c', edge: '#4f3d24', mark: INK },
   bled: { name: 'the purse bled', short: 'Bled', means: 'ground lost', fill: '#8a2418', edge: '#4a120a', mark: '#f3e6c4' },
-  unreckoned: { name: 'unreckoned', short: '—', means: 'no reckoning was filed' },
+  unreckoned: { name: 'unreckoned', short: '—', means: 'nothing was entered' },
 };
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -57,11 +56,10 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 let body = null;
 let setup = null; // the opening questions: { step, name, goal, current, pledge }
-let openForm = null; // the small form under the figure: 'lay' | 'count' | null
+let openForm = null; // the small form open: 'in' | 'out' | 'save' (an entry) | 'count' | null
 const openFolds = new Set(); // which folded sections are open
 let shownPct = null; // the fill last drawn, so the track grows from it
 let coinDrop = false; // a coin falls into the coffer on the next draw
-let stampMonth = null; // the roll whose seal is stamped in on the next draw
 let focusFirst = false; // put the cursor in the card's first box on the next draw (never on
 // opening: the E that opened the panel would be typed into it)
 
@@ -72,7 +70,6 @@ export function resetTreasury() {
   openFolds.clear();
   shownPct = null;
   coinDrop = false;
-  stampMonth = null;
   focusFirst = false;
 }
 
@@ -191,7 +188,7 @@ function climbChart(rolls, goal) {
         marks += `<text x="${cx.toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" class="tr-chart-val">${money(r.counted)}</text>`;
       }
     } else {
-      marks += `<path d="M${x.toFixed(1)} ${base - 5} H${(x + barW).toFixed(1)}" stroke="${INK}" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.45"><title>${rollMonth(r.month)} — no reckoning was filed</title></path>`;
+      marks += `<path d="M${x.toFixed(1)} ${base - 5} H${(x + barW).toFixed(1)}" stroke="${INK}" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.45"><title>${rollMonth(r.month)} — nothing was entered</title></path>`;
     }
     marks += `<g transform="translate(${(cx - 7).toFixed(1)} 116) scale(0.35)">${sealMarks(r.verdict)}</g>
       <text x="${cx.toFixed(1)}" y="144" text-anchor="middle" class="tr-chart-lab">${shortMonth(r.month)}</text>`;
@@ -245,17 +242,17 @@ function running(rolls, test) {
 function outcome(roll, t) {
   const fatRun = running(t.rolls, (r) => r.verdict === 'fat');
   if (roll.verdict === 'fat') {
-    return `Thy pledge was kept — ${money(roll.saved)} laid in.${fatRun >= 2 ? ` That is ${fatRun} fat months running.` : ''} Do the same again and the goal comes on schedule.`;
+    return `Thy pledge was kept — ${money(roll.saved)} put into savings.${fatRun >= 2 ? ` That is ${fatRun} fat months running.` : ''} Do the same again and the goal comes on schedule.`;
   }
   if (roll.verdict === 'held') {
     return t.pledge > 0
-      ? `No ground lost, though the pledge of ${money(t.pledge)} was not met (${money(roll.saved)} laid in). Lay in coin the day it comes to thee, before it can be spent.`
+      ? `No ground lost, though the pledge of ${money(t.pledge)} was not met (${money(roll.saved)} saved). Put money into savings the day it comes to thee, before it can be spent.`
       : 'No ground lost. Set a monthly pledge under “Change the plan” and a month can grow fat.';
   }
   if (roll.verdict === 'bled') {
     return 'A hard month, honestly told — and that telling is the half of it. Choose one cost to cut this month and post it at the Quest Board: that deed earns virtue.';
   }
-  return 'No reckoning was filed for this month.';
+  return 'Nothing was entered that month. A few seconds a day keeps the clerk&#8217;s count true.';
 }
 
 // ---------- the opening questions (an untouched ledger) ----------
@@ -299,8 +296,8 @@ function renderSetup() {
       <div class="tr-coffer">${coffer(0, false)}</div>
       <div class="tr-figure">
         <div class="tr-lead">The clerk opens a fresh ledger.</div>
-        <p class="muted">This is thy real money, kept on thy honor: a goal to save toward, and a look at it
-        once a month. Three questions and it is begun.</p>
+        <p class="muted">This is thy real money, kept on thy honor: a goal to save toward, and a day book
+        of money in and out that the clerk adds up for thee. Three questions and it is begun.</p>
       </div>
     </div>
     <div class="tr-card" data-card>
@@ -342,7 +339,7 @@ function renderSetup() {
       const pledge = Number(q('[data-w-pledge]').value);
       pace.textContent =
         left <= 0
-          ? 'Thy savings already stand at the goal, so the first reckoning will win it. If that was not thy meaning, go Back twice and set the goal higher — it is the full total, not a monthly sum.'
+          ? 'Thy savings already stand at the goal, so the first month to close will win it. If that was not thy meaning, go Back twice and set the goal higher — it is the full total, not a monthly sum.'
           : pledge > 0
             ? `${money(left)} to go: ${paceLine(left, pledge)}.`
             : `${money(left)} to go. Name a sum and the clerk reckons how long the road is.`;
@@ -398,30 +395,51 @@ function renderSetup() {
 
 // ---------- the ledger ----------
 
+// the three kinds of entry, as the day book shows them
+const KINDS = {
+  in: { button: '+ Money in', label: 'Money in', hint: 'wages, gifts, anything that came to thee today', sign: '+', word: 'in' },
+  out: { button: '− Money out', label: 'Money out', hint: 'anything thou didst spend today (money put into savings is not spending)', sign: '−', word: 'out' },
+  save: { button: 'Into savings', label: 'Into savings', hint: 'real money thou hast just moved into thy savings — the coffer fills', sign: '→', word: 'saved' },
+  fix: { label: 'Recount', sign: '±', word: 'recount' },
+};
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const dayLabel = (date) => {
+  const d = new Date(`${date}T12:00:00`);
+  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+};
+
+// one line of the day book, with its × to strike it out
+function entryRow(e, index) {
+  const k = KINDS[e.kind];
+  const amount = e.kind === 'fix' ? `${e.amount < 0 ? '−' : '+'}${money(Math.abs(e.amount))}` : `${k.sign} ${money(e.amount)}`;
+  return `<div class="deed tr-entry tr-${e.kind}">
+      <span class="deed-date">${k.label}</span>
+      <span class="deed-text">${e.note ? esc(e.note) : e.kind === 'fix' ? 'savings recounted' : ''}</span>
+      <span class="deed-tag">${amount}</span>
+      <button type="button" class="tr-strike" data-unlog="${index}" title="Strike this entry out" aria-label="Strike this entry out">×</button>
+    </div>`;
+}
+
 function renderLedger(t) {
   const now = new Date();
+  const today = todayStr(now);
   const thisMonth = monthKey(now);
-  const due = reckoningDue(now);
   const hasGoal = t.goal > 0;
   const pct = hasGoal ? Math.min(100, (t.current / t.goal) * 100) : 0;
   const left = hasGoal ? Math.max(0, t.goal - t.current) : 0;
   const from = shownPct ?? pct;
+  const tally = monthTally(thisMonth, t.log);
 
   // ---- the hoard at a glance ----
-  const inline =
-    openForm === 'lay'
+  const recountForm =
+    openForm === 'count'
       ? `<div class="tr-inline" data-card>
-          ${field('data-lay-amount', 'Lay in coin', 'real money thou hast just moved into savings', '', 'number', '50')}
+          ${field('data-count-amount', 'Recount', 'what thy savings account truly shows — a correction, it never wins a goal', t.current)}
           <div class="row right"><button type="button" data-form-close>Never mind</button>
-          <button type="button" class="primary" data-lay-set>Lay it in</button></div>
+          <button type="button" class="primary" data-count-set>Set it</button></div>
         </div>`
-      : openForm === 'count'
-        ? `<div class="tr-inline" data-card>
-            ${field('data-count-amount', 'Recount', 'what thy account truly shows — a correction, it never wins a goal', t.current)}
-            <div class="row right"><button type="button" data-form-close>Never mind</button>
-            <button type="button" class="primary" data-count-set>Set it</button></div>
-          </div>`
-        : '';
+      : '';
 
   const track = hasGoal
     ? `<div class="tr-track" role="img" aria-label="${Math.floor(pct)} parts in a hundred of the goal">
@@ -431,7 +449,7 @@ function renderLedger(t) {
       <div class="tr-trackline">
         <span>${
           left === 0
-            ? '<b>The goal is reached!</b> The clerk declares it won at the next reckoning.'
+            ? `<b>The goal is reached!</b> The clerk declares it won when ${monthName(thisMonth)} closes.`
             : `<b>${Math.floor(pct)}%</b> of the way · <b>${money(left)}</b> to go`
         }</span>
         <span>${left > 0 ? paceLine(left, t.pledge, now) || 'set a monthly pledge to see how long the road is' : ''}</span>
@@ -440,28 +458,27 @@ function renderLedger(t) {
       </div>`
     : '';
 
-  const laidNow = t.laid[thisMonth] ?? 0;
   const monthMeter =
     t.pledge > 0
-      ? `<div class="tr-month${laidNow >= t.pledge ? ' kept' : ''}">
+      ? `<div class="tr-month${tally.saved >= t.pledge ? ' kept' : ''}">
           <div class="tr-month-head">
             <span>${monthName(thisMonth)}&#8217;s pledge</span>
             <span>${
-              laidNow >= t.pledge
-                ? `kept — ${money(laidNow)} laid in`
-                : laidNow > 0
-                  ? `${money(laidNow)} of ${money(t.pledge)} laid in`
-                  : `${money(t.pledge)} to lay in — nothing yet`
+              tally.saved >= t.pledge
+                ? `kept — ${money(tally.saved)} saved`
+                : tally.saved > 0
+                  ? `${money(tally.saved)} of ${money(t.pledge)} saved`
+                  : `${money(t.pledge)} to save — nothing yet`
             }</span>
           </div>
-          <div class="xpbar treasury"><div style="width:${Math.min(100, (laidNow / t.pledge) * 100)}%"></div></div>
+          <div class="xpbar treasury"><div style="width:${Math.min(100, (tally.saved / t.pledge) * 100)}%"></div></div>
         </div>`
       : '';
 
   const reckonedRun = running(t.rolls, (r) => r.verdict !== 'unreckoned');
   const fatRun = running(t.rolls, (r) => r.verdict === 'fat');
   const badges = [
-    reckonedRun >= 2 ? `${reckonedRun} months reckoned running` : '',
+    reckonedRun >= 2 ? `${reckonedRun} months kept running` : '',
     fatRun >= 2 ? `${fatRun} fat months running` : '',
     t.conquered.length ? `${plural(t.conquered.length, 'goal')} won` : '',
   ].filter(Boolean);
@@ -478,17 +495,16 @@ function renderLedger(t) {
             : 'No goal is raised.'
         }</div>
         <div class="tr-acts">
-          <button type="button" data-lay-open>Lay in coin</button>
           <button type="button" class="tr-quiet" data-count-open>Recount</button>
         </div>
       </div>
     </div>
-    ${inline}
+    ${recountForm}
     ${track}
     ${monthMeter}
     ${badges.length ? `<div class="tr-badges">${badges.map((b) => `<span>${b}</span>`).join('')}</div>` : ''}`;
 
-  // ---- the clerk's card: only what is wanted now ----
+  // ---- the next goal, once one is won ----
   const nextGoal = hasGoal
     ? ''
     : `<div class="tr-card" data-card>
@@ -501,51 +517,72 @@ function renderLedger(t) {
         <div class="row right"><button type="button" class="primary" data-s-set>Raise the goal</button></div>
       </div>`;
 
-  let clerk;
-  if (due) {
-    const laidDue = t.laid[due] ?? 0;
-    // no data-card here: a filing cannot be undone, so Enter must not press its button
-    clerk = `<div class="tr-card tr-reckon">
-        <h2>${monthName(due)}&#8217;s reckoning</h2>
-        <p class="muted">Two figures and ${monthName(due)} is entered on the rolls.</p>
-        ${field(
-          'data-r-saved',
-          `Put into savings in ${monthName(due)}`,
-          laidDue > 0 ? `the coin thou didst lay in comes to ${money(laidDue)} — mend it if that is not all` : 'what thou didst move into savings that month',
-          laidDue > 0 ? laidDue : ''
-        )}
-        ${field('data-r-counted', 'Savings now', 'what thy account shows today — this becomes thy savings', t.current)}
-        <details class="tr-more">
-          <summary>Add income and spending <i>(as thou wilt)</i></summary>
-          <p class="muted">With these the clerk can tell how much of every hundred earned thou didst keep.
-          Money moved into savings is not spending.</p>
-          ${field('data-r-earned', 'Income', `everything that came in during ${monthName(due)}`)}
-          ${field('data-r-spent', 'Spending', 'everything that went out, savings aside')}
-        </details>
-        <div class="tr-verdict" data-r-preview></div>
-        <div class="row right"><button type="button" class="primary" data-r-file>File the reckoning</button></div>
-      </div>`;
-  } else {
-    const last = t.rolls[t.rolls.length - 1];
-    const stamped = last && last.month === stampMonth;
-    clerk = `<div class="tr-card tr-status">
-        ${
-          last
-            ? `<div class="tr-outcome">
-                ${seal(last.verdict, 62, stamped ? 'stamp' : '')}
-                <div>
-                  <h2>${monthName(last.month)} — ${VERDICTS[last.verdict].name}</h2>
-                  <p>${outcome(last, t)}</p>
-                </div>
-              </div>`
-            : ''
-        }
-        <p class="muted">${monthName(prevMonthKey(now))} is reckoned. The clerk asks after ${monthName(thisMonth)}
-        from the 1st of ${monthName(nextMonthKey(thisMonth))} — until then, lay in coin whenever thou movest money into savings.</p>
-      </div>`;
-  }
+  // ---- today: the day book ----
+  const indexed = t.log.map((e, i) => [e, i]);
+  const todays = indexed.filter(([e]) => e.date === today);
+  const logForm = KINDS[openForm] && openForm !== 'fix'
+    ? `<div class="tr-inline" data-card>
+        ${field('data-log-amount', KINDS[openForm].label, KINDS[openForm].hint, '', 'number', '20')}
+        ${field('data-log-note', 'What for', 'as thou wilt — a word to remember it by', '', 'text', openForm === 'in' ? 'e.g. wages' : openForm === 'out' ? 'e.g. lunch' : 'e.g. to the hoard')}
+        <div class="row right"><button type="button" data-form-close>Never mind</button>
+        <button type="button" class="primary" data-log-set="${openForm}">Enter it</button></div>
+      </div>`
+    : '';
+  const leftOver = tally.earned - tally.spent;
+  const day = `<div class="tr-card tr-day">
+      <h2>Today &#8212; ${dayLabel(today)}</h2>
+      <p class="muted">Enter money the day it comes or goes. The clerk adds up the month for thee.</p>
+      <div class="tr-logbtns">
+        ${['in', 'out', 'save'].map((k) => `<button type="button" class="${openForm === k ? 'on' : ''}" data-log-open="${k}">${KINDS[k].button}</button>`).join('')}
+      </div>
+      ${logForm}
+      ${
+        todays.length
+          ? `<div class="deed-list tr-entries">${todays.map(([e, i]) => entryRow(e, i)).join('')}</div>`
+          : '<p class="muted tr-none">Nothing entered today yet.</p>'
+      }
+      <div class="tr-sums" data-sums>
+        <span><i>${monthName(thisMonth)} so far</i></span>
+        <span>in <b>${money(tally.earned)}</b></span>
+        <span>out <b>${money(tally.spent)}</b></span>
+        <span>saved <b>${money(tally.saved)}</b></span>
+        ${tally.hasIn || tally.hasOut ? `<span>left over <b class="${leftOver < 0 ? 'neg' : ''}">${leftOver < 0 ? '−' : ''}${money(Math.abs(leftOver))}</b></span>` : ''}
+      </div>
+    </div>`;
 
-  // ---- folded away: months past, goals won, the plan, the how-to ----
+  // ---- last month, as the clerk closed it ----
+  const last = t.rolls[t.rolls.length - 1];
+  const status = `<div class="tr-card tr-status">
+      ${
+        last
+          ? `<div class="tr-outcome">
+              ${seal(last.verdict, 62)}
+              <div>
+                <h2>${monthName(last.month)} — ${VERDICTS[last.verdict].name}</h2>
+                <p>${outcome(last, t)}</p>
+              </div>
+            </div>`
+          : ''
+      }
+      <p class="muted">On the 1st of ${monthName(nextMonthKey(thisMonth))} the clerk closes ${monthName(thisMonth)} by himself,
+      from what thou hast entered — nothing to remember, nothing to file.</p>
+    </div>`;
+
+  // ---- folded away: this month's earlier days, months past, goals won, the plan, the how-to ----
+  const earlier = indexed.filter(([e]) => e.date !== today && e.date.slice(0, 7) === thisMonth).reverse();
+  const byDay = [];
+  for (const [e, i] of earlier) {
+    if (!byDay.length || byDay[byDay.length - 1].date !== e.date) byDay.push({ date: e.date, rows: [] });
+    byDay[byDay.length - 1].rows.push(entryRow(e, i));
+  }
+  const monthBook = earlier.length
+    ? fold(
+        'book',
+        `Earlier in ${monthName(thisMonth)} <i>(${earlier.length} ${earlier.length === 1 ? 'entry' : 'entries'})</i>`,
+        byDay.map((d) => `<div class="tr-dayhead">${dayLabel(d.date)}</div><div class="deed-list tr-entries">${d.rows.join('')}</div>`).join('')
+      )
+    : '';
+
   const rollRows = [...t.rolls]
     .slice(-12)
     .reverse()
@@ -553,11 +590,11 @@ function renderLedger(t) {
       const v = VERDICTS[r.verdict] ?? VERDICTS.unreckoned;
       const figures =
         r.verdict === 'unreckoned'
-          ? 'no reckoning was filed'
+          ? 'nothing was entered'
           : [
-              `laid in ${money(r.saved)}`,
-              `savings ${money(r.counted)}`,
               Number.isFinite(r.earned) ? `in ${money(r.earned)} · out ${money(r.spent)}` : '',
+              `saved ${money(r.saved)}`,
+              `savings ${money(r.counted)}`,
             ]
               .filter(Boolean)
               .join(' · ');
@@ -617,19 +654,20 @@ function renderLedger(t) {
     'how',
     'How the Treasury works',
     `<ol>
-       <li><b>A goal and a pledge.</b> Name what thou art saving for, and what thou wilt set aside each month.</li>
-       <li><b>Lay in coin.</b> Whenever thou movest real money into savings, say so here. The coffer fills, and the month&#8217;s pledge with it.</li>
-       <li><b>The monthly reckoning.</b> When a month ends the clerk asks two figures and seals it:
-         <b>fat</b> (${VERDICTS.fat.means}), <b>held</b> (${VERDICTS.held.means}) or <b>bled</b> (${VERDICTS.bled.means}).</li>
-       <li><b>Goals are won at a reckoning</b> that finds thy savings at the goal. A goal won earns <b>${CONFIG.rewards.goalXp} Intelligence XP</b>. Then thou namest the next.</li>
+       <li><b>A goal and a pledge.</b> Name what thou art saving for, and what thou wilt put into savings each month.</li>
+       <li><b>Enter money the day it moves.</b> Money in, money out, or money put into savings — a few seconds a day. Putting money into savings fills the coffer at once.</li>
+       <li><b>The clerk closes each month himself.</b> On the 1st he adds up the month just ended and seals it:
+         <b>fat</b> (${VERDICTS.fat.means}), <b>held</b> (${VERDICTS.held.means}) or <b>bled</b> (${VERDICTS.bled.means}). A month with nothing entered is left unreckoned.</li>
+       <li><b>Goals are won when a month closes</b> with thy savings at the goal. A goal won earns <b>${CONFIG.rewards.goalXp} Intelligence XP</b>. Then thou namest the next.</li>
      </ol>
+     <p class="muted">Enter both money in and money out and the clerk judges the month by them; enter neither and he judges by whether thy savings grew.
+     A mistaken entry is struck out with its ×. If thy account says otherwise, Recount.</p>
      <p class="muted">Real money, on thy honor. Game coins never enter here, and the Treasury pays no coins. Its one reward is the
      ${CONFIG.rewards.goalXp} Intelligence XP for a goal won — and a saving deed posted at the Quest Board earns virtue like any other.</p>`
   );
 
-  body.innerHTML = `${hero}${nextGoal}${clerk}${months}${won}${plan}${how}`;
+  body.innerHTML = `${hero}${nextGoal}${day}${status}${monthBook}${months}${won}${plan}${how}`;
   coinDrop = false;
-  stampMonth = null;
 
   // the track grows from where it last stood
   shownPct = pct;
@@ -643,48 +681,63 @@ function renderLedger(t) {
     d.addEventListener('toggle', () => (d.open ? openFolds.add(d.dataset.fold) : openFolds.delete(d.dataset.fold)));
   }
 
-  // ---- lay in coin / recount ----
+  // ---- the little forms: an entry, or a recount ----
   const toggleForm = (which) => {
     openForm = openForm === which ? null : which;
     focusFirst = true;
     renderTreasury();
   };
-  q('[data-lay-open]').addEventListener('click', () => toggleForm('lay'));
+  for (const b of body.querySelectorAll('[data-log-open]')) b.addEventListener('click', () => toggleForm(b.dataset.logOpen));
   q('[data-count-open]').addEventListener('click', () => toggleForm('count'));
   q('[data-form-close]')?.addEventListener('click', () => toggleForm(openForm));
   if (focusFirst) q('.tr-inline input')?.focus();
   focusFirst = false;
 
-  q('[data-lay-set]')?.addEventListener('click', () => {
-    const amount = Number(q('[data-lay-amount]').value);
+  q('[data-log-set]')?.addEventListener('click', (ev) => {
+    const kind = ev.currentTarget.dataset.logSet;
+    const amount = Number(q('[data-log-amount]').value);
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast('The clerk waits — how much was laid in?', 'grim');
+      toast('The clerk waits — how much?', 'grim');
       return;
     }
-    layIn(amount);
+    logMoney(kind, amount, q('[data-log-note]').value);
+    openForm = null;
+    sfx.coin();
+    if (kind !== 'save') {
+      toast(kind === 'in' ? `${money(amount)} in — entered.` : `${money(amount)} out — entered.`, '');
+      renderTreasury();
+      return;
+    }
     const after = getState().treasury;
     const afterPct = after.goal > 0 ? (after.current / after.goal) * 100 : 0;
-    openForm = null;
     coinDrop = true;
-    sfx.coin();
     const toGo = after.goal - after.current;
     toast(
       after.goal > 0
         ? toGo > 0
-          ? `${money(amount)} laid in — ${money(toGo)} to go.`
-          : `${money(amount)} laid in — the goal is reached!`
-        : `${money(amount)} laid in.`,
+          ? `${money(amount)} into savings — ${money(toGo)} to go.`
+          : `${money(amount)} into savings — the goal is reached!`
+        : `${money(amount)} into savings.`,
       'gold'
     );
     const passed = QUARTERS.filter((n) => pct < n && afterPct >= n).pop();
     if (passed && afterPct < 100) {
       toast(`${QUARTER_WORDS[passed]} of the way to ${esc(after.name || 'the goal')}!`, 'gold');
     }
-    if (after.pledge > 0 && laidNow < after.pledge && (after.laid[thisMonth] ?? 0) >= after.pledge) {
+    const savedNow = monthTally(thisMonth, after.log).saved;
+    if (after.pledge > 0 && tally.saved < after.pledge && savedNow >= after.pledge) {
       toast(`${monthName(thisMonth)}’s pledge is kept.`, 'gold');
     }
     renderTreasury();
   });
+
+  for (const b of body.querySelectorAll('[data-unlog]')) {
+    b.addEventListener('click', () => {
+      const gone = unlogMoney(Number(b.dataset.unlog));
+      if (gone) toast(`Struck out: ${KINDS[gone.kind].label.toLowerCase()} ${money(Math.abs(gone.amount))}.`, '');
+      renderTreasury();
+    });
+  }
 
   q('[data-count-set]')?.addEventListener('click', () => {
     const raw = q('[data-count-amount]').value.trim();
@@ -693,98 +746,9 @@ function renderLedger(t) {
       toast('The clerk squints — that is no figure.', 'grim');
       return;
     }
-    setTreasury(count, getState().treasury.goal);
+    recount(count);
     openForm = null;
     toast(`Thy savings are set at ${money(count)}.`, 'gold');
-    renderTreasury();
-  });
-
-  // ---- the reckoning: judged live as the figures are typed ----
-  const preview = q('[data-r-preview]');
-  if (preview) {
-    const laidDue = t.laid[due] ?? 0;
-    const before = lastCounted();
-    const counted = q('[data-r-counted]');
-    let countedTouched = false;
-    counted.addEventListener('input', () => (countedTouched = true));
-    const read = (sel) => (q(sel).value.trim() === '' ? null : Number(q(sel).value));
-    const update = () => {
-      const saved = read('[data-r-saved]');
-      // "savings now" follows what was put in beyond the coin already laid in,
-      // until the player types the true count themself
-      if (!countedTouched) counted.value = Math.max(0, t.current + (saved ?? laidDue) - laidDue);
-      const count = read('[data-r-counted]');
-      if (saved === null || count === null) {
-        preview.innerHTML = `<p class="muted">Fill in the two figures and the clerk shows his seal before thou filest.</p>`;
-        return;
-      }
-      const earned = read('[data-r-earned]');
-      const spent = read('[data-r-spent]');
-      const full = earned !== null && spent !== null;
-      const verdict = judgeReckoning({ earned, spent, saved, counted: count, before }, t.pledge);
-      const why = {
-        fat: `thy pledge is kept: ${money(saved)} laid in against ${money(t.pledge)} pledged.`,
-        held:
-          (full ? 'thou spent no more than came in' : 'thy savings lost no ground') +
-          (t.pledge > 0 ? `, though ${money(t.pledge - saved)} short of thy pledge.` : '. With no pledge set, held is the best a month can do.'),
-        bled: full ? 'more went out than came in.' : 'thy savings stand lower than at the last reckoning.',
-      }[verdict];
-      const kept = full
-        ? `<br>Left over after spending: <b>${money(earned - spent)}</b>${
-            earned > 0 ? ` — ${Math.max(0, Math.round(((earned - spent) / earned) * 100))} of every hundred earned.` : '.'
-          }`
-        : '';
-      const stands =
-        t.goal > 0
-          ? count >= t.goal
-            ? `<br>Thy savings will stand at <b>${money(count)}</b> — <b>the goal is won!</b>`
-            : `<br>Thy savings will stand at <b>${money(count)}</b>, ${Math.floor((count / t.goal) * 100)}% of the way.`
-          : `<br>Thy savings will stand at <b>${money(count)}</b>.`;
-      preview.innerHTML = `${seal(verdict, 54)}<p>Verdict: <b>${VERDICTS[verdict].name}</b> — ${why}${kept}${stands}</p>`;
-    };
-    for (const sel of ['[data-r-earned]', '[data-r-spent]', '[data-r-saved]', '[data-r-counted]']) {
-      q(sel).addEventListener('input', update);
-    }
-    update();
-  }
-
-  q('[data-r-file]')?.addEventListener('click', () => {
-    const blank = (sel) => q(sel).value.trim() === '';
-    if (blank('[data-r-saved]') || blank('[data-r-counted]')) {
-      toast('The clerk taps the blank lines — both figures, if thou please.', 'grim');
-      return;
-    }
-    if (blank('[data-r-earned]') !== blank('[data-r-spent]')) {
-      toast('Income and spending go together — give both, or neither.', 'grim');
-      return;
-    }
-    const num = (sel) => (blank(sel) ? null : Number(q(sel).value));
-    const entry = {
-      earned: num('[data-r-earned]'),
-      spent: num('[data-r-spent]'),
-      saved: num('[data-r-saved]'),
-      counted: num('[data-r-counted]'),
-    };
-    if (!Object.values(entry).every((v) => v === null || (Number.isFinite(v) && v >= 0))) {
-      toast('The clerk squints — those figures are no figures.', 'grim');
-      return;
-    }
-    const res = fileReckoning(entry);
-    if (!res) return;
-    sfx.page();
-    stampMonth = res.roll.month;
-    const name = VERDICTS[res.roll.verdict].name;
-    const keptOf =
-      res.roll.earned > 0
-        ? ` Of every hundred earned, ${Math.max(0, Math.round(((res.roll.earned - res.roll.spent) / res.roll.earned) * 100))} were kept.`
-        : '';
-    toast(`The roll is entered — ${name}.${keptOf}`, res.roll.verdict === 'fat' ? 'gold' : res.roll.verdict === 'bled' ? 'grim' : '');
-    if (res.conquered) {
-      sfx.levelUp();
-      toast(`${esc(res.conquered.name)} — conquered! Thy savings stand at ${money(getState().treasury.current)}.`, 'gold');
-      toast(`A goal won: +${res.xp} Intelligence XP.`, 'gold');
-      for (const lvl of res.levelUps) toast(`Intelligence rises to level ${lvl}!`, 'gold');
-    }
     renderTreasury();
   });
 

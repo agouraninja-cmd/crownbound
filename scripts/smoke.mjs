@@ -194,7 +194,7 @@ try {
 
   if (scenario === 'reckoning') {
     // a v6 save with the old flat treasury — migration must grow the
-    // name/pledge/rolls/conquered fields; 800 of 1000 so one filing conquers
+    // name/pledge/log/rolls/conquered fields; 800 of 1000 so one month's saving conquers
     const ledger = {
       saveVersion: 6,
       createdAt: new Date().toISOString(),
@@ -1480,7 +1480,7 @@ try {
       const opened = !document.getElementById('treasury-panel').classList.contains('hidden');
       const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
       // an untouched ledger asks three questions, one at a time
-      const asked = !!q('[data-w-goal]') && !q('[data-w-current]') && !q('[data-r-file]');
+      const asked = !!q('[data-w-goal]') && !q('[data-w-current]') && !q('[data-log-open]');
       let pace = '';
       if (asked) {
         q('[data-chip]').click(); // a suggested name fills the box
@@ -1498,16 +1498,20 @@ try {
         pace = q('[data-w-pace]').textContent;
         q('[data-w-next]').click();
         const sealed = { ...window.__game.getState().treasury };
-        // the ledger: the coffer, the figure, the track — and coin laid in
+        // the ledger: the coffer, the figure, the track — and money put into savings today
         const shown = { coffer: !!q('.tr-coffer svg'), amount: q('.tr-amount')?.textContent, track: !!q('.tr-track') };
-        q('[data-lay-open]').click();
-        q('[data-lay-amount]').value = '500';
-        q('[data-lay-set]').click();
+        q('[data-log-open="save"]').click();
+        q('[data-log-amount]').value = '500';
+        q('[data-log-note]').value = 'to the hoard';
+        q('[data-log-set]').click();
         const d = new Date();
         const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const t = window.__game.getState().treasury;
-        const laid = { current: t.current, month: t.laid[month], amount: q('.tr-amount')?.textContent, meter: q('.tr-month')?.textContent ?? '' };
-        // a recount is a correction: it moves the savings, not the month's tally
+        const laid = {
+          current: t.current, month: window.__game.monthTally(month).saved, amount: q('.tr-amount')?.textContent,
+          meter: q('.tr-month')?.textContent ?? '', todayRows: document.querySelectorAll('#treasury-body .tr-day .tr-entry').length,
+        };
+        // a recount is a correction: it moves the savings, not the month's saving
         q('[data-count-open]').click();
         q('[data-count-amount]').value = '3100';
         q('[data-count-set]').click();
@@ -1515,8 +1519,8 @@ try {
         return {
           opened, asked, chipped, held, pace, sealed, shown,
           laidCurrent: laid.current, laid: laid.month, amountAfter: laid.amount,
-          monthMeter: laid.meter.replace(/\s+/g, ' ').trim(),
-          recounted: t2.current, laidAfterRecount: t2.laid[month],
+          monthMeter: laid.meter.replace(/\s+/g, ' ').trim(), todayRows: laid.todayRows,
+          recounted: t2.current, laidAfterRecount: window.__game.monthTally(month).saved,
         };
       }
       return { opened, asked };
@@ -1536,6 +1540,7 @@ try {
       if (bank.laidCurrent !== 3000 || bank.laid !== 500 || bank.amountAfter !== '3,000')
         errors.push(`exchequer: 500 laid in -> savings ${bank.laidCurrent}, month ${bank.laid}, shown ${bank.amountAfter}`);
       if (!bank.monthMeter.includes('kept')) errors.push(`exchequer: 500 laid against 300 pledged, yet the month reads "${bank.monthMeter}"`);
+      if (bank.todayRows !== 1) errors.push(`exchequer: today's day book shows ${bank.todayRows} entries, not the one made`);
       if (bank.recounted !== 3100 || bank.laidAfterRecount !== 500)
         errors.push(`exchequer: recount -> savings ${bank.recounted}, month ${bank.laidAfterRecount} != 3100, 500`);
     }
@@ -1828,7 +1833,7 @@ try {
         latest: window.__game.CONFIG.saveVersion,
         name: t.name,
         pledge: t.pledge,
-        rolls: Array.isArray(t.rolls) && t.rolls.length === 0,
+        rolls: Array.isArray(t.rolls) && t.rolls.length === 0 && Array.isArray(t.log),
         conquered: Array.isArray(t.conquered) && t.conquered.length === 0,
       };
     });
@@ -1861,152 +1866,157 @@ try {
     if (verdicts.quickFat !== 'fat' || verdicts.quickHeld !== 'held' || verdicts.quickBled !== 'bled' || verdicts.quickFirst !== 'held')
       errors.push(`reckoning: verdicts on savings alone ${JSON.stringify(verdicts)}`);
 
-    const due = await page.evaluate(() => window.__game.reckoningDue());
-    if (due !== mk(-1)) errors.push(`reckoning: due "${due}" != "${mk(-1)}"`);
+    const nothingClosed = await page.evaluate(() => window.__game.getState().treasury.rolls.length === 0);
+    if (!nothingClosed) errors.push('reckoning: a ledger with no entries closed a month on load');
 
-    // 3) file the month through the panel: pledge 200, then the four lines;
-    //    counted 1100 tops the 1000 summit — the conquest must fire
+    // 3) a day's money through the panel: pledge 200, then in / out / into savings;
+    //    a mistaken entry is struck out
     await page.evaluate(() => window.__game.openPanel('treasury'));
-    const filed = await page.evaluate(() => {
+    const book = await page.evaluate(() => {
       const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
       q('[data-t-pledge]').value = '200';
       q('[data-t-set]').click(); // rerenders the panel
-      // typed like a player: each figure fires 'input', which drives the live verdict
-      const r = (sel, v) => {
-        const el = document.querySelector(`#treasury-body ${sel}`);
-        el.value = v;
-        el.dispatchEvent(new Event('input'));
+      const enter = (kind, amount, note = '') => {
+        q(`[data-log-open="${kind}"]`).click();
+        q('[data-log-amount]').value = amount;
+        q('[data-log-note]').value = note;
+        q('[data-log-set]').click();
       };
-      // a blank figure is refused (it used to file as 0 and zero the savings)
-      q('[data-r-file]').click();
-      const blankRefused = window.__game.getState().treasury.rolls.length === 0;
-      r('[data-r-earned]', '5000');
-      r('[data-r-spent]', '3800');
-      r('[data-r-saved]', '300');
-      // "savings now" follows the 800 on hand + 300 put in, untyped
-      const followed = q('[data-r-counted]').value;
-      const preview = q('[data-r-preview]').textContent;
-      document.querySelector('#treasury-body [data-r-file]').click();
-      const st = window.__game.getState();
-      const t = st.treasury;
+      // a blank amount is refused
+      q('[data-log-open="in"]').click();
+      q('[data-log-set]').click();
+      const blankRefused = window.__game.getState().treasury.log.length === 0;
+      q('[data-form-close]').click();
+      enter('in', '5000', 'wages');
+      enter('out', '3800', 'rent and bread');
+      enter('out', '50', 'a mistake');
+      enter('save', '300');
+      const before = window.__game.getState().treasury.log.length;
+      const rows = document.querySelectorAll('#treasury-body .tr-day .tr-entry');
+      rows[2].querySelector('[data-unlog]').click(); // strike out the 50
+      const t = window.__game.getState().treasury;
+      const d = new Date();
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return {
-        blankRefused,
-        followed,
-        previewFat: preview.includes('the hoard grew fat') && preview.includes('1,200'),
-        rolls: t.rolls.length,
-        verdict: t.rolls[0]?.verdict,
-        current: t.current,
-        goal: t.goal,
-        conquered: t.conquered.length,
-        conqueredGoal: t.conquered[0]?.goal,
+        blankRefused, before, after: t.log.length, current: t.current,
+        tally: window.__game.monthTally(month),
+        sums: q('[data-sums]').textContent.replace(/\s+/g, ' ').trim(),
+        note: q('.tr-day .tr-entry .deed-text')?.textContent,
+      };
+    });
+    console.log('book:', JSON.stringify(book));
+    if (!book.blankRefused) errors.push('reckoning: a blank amount was entered');
+    if (book.before !== 4 || book.after !== 3) errors.push(`reckoning: day book ${book.before} -> ${book.after} entries, expected 4 -> 3 after striking one`);
+    if (book.current !== 1100) errors.push(`reckoning: 300 into savings on 800 -> ${book.current}`);
+    if (book.tally.earned !== 5000 || book.tally.spent !== 3800 || book.tally.saved !== 300)
+      errors.push(`reckoning: month tally ${JSON.stringify(book.tally)}`);
+    if (!book.sums.includes('5,000') || !book.sums.includes('3,800') || !book.sums.includes('1,200'))
+      errors.push(`reckoning: the month so far reads "${book.sums}"`);
+    if (book.note !== 'wages') errors.push(`reckoning: the entry's note reads "${book.note}"`);
+
+    // 4) the month closes itself (on a pinned clock, the 5th of next month):
+    //    1100 tops the 1000 summit — the conquest must fire
+    const closed = await page.evaluate(() => {
+      const g = window.__game;
+      const d = new Date();
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 5);
+      const res = g.closeMonths(next);
+      const again = g.closeMonths(next);
+      const st = g.getState();
+      const t = st.treasury;
+      g.openPanel('treasury');
+      return {
+        closed: res.length, again: again.length,
+        roll: t.rolls[0], logLeft: t.log.length, current: t.current, goal: t.goal,
+        conquered: t.conquered.length, conqueredGoal: t.conquered[0]?.goal,
         histType: st.history[st.history.length - 1]?.type,
         histStat: st.history[st.history.length - 1]?.statTrained,
-        intLevel: st.stats.int.level,
-        intXp: st.stats.int.xp,
-        coins: st.coins,
+        intLevel: st.stats.int.level, intXp: st.stats.int.xp, coins: st.coins,
         summitForm: !!document.querySelector('#treasury-body [data-s-name]'),
       };
     });
-    console.log('filed:', JSON.stringify(filed));
-    if (!filed.blankRefused) errors.push('reckoning: a reckoning with blank figures was filed');
-    if (filed.followed !== '1100') errors.push(`reckoning: savings-now ${filed.followed} did not follow 800 + 300`);
-    if (!filed.previewFat) errors.push('reckoning: live preview did not show left-over 1,200 and the fat verdict');
-    if (filed.rolls !== 1) errors.push(`reckoning: ${filed.rolls} rolls != 1`);
-    if (filed.verdict !== 'fat') errors.push(`reckoning: verdict ${filed.verdict} != fat (300 >= 200 pledged)`);
-    if (filed.current !== 1100) errors.push(`reckoning: counted-true ${filed.current} != 1100`);
-    if (filed.goal !== 0) errors.push(`reckoning: goal ${filed.goal} != 0 after conquest`);
-    if (filed.conquered !== 1 || filed.conqueredGoal !== 1000)
-      errors.push('reckoning: the 1000 summit was not conquered');
-    if (filed.histType !== 'treasury') errors.push(`reckoning: history type ${filed.histType} != treasury`);
-    if (!filed.summitForm) errors.push('reckoning: no next-summit form after conquest');
+    console.log('closed:', JSON.stringify(closed));
+    if (closed.closed !== 1 || closed.again !== 0) errors.push(`reckoning: closed ${closed.closed} months, then ${closed.again} more`);
+    const r0 = closed.roll ?? {};
+    if (r0.verdict !== 'fat' || r0.earned !== 5000 || r0.spent !== 3800 || r0.saved !== 300 || r0.counted !== 1100)
+      errors.push(`reckoning: the closed month reads ${JSON.stringify(r0)}`);
+    if (closed.logLeft !== 0) errors.push(`reckoning: ${closed.logLeft} entries left in the day book after its month closed`);
+    if (closed.current !== 1100) errors.push(`reckoning: savings ${closed.current} != 1100 after the close`);
+    if (closed.goal !== 0) errors.push(`reckoning: goal ${closed.goal} != 0 after conquest`);
+    if (closed.conquered !== 1 || closed.conqueredGoal !== 1000) errors.push('reckoning: the 1000 summit was not conquered');
+    if (closed.histType !== 'treasury') errors.push(`reckoning: history type ${closed.histType} != treasury`);
+    if (!closed.summitForm) errors.push('reckoning: no next-summit form after conquest');
     // a goal won pays 300 Intelligence XP (level 1 → 3 exactly) and never a coin
-    if (filed.intLevel !== 3 || filed.intXp !== 0)
-      errors.push(`reckoning: Intelligence at level ${filed.intLevel} / ${filed.intXp} XP, expected 3 / 0 after a goal won`);
-    if (filed.histStat !== 'int') errors.push('reckoning: the goal won is not recorded as an Intelligence deed');
-    if (filed.coins !== 0) errors.push(`reckoning: a goal won paid ${filed.coins} coins — the purses must not mix`);
+    if (closed.intLevel !== 3 || closed.intXp !== 0)
+      errors.push(`reckoning: Intelligence at level ${closed.intLevel} / ${closed.intXp} XP, expected 3 / 0 after a goal won`);
+    if (closed.histStat !== 'int') errors.push('reckoning: the goal won is not recorded as an Intelligence deed');
+    if (closed.coins !== 0) errors.push(`reckoning: a goal won paid ${closed.coins} coins — the purses must not mix`);
 
-    // 4) raise the next summit; the month refuses a second filing
     const raised = await page.evaluate(() => {
       const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
       q('[data-s-name]').value = 'The War Chest';
       q('[data-s-goal]').value = '5000';
       q('[data-s-set]').click();
       const t = window.__game.getState().treasury;
-      return {
-        name: t.name,
-        goal: t.goal,
-        dueAgain: window.__game.reckoningDue(),
-        refiled: window.__game.fileReckoning({ earned: 1, spent: 1, saved: 1, counted: 1 }),
-      };
+      return { name: t.name, goal: t.goal };
     });
-    console.log('raised:', JSON.stringify(raised));
     if (raised.name !== 'The War Chest' || raised.goal !== 5000)
       errors.push(`reckoning: summit "${raised.name}"/${raised.goal} != "The War Chest"/5000`);
-    if (raised.dueAgain !== null) errors.push('reckoning: month still due after filing');
-    if (raised.refiled !== null) errors.push('reckoning: a second filing was accepted');
+    await page.keyboard.press('Escape');
 
-    // 5) skipped months land as unreckoned: seed one roll four months back,
-    //    reload, file — the gap must be marked, not hidden
+    // 5) a v12 save (coin laid in, by month) whose last roll is four months back:
+    //    the load migrates `laid` into the day book and closes the three months
+    //    owed by itself — two empty ones unreckoned, the laid-in one judged
     const seeded = await page.evaluate(([old, owed]) => {
       const g = window.__game;
       const copy = JSON.parse(g.exportSave());
+      copy.saveVersion = 12;
       copy.treasury.rolls = [{ month: old, earned: 1000, spent: 900, saved: 100, counted: 100, verdict: 'held' }];
-      copy.treasury.laid = { [owed]: 120 }; // coin laid in during the month now owed
+      copy.treasury.laid = { [owed]: 120 };
+      copy.treasury.current = 1220;
+      delete copy.treasury.log;
       return g.importSave(JSON.stringify(copy));
     }, [mk(-4), mk(-1)]);
     if (!seeded) errors.push('reckoning: seed save import refused');
     await page.reload({ waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 2000));
-    // the reckoning opens already tallied with the coin laid in that month,
-    // and "savings now" does not count it twice
-    await page.evaluate(() => window.__game.openPanel('treasury'));
-    const tallied = await page.evaluate(() => {
-      const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
-      return { saved: q('[data-r-saved]').value, counted: q('[data-r-counted]').value, current: window.__game.getState().treasury.current };
-    });
-    console.log('tallied:', JSON.stringify(tallied));
-    if (tallied.saved !== '120' || Number(tallied.counted) !== tallied.current)
-      errors.push(`reckoning: the month owed opened as ${tallied.saved}/${tallied.counted}, not 120 laid in and savings ${tallied.current}`);
-    await page.keyboard.press('Escape');
     const gap = await page.evaluate(() => {
-      const g = window.__game;
-      g.fileReckoning({ earned: 100, spent: 50, saved: 0, counted: 1200 });
-      return g.getState().treasury.rolls.map((r) => r.verdict);
+      const st = window.__game.getState();
+      return { version: st.saveVersion, laid: 'laid' in st.treasury, log: st.treasury.log.length, rolls: st.treasury.rolls };
     });
-    console.log('gap verdicts:', JSON.stringify(gap));
-    if (gap.length !== 4 || gap[1] !== 'unreckoned' || gap[2] !== 'unreckoned')
-      errors.push(`reckoning: gap months not marked unreckoned (${JSON.stringify(gap)})`);
+    console.log('gap:', JSON.stringify(gap));
+    const gv = gap.rolls.map((r) => r.verdict);
+    if (gap.version !== 13 || gap.laid) errors.push(`reckoning: v12 save migrated to ${gap.version}, laid kept: ${gap.laid}`);
+    if (gv.length !== 4 || gv[1] !== 'unreckoned' || gv[2] !== 'unreckoned' || gv[3] !== 'held')
+      errors.push(`reckoning: the months owed closed as ${JSON.stringify(gv)}`);
+    if (gap.rolls[3]?.saved !== 120 || gap.rolls[3]?.counted !== 1220 || 'earned' in (gap.rolls[3] ?? {}))
+      errors.push(`reckoning: the laid-in month closed as ${JSON.stringify(gap.rolls[3])}`);
+    if (gap.log !== 0) errors.push(`reckoning: ${gap.log} day-book entries left after the close`);
 
-    // 5b) coin laid in, then two months filed on a pinned clock with only the
-    //     two figures: held when the savings lost no ground, bled when they fell
+    // 5b) on a pinned clock: savings put in, a recount down, and an entry in the
+    //     month after — each month's closing savings counted apart; no income or
+    //     spending entered, so judged on the savings alone
     const quick = await page.evaluate(() => {
       const g = window.__game;
       const d = new Date();
       const at = (months) => new Date(d.getFullYear(), d.getMonth() + months, 5);
-      const key = (months) => { const m = at(months); return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`; };
-      const clearedOwed = Object.keys(g.getState().treasury.laid).length === 0;
-      g.layIn(150);
-      const afterLay = { current: g.getState().treasury.current, laid: g.getState().treasury.laid[key(0)] };
       const refused = g.layIn(0);
-      const first = g.fileReckoning({ saved: 150, counted: 1350 }, at(1));
-      const second = g.fileReckoning({ saved: 0, counted: 1000 }, at(2));
+      g.logMoney('save', 150);
+      g.recount(1000); // the account truly shows less
+      g.logMoney('save', 50, '', at(1));
+      const res = g.closeMonths(at(2));
       const t = g.getState().treasury;
-      return {
-        clearedOwed, afterLay, refused,
-        first: first?.roll, second: second?.roll,
-        laidLeft: Object.keys(t.laid).length, current: t.current, pledge: t.pledge,
-      };
+      return { refused, rolls: res.map((r) => r.roll), current: t.current, logLeft: t.log.length };
     });
     console.log('quick:', JSON.stringify(quick));
-    if (!quick.clearedOwed) errors.push('reckoning: the coin laid in for a filed month was not cleared');
-    if (quick.afterLay.current !== 1350 || quick.afterLay.laid !== 150)
-      errors.push(`reckoning: 150 laid in -> savings ${quick.afterLay.current}, month ${quick.afterLay.laid}`);
-    if (quick.refused !== null) errors.push('reckoning: nothing laid in was accepted');
-    if (quick.first?.verdict !== 'held' || 'earned' in (quick.first ?? {}) || quick.first?.saved !== 150)
-      errors.push(`reckoning: two-figure month filed as ${JSON.stringify(quick.first)} (pledge ${quick.pledge})`);
-    if (quick.second?.verdict !== 'bled') errors.push(`reckoning: savings fell 1350 -> 1000 yet ${quick.second?.verdict}`);
-    if (quick.laidLeft !== 0 || quick.current !== 1000)
-      errors.push(`reckoning: after the two months, laid ${quick.laidLeft} / savings ${quick.current}`);
+    if (quick.refused !== null) errors.push('reckoning: nothing put into savings was accepted');
+    const [m0, m1] = quick.rolls;
+    if (quick.rolls.length !== 2 || m0?.saved !== 150 || m0?.counted !== 1000 || m0?.verdict !== 'bled')
+      errors.push(`reckoning: savings fell 1220 -> 1000, closed as ${JSON.stringify(m0)}`);
+    if (m1?.saved !== 50 || m1?.counted !== 1050 || m1?.verdict !== 'held')
+      errors.push(`reckoning: the month after closed as ${JSON.stringify(m1)}`);
+    if (quick.current !== 1050 || quick.logLeft !== 0)
+      errors.push(`reckoning: after the two months, savings ${quick.current} / ${quick.logLeft} entries left`);
 
     // 6) the panel shows the rolls; screenshot for eyeballing
     await page.evaluate(() => window.__game.openPanel('treasury'));
@@ -2019,7 +2029,7 @@ try {
     console.log('panel:', JSON.stringify(panel));
     if (panel.rows < 5) errors.push(`reckoning: panel shows ${panel.rows} rows, expected rolls + conquest`);
     if (!panel.conqueredHeader) errors.push('reckoning: conquered summit not shown');
-    if (panel.chart < 4) errors.push(`reckoning: the climb draws ${panel.chart} bars, expected the four reckoned months`);
+    if (panel.chart < 4) errors.push(`reckoning: the climb draws ${panel.chart} bars, expected the four counted months`);
     if (panel.seals < 6) errors.push(`reckoning: ${panel.seals} seals drawn, expected one a month`);
     // unfold the months past for the picture
     await page.evaluate(() => {
