@@ -1232,8 +1232,14 @@ headlessly; everything else covered by the regression suite below.
   Quest Board, the line "The fire is cold. Only a deed done will light it.", and a word when
   the first deed lights it. Enter hurries, Esc skips. Only a save begun from nothing sees it
   (`introOwed`; no saveVersion bump); `?intro=1` plays it again, and so does `intro` in the
-  Proving Ground. No rule, reward or number changed. CROWNBOUND-Guide.docx rebuilt with it.
-  New smoke scenario `intro`. SUITE_RESULT
+  Proving Ground. No rule, reward or number changed. CROWNBOUND-Guide.docx rebuilt with it
+  (python-docx was to hand), so The Day Book's and the six-to-six day's wording is in the
+  .docx now too.
+  New smoke scenario `intro`. After merging The Day Book and the six-to-six day, 24 of the
+  25 scenarios passed first time (cloud container, headless Chromium, `SMOKE_WAIT=load`);
+  `combat` failed twice on its overlapping-hit-flash check — the red was read 600ms after
+  the bites, under two frames there — and passes now that the check waits for the red to
+  go (up to 5s). `intro` and the render pass again on the final build.
   Seen only in a cloud container's software renderer (~3fps), not yet on the owner's screen:
   the motion — the crown's descent, the rise off the cot, the camera's swing behind him — was
   judged from slowed stills, and the bells are untested by ear.

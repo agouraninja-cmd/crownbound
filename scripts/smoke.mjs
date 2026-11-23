@@ -677,14 +677,20 @@ try {
       g.player.takeDamage(1, -4, 4);
       setTimeout(() => g.player.takeDamage(1, -6, 4), 40);
     });
-    await new Promise((r) => setTimeout(r, 600));
-    const redBits = await page.evaluate(() => {
+    // The second bite and the flash's end are two timers, each of which waits
+    // out a frame on a slow renderer (~400ms a frame in a cloud container), so
+    // a fixed 600ms could read him still red. Wait for the red to go — up to
+    // 5s; a flash that has truly stuck never goes.
+    const countRed = () => {
       let red = 0;
       window.__game.player.mesh.group.traverse((o) => {
         if (o.isMesh && o.material.color && o.material.color.getHex() === 0xff5039) red++;
       });
       return red;
-    });
+    };
+    await new Promise((r) => setTimeout(r, 600));
+    await page.waitForFunction(`(${countRed})() === 0`, { timeout: 5000, polling: 100 }).catch(() => {});
+    const redBits = await page.evaluate(countRed);
     console.log('red meshes after overlapping hits:', redBits);
     if (redBits > 0) errors.push(`combat: player stuck red (${redBits} meshes) after overlapping hits`);
 

@@ -63,10 +63,11 @@ function go(next) {
   BEATS[next]();
 }
 
-// the first line he wakes to, by the hour the sky is keeping
+// the first line he wakes to, by the hour the sky is keeping (its sun is up
+// from six to six)
 function wakingLine() {
   const h = game.hour();
-  const when = h >= 5 && h < 12 ? 'morning' : h >= 12 && h < 18 ? 'day' : 'night';
+  const when = h >= 6 && h < 12 ? 'morning' : h >= 12 && h < 18 ? 'day' : 'night';
   return `Another ${when} in ${CONFIG.realm.village}.`;
 }
 
