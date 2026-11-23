@@ -102,6 +102,8 @@ function defaultState(now = new Date()) {
     chest: { wielded: 'stick', loaves: 0 }, // the weapon in hand (the rest lie in the chest) + the larder
     farm: { stage: 0, done: [], workedOn: null }, // the miller's strip: the job owed, the ridges done of it, the day the last job was finished
     coronationAt: null, // set the moment the rank reaches King — the Coronation
+    // a save begun from nothing owes its player the opening (never in the test world)
+    ...(PROVING ? {} : { introOwed: true }),
   };
 }
 
@@ -282,13 +284,18 @@ function rollover() {
   return messages;
 }
 
+// the keys, in one line: a newcomer's first toast
+export const KEYS_LINE = 'WASD walk · Arrows look · Shift run · Space jump · C crouch · Double-tap WASD roll · Click or F swing · E interact';
+
 export function loadState() {
   const raw = localStorage.getItem(SAVE_KEY);
   let messages = [];
   if (!raw) {
     state = defaultState();
-    messages.push({ text: 'You wake in a humble clearing. The board awaits.', style: '' });
-    messages.push({ text: 'WASD walk · Arrows look · Shift run · Space jump · C crouch · Double-tap WASD roll · Click or F swing · E interact', style: '' });
+    // a newcomer's greeting — the opening says both in its own way, so main.js
+    // leaves these out when it plays
+    messages.push({ text: 'You wake in a humble clearing. The board awaits.', style: '', greeting: true });
+    messages.push({ text: KEYS_LINE, style: '', greeting: true });
   } else {
     try {
       state = migrate(JSON.parse(raw));
@@ -302,6 +309,26 @@ export function loadState() {
   state.lastPlayedAt = new Date().toISOString();
   save();
   return { messages };
+}
+
+// ---------- the opening ----------
+
+// A save begun from nothing owes its player the opening (src/ui/intro.js: the
+// dream, the waking, the oath). The flag is dropped once that has been played
+// through or skipped. A save without it — every older one — owes nothing.
+export function introOwed() {
+  return state.introOwed === true;
+}
+
+export function introDone() {
+  if (!state.introOwed) return;
+  delete state.introOwed;
+  save();
+}
+
+// No daily deed has ever been logged: the fire has never once been lit.
+export function noDeedYet() {
+  return state.streak.best === 0 && !state.history.some((h) => h.type === 'daily');
 }
 
 // ---------- stats, coins ----------

@@ -505,6 +505,20 @@ export const COMMANDS = [
     },
   },
   {
+    name: 'intro',
+    also: ['opening'],
+    group: 'Starting over',
+    usage: 'intro',
+    about: 'Play the opening a newcomer is shown — the dream, the waking, the oath. Reloads; nothing is lost.',
+    run(args, game) {
+      if (game.abed()) fail('He is abed, spent. “stamina full” gets him up first.');
+      const url = new URL(location.href);
+      url.searchParams.set('intro', '1'); // main.js plays it once and takes the word off the address
+      reloadWith('The opening has been played.', url.toString());
+      return 'Back to the very beginning…';
+    },
+  },
+  {
     name: 'leave',
     group: 'Starting over',
     usage: 'leave',

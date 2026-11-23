@@ -51,6 +51,15 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
 
   // when the player is inside this room, the orbit pulls in close and stays
   // under the rafters instead of clipping through the walls
+  // the height above his feet the eye looks at: his head — or lower, for a
+  // look at him lying on his cot (setGaze). Eased, so the view follows him up.
+  const GAZE = 1.25;
+  let gaze = GAZE;
+  let gazeNow = GAZE;
+
+  // one move the eye makes by itself (glideTo): round to a new yaw and pitch
+  let glide = null; // { yaw0, pitch0, turn, tilt, t, seconds }
+
   let interior = null; // { minX, maxX, minZ, maxZ, ceilY }
   let indoor01 = 0;
   const INDOOR_DIST = 1.8;
@@ -184,6 +193,14 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
     // gentle showcase orbit until the player first takes the reins
     if (!taken) yaw += dt * 0.12;
     steerByKeys(dt);
+    if (glide) {
+      glide.t += dt;
+      const k = Math.min(1, glide.t / glide.seconds);
+      const e = k * k * (3 - 2 * k);
+      yaw = glide.yaw0 + glide.turn * e;
+      pitch = glide.pitch0 + glide.tilt * e;
+      if (k >= 1) glide = null;
+    }
 
     const inside =
       interior &&
@@ -229,7 +246,8 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       shakeAmt *= Math.exp(-dt * 7);
     }
 
-    lookTarget.set(pivot.x, pivot.y + 1.25, pivot.z);
+    gazeNow += (gaze - gazeNow) * (1 - Math.exp(-dt * 3));
+    lookTarget.set(pivot.x, pivot.y + gazeNow, pivot.z);
     camera.lookAt(lookTarget);
   }
 
@@ -240,11 +258,27 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       interior = zone;
     },
     setView(newYaw, newPitch, newDist) {
+      glide = null;
       yaw = newYaw;
       pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, newPitch));
       dist = Math.min(14, Math.max(3, newDist));
       smoothDist = dist; // smoke screenshots want the view now, not eased
       taken = true; // stop the showcase orbit
+    },
+    // Swing the eye round to a new yaw and pitch over `seconds`, the short
+    // way about — the opening's one camera move, made while the mouse and the
+    // keys are not yet his.
+    glideTo(newYaw, newPitch, seconds) {
+      const turn = Math.atan2(Math.sin(newYaw - yaw), Math.cos(newYaw - yaw));
+      const tilt = Math.min(PITCH_MAX, Math.max(PITCH_MIN, newPitch)) - pitch;
+      glide = { yaw0: yaw, pitch0: pitch, turn, tilt, t: 0, seconds };
+      taken = true;
+    },
+    // look at a spot this high above his feet instead of at his head (null:
+    // his head again). The first call takes hold at once; after that it eases.
+    setGaze(height) {
+      gaze = height ?? GAZE;
+      if (!pivotSnapped) gazeNow = gaze;
     },
     // where the eye is, for the smoke suite
     getView: () => ({ yaw, pitch, dist, taken }),

@@ -6,15 +6,16 @@ import { skyAt, solarHour, compass } from './scene/daylight.js';
 import { LAYOUT } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { createOrbitCamera } from './player/camera.js';
-import { initHud, showPrompt, placePrompt, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
+import { initHud, showPrompt, placePrompt, showWaymark, placeWaymark, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
-import { loadState, getState, onChange, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, layIn, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
+import { loadState, getState, onChange, introOwed, introDone, noDeedYet, KEYS_LINE, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, layIn, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
 import { initPanels, openPanel, closePanel, openPanelId, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
 import { keepChronicle } from './ai/chronicler.js';
 import { toast } from './ui/toasts.js';
 import { initRest, showRest, setRestVisible } from './ui/rest.js';
+import { initIntro, playIntro, introPlaying, introBeat, hurryIntro, caption } from './ui/intro.js';
 import { planPath } from './player/pathfind.js';
 import { initAudio, sfx } from './ui/audio.js';
 import { createDummy } from './combat/dummy.js';
@@ -118,7 +119,7 @@ player.onDeath = () => {
     player.respawn(world.wakeSpot.x, world.wakeSpot.z);
     fadeEl.classList.remove('show');
     toast('You wake on your straw cot, aching. The rats remain.', 'grim');
-    if (!isPanelOpen() && !abed()) player.setEnabled(true);
+    if (!isPanelOpen() && !keysWithheld()) player.setEnabled(true);
   }, 1100);
 };
 
@@ -146,7 +147,7 @@ function sleepAtCot() {
         : 'You rest your eyes a while. The night is marked.',
       ''
     );
-    if (!isPanelOpen() && !abed()) player.setEnabled(true);
+    if (!isPanelOpen() && !keysWithheld()) player.setEnabled(true);
     sleeping = false;
   }, 2600);
 }
@@ -163,6 +164,8 @@ let spentPending = false; // spent, waiting for a swing or a leap to finish firs
 let bedtimeIso = null; // a bedtime marked from the rest card since he lay down
 let restTimer = null; // the last moments before the rest card: the tuck-in, or the hurry's fade
 const abed = () => resting || homeward || spentPending;
+// the keys are not his: abed for the day, or the opening is still playing
+const keysWithheld = () => abed() || introPlaying();
 let lastHomeward = null; // how the last walk home ended: 'walked' | 'hurried' (smoke tests)
 const watch = { t: 0, x: 0, z: 0 }; // a stall on the way home: hurried there instead
 
@@ -299,7 +302,7 @@ function stepSpent(dt) {
 
 // the card's buttons — the panels stay usable abed; Esc and the map do not wake him
 const isUiOpen = isPanelOpen;
-const orbitCam = createOrbitCamera(camera, renderer.domElement, () => isPanelOpen() || resting);
+const orbitCam = createOrbitCamera(camera, renderer.domElement, () => isPanelOpen() || resting || introPlaying());
 orbitCam.setInterior(world.hovelInterior);
 // where pointer lock is refused, a plain click on the scene is the swing
 orbitCam.setOnTap(() => {
@@ -309,7 +312,7 @@ orbitCam.setOnTap(() => {
 initHud();
 initPanels(
   (opened) => {
-    player.setEnabled(!opened && !abed());
+    player.setEnabled(!opened && !keysWithheld());
     if (resting) {
       if (opened) setRestVisible(false);
       else drawRest(); // a deed posted from bed changes his line
@@ -383,10 +386,106 @@ onChange((reason) => {
   toast('THE CORONATION — thou art King.', 'gold');
 });
 
-setTimeout(() => {
-  for (const m of bootMessages) toast(m.text, m.style);
+// ---------- the opening, and the cold fire ----------
+// A save begun from nothing opens on the opening (src/ui/intro.js): a dream
+// of the crown, the waking in the hovel, the oath. ?intro=1 plays it over any
+// save (it changes nothing but what is written on the oath); ?intro=0 never
+// plays it, nor the cold fire's pointer after it (the smoke suite).
+const introParam = new URLSearchParams(location.search).get('intro');
+if (introParam === '1') {
+  // asked for once: a reload should not play it again
+  const url = new URL(location.href);
+  url.searchParams.delete('intro');
+  history.replaceState(null, '', url);
+}
+if (introParam === '0') introDone();
+// not on a day already spent — he is abed under the rest card
+const opening = !staminaSpent() && (introParam === '1' || (introParam !== '0' && introOwed()));
+
+// the first words of a session; a newcomer's two greetings are left out when
+// the opening has said them in its own way
+function greet() {
+  for (const m of bootMessages) if (!(opening && m.greeting)) toast(m.text, m.style);
+  if (opening) toast(KEYS_LINE, '');
   if (marketToday) toast('The chapman has come — his cart stands by the path.', 'gold');
-}, 700);
+}
+
+// The cold fire: until a first daily deed has ever been logged the fire has
+// never been lit, and a newcomer is shown the way — a waymark hangs on the
+// Quest Board (and, straight out of the opening, on his own door first), and
+// the one line is said as he comes out under the sky. Looking at the board
+// puts the waymark away for the sitting; the first deed logged ends it for good.
+const COLD_FIRE = 'The fire is cold. Only a deed done will light it.';
+const WAYMARKS = {
+  door: { label: 'Thy door', at: () => world.door, raise: 2.25 },
+  board: { label: 'The Quest Board', at: () => LAYOUT.questBoard, raise: 3.1 },
+};
+let fireCold = introParam !== '0' && noDeedYet(); // still waiting on its first deed
+let waymark = null; // 'door' | 'board' | null — what the waymark hangs on
+
+function stepColdFire() {
+  if (waymark === 'door' && !insideHovel()) {
+    waymark = 'board';
+    caption(COLD_FIRE);
+  }
+  if (waymark === 'board' && openPanelId() === 'board') waymark = null;
+}
+
+onChange((reason) => {
+  if (reason !== 'quests' || !fireCold || noDeedYet()) return;
+  fireCold = false;
+  waymark = null;
+  // a breath after the deed's own reward is told
+  setTimeout(() => toast('The fire catches. Thy first deed feeds it — tend it daily, and it grows.', 'gold'), 900);
+});
+
+// Where the eye sits for the waking — side on to the cot: the orbit's yaw and
+// pitch, and the height above the floor it looks at (he is lying down, not
+// standing). As he gets up it swings round behind him, so the keys are handed
+// over with his door straight ahead.
+const WAKING_VIEW = { yaw: 1.75, pitch: 0.16, gaze: 0.7 };
+const doorwards = () => Math.atan2(world.door.x - world.wakeSpot.x, world.door.z - world.wakeSpot.z);
+const BEHIND_HIM = { pitch: 0.3, dist: 6 }; // the eye's yaw is his facing turned about
+
+initIntro({
+  hour: () => skyClock().getHours(),
+  // abed in his hovel for the dark to lift on, seen side on
+  lieDown() {
+    player.lieDownAt(world.bedRest);
+    player.setEnabled(false);
+    orbitCam.setView(WAKING_VIEW.yaw, WAKING_VIEW.pitch, BEHIND_HIM.dist);
+    orbitCam.setGaze(WAKING_VIEW.gaze);
+  },
+  // up off the cot, turned to his door, the eye coming round behind him
+  rise(onUp) {
+    orbitCam.setGaze(null);
+    orbitCam.glideTo(doorwards() + Math.PI, BEHIND_HIM.pitch, 2.4);
+    player.rise(world.wakeSpot, doorwards(), onUp);
+  },
+  stand() {
+    orbitCam.setGaze(null);
+    orbitCam.setView(doorwards() + Math.PI, BEHIND_HIM.pitch, BEHIND_HIM.dist);
+    player.respawn(world.wakeSpot.x, world.wakeSpot.z);
+    player.faceToward(world.door.x, world.door.z);
+  },
+  // the opening is over: the keys are his, and the way out is shown
+  end() {
+    introDone();
+    player.setEnabled(!isPanelOpen());
+    greet();
+    if (fireCold) waymark = insideHovel() ? 'door' : 'board';
+  },
+});
+if (opening) {
+  playIntro();
+} else {
+  setTimeout(greet, 700);
+  // a newcomer back again with no deed yet logged: the fire is as cold as he left it
+  if (fireCold && !staminaSpent()) {
+    waymark = 'board';
+    setTimeout(() => caption(COLD_FIRE), 1800);
+  }
+}
 
 // the chronicler catches up on finished weeks, quietly and off the critical
 // path — he swallows his own failures, and a later load is the retry
@@ -423,6 +522,10 @@ function doorDist() {
 function nearestAction() {
   const it = nearestInteractable();
   const dDoor = doorDist();
+  // A newcomer's first E is his own door: straight out of the opening, while
+  // it stands shut, it is offered from anywhere in reach — the cot and the
+  // chest, nearer though they are, would only send him back to bed.
+  if (waymark === 'door' && !world.door.isOpen && dDoor < world.door.radius) return { id: 'door', x: world.door.x, z: world.door.z };
   const itD = it ? Math.hypot(player.pos.x - it.x, player.pos.z - it.z) : Infinity;
   if (dDoor < world.door.radius && dDoor < itD) return { id: 'door', x: world.door.x, z: world.door.z };
   return it;
@@ -451,6 +554,29 @@ function promptScreenPos(a) {
     Math.min(Math.max(px, 90), window.innerWidth - 90),
     Math.min(Math.max(py, 50), window.innerHeight - 130),
   ];
+}
+
+// Where the waymark hangs: over its target while the camera has that in
+// view, else at the side of the screen to turn toward. It is put away while
+// the E prompt is on the very same thing, under a panel, and whenever the
+// keys are not his.
+function waymarkPlace() {
+  const w = WAYMARKS[waymark];
+  if (!w || !player.isEnabled() || promptFor?.id === waymark) return null;
+  const at = w.at();
+  const y = terrainHeight(at.x, at.z) + w.raise;
+  camera.updateMatrixWorld();
+  promptV.set(at.x, y, at.z).project(camera);
+  const paces = Math.round(Math.hypot(at.x - player.pos.x, at.z - player.pos.z));
+  const text = paces > 3 ? `${w.label} · ${paces} paces` : w.label;
+  if (promptV.z < 1 && Math.abs(promptV.x) < 0.88 && Math.abs(promptV.y) < 0.88) {
+    const px = (promptV.x * 0.5 + 0.5) * window.innerWidth;
+    const py = (-promptV.y * 0.5 + 0.5) * window.innerHeight;
+    return { text, pos: [px, Math.max(py, 56)], edge: null };
+  }
+  // out of view: in the camera's own frame, +x is to the right
+  promptV.set(at.x, y, at.z).applyMatrix4(camera.matrixWorldInverse);
+  return { text, pos: null, edge: promptV.x > 0 ? 'right' : 'left' };
 }
 
 // the villagers mark your coming — once per visit, a nod and a quiet word
@@ -586,16 +712,16 @@ if (PROVING) {
     // while the line is typed the keys let go of him (they come back with it
     // shut), and the mouse is freed — or the first Esc would be spent on that
     typing(on) {
-      player.setEnabled(!on && !isPanelOpen() && !abed());
+      player.setEnabled(!on && !isPanelOpen() && !keysWithheld());
       if (on) orbitCam.unlock();
     },
-    busy: () => isPanelOpen() || sleeping, // no command line under a panel or mid-nap
+    busy: () => isPanelOpen() || sleeping || introPlaying(), // no command line under a panel, mid-nap or over the opening
   });
 }
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, solarHour, compass, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, solarHour, compass, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, fileReckoning, judgeReckoning, reckoningDue, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -624,6 +750,7 @@ function step(dt) {
     showPrompt(promptFor ? promptText(promptFor) : null);
   }
 
+  stepColdFire(); // not paused by a panel: opening the board is what it waits for
   world.campfire.update(dt);
   world.door.update(dt);
   world.chest.update(dt);
@@ -674,6 +801,9 @@ function tick() {
 
   // placed after the camera settles so the tag never trails a frame behind
   if (promptFor) placePrompt(promptScreenPos(promptFor));
+  const mark = isPanelOpen() ? null : waymarkPlace();
+  showWaymark(mark?.text ?? null);
+  if (mark) placeWaymark(mark.pos, mark.edge);
 
   renderer.render(scene, camera);
   requestAnimationFrame(tick);

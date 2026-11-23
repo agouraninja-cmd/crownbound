@@ -1148,3 +1148,303 @@ button.tr-quiet:hover { background: rgba(43, 32, 20, 0.07); color: var(--ink); }
   color: #a8957a;
   font-size: 11px;
 }
+
+/* ---------- the opening (a newcomer's first load: src/ui/intro.js) ---------- */
+
+/* the HUD waits its turn, and comes up as the keys are handed over */
+#hud { transition: opacity 0.9s ease; }
+body.opening #hud { opacity: 0; }
+
+#intro {
+  position: fixed;
+  inset: 0;
+  z-index: 30; /* over everything: nothing else is on while it plays */
+  color: #f3e6c4;
+}
+
+/* the dark: whole for the title and the dream, lifting on the waking, and
+   left as a dimness behind the oath's parchment */
+.intro-black {
+  position: absolute;
+  inset: 0;
+  background: #0c0805;
+}
+#intro[data-beat='waking'] .intro-black { opacity: 0; transition: opacity 2.6s ease; }
+#intro[data-beat='oath'] .intro-black { opacity: 0.5; transition: opacity 0.5s ease; }
+
+.intro-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+@keyframes intro-rise {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+/* the title */
+.intro-title h1 {
+  margin: 0;
+  font-size: clamp(52px, 9vw, 108px);
+  font-weight: normal;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 46px rgba(201, 162, 39, 0.4);
+  animation: intro-rise 1.4s ease-out both;
+}
+
+.intro-title h1::after {
+  content: '';
+  display: block;
+  width: min(360px, 60vw);
+  height: 1px;
+  margin: 10px auto 0;
+  background: linear-gradient(90deg, transparent, #c9a227 30%, #c9a227 70%, transparent);
+}
+
+.intro-premise {
+  margin: 18px 0 58px;
+  font-size: clamp(17px, 2.2vw, 24px);
+  font-style: italic;
+  color: #d8c28e;
+  animation: intro-rise 1.4s ease-out 0.5s both;
+}
+
+.intro-begin {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: 1px;
+  color: #b89a63;
+  animation: intro-rise 1s ease-out 1.3s both, intro-pulse 2.6s ease-in-out 2.4s infinite;
+}
+
+.intro-begin b {
+  font-weight: normal;
+  color: #f0d068;
+  border: 1px solid #8f6f14;
+  border-radius: 3px;
+  padding: 1px 10px;
+}
+
+@keyframes intro-pulse {
+  50% { opacity: 0.5; }
+}
+
+/* the dream: a crown in gold light */
+.intro-dream {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dream-light {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  width: min(1200px, 150vmax);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  background: radial-gradient(circle,
+    rgba(255, 226, 140, 0.5) 0%, rgba(201, 162, 39, 0.22) 26%, rgba(120, 80, 10, 0.08) 50%, transparent 68%);
+  animation: dream-bloom 4.6s ease-out both;
+}
+
+@keyframes dream-bloom {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  45% { opacity: 1; }
+}
+
+.dream-crown {
+  position: relative;
+  width: min(300px, 48vw);
+  filter: drop-shadow(0 0 26px rgba(255, 214, 110, 0.75)) drop-shadow(0 0 80px rgba(255, 190, 70, 0.45));
+  animation: dream-descend 4.4s ease-out 0.4s both;
+}
+
+.dream-crown svg { display: block; width: 100%; }
+
+/* lowered, slowly, as onto a brow */
+@keyframes dream-descend {
+  from { opacity: 0; transform: translateY(-46px) scale(0.94); }
+  35% { opacity: 1; }
+}
+
+.dream-line {
+  position: relative;
+  margin: 26px 0 0;
+  font-size: clamp(32px, 5vw, 58px);
+  font-variant: small-caps;
+  letter-spacing: 0.1em;
+  color: #ffe9a8;
+  text-shadow: 0 0 24px rgba(255, 200, 80, 0.7);
+  animation: intro-rise 1.6s ease-out 2.4s both;
+}
+
+/* snatched away (gone for good by the rule itself; the animation is only the going) */
+.intro-dream.gone .dream-light,
+.intro-dream.gone .dream-crown,
+.intro-dream.gone .dream-line { opacity: 0; animation: dream-snuff 0.2s ease-in; }
+
+@keyframes dream-snuff {
+  from { opacity: 1; }
+}
+
+.dream-not {
+  position: absolute;
+  left: -40vw;
+  right: -40vw;
+  top: 50%;
+  margin: 0;
+  transform: translateY(-50%);
+  font-size: clamp(22px, 3vw, 32px);
+  font-style: italic;
+  color: #a8977a;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+
+.intro-dream.not .dream-not { opacity: 1; }
+
+/* a line of ink over the scene: the waking's two, and the cold fire's one */
+.intro-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 9vh;
+  padding: 0 20px;
+}
+
+.intro-caption p,
+#caption {
+  margin: 8px 0;
+  font-size: clamp(21px, 2.9vw, 34px);
+  font-style: italic;
+  color: #f6ecd2;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95), 0 0 24px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 1.1s ease, transform 1.1s ease;
+}
+
+.intro-caption p.on,
+#caption.on { opacity: 1; transform: none; }
+
+#caption {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 27vh;
+  z-index: 11; /* over the HUD, under the panels */
+  margin: 0;
+  padding: 0 20px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* hurry and skip, in the corner */
+.intro-keys {
+  position: absolute;
+  right: 22px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+  font-style: italic;
+  color: #8f7d5c;
+}
+
+.intro-keys button {
+  background: none;
+  box-shadow: none;
+  border: 1px solid #5a4a33;
+  color: #b89a63;
+  font-size: 13px;
+  padding: 4px 12px;
+}
+
+.intro-keys button:hover { background: rgba(243, 230, 196, 0.07); border-color: #b89a63; color: #f3e6c4; }
+
+#intro[data-beat='title'] .intro-hurry,
+#intro[data-beat='oath'] .intro-keys { display: none; }
+
+/* the oath: one question at a time, on the game's own parchment */
+.intro-oath {
+  width: min(600px, 93vw);
+  color: var(--ink);
+  text-align: left;
+  animation-duration: 0.45s;
+}
+
+.oath-lead {
+  margin: 14px 6px 0;
+  font-size: 18px;
+  font-style: italic;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.intro-oath .quest-block h2 {
+  display: block;
+  font-size: 23px;
+  font-variant: normal;
+  letter-spacing: 0;
+}
+
+.intro-oath .muted { font-size: 15px; line-height: 1.4; margin: 0 0 10px; }
+
+/* ---------- the waymark (the cold fire: a newcomer shown the way) ---------- */
+
+/* over its target, or pinned to the side of the screen to turn toward with
+   an arrow leading the words (data-edge); main.js places it every frame */
+#waymark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-1000px, -1000px); /* parked off-screen until placed */
+  will-change: transform;
+  white-space: nowrap;
+  background: linear-gradient(#3a2e1e, #2b2014);
+  color: #f0d68a;
+  border: 2px solid var(--gold);
+  border-radius: 4px;
+  padding: 4px 14px;
+  font-size: 16px;
+  font-variant: small-caps;
+  letter-spacing: 1px;
+  animation: waymark-glow 2s ease-in-out infinite;
+}
+
+@keyframes waymark-glow {
+  0%, 100% { box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55), 0 0 6px rgba(201, 162, 39, 0.25); }
+  50% { box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55), 0 0 18px rgba(240, 208, 104, 0.75); }
+}
+
+#waymark i { display: none; font-style: normal; color: var(--gold); }
+#waymark[data-edge='left'] i:first-child { display: inline; margin-right: 8px; }
+#waymark[data-edge='right'] i:last-child { display: inline; margin-left: 8px; }
+
+/* the tail pointing down at the thing itself — only when hung over it */
+#waymark[data-edge='']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 10px;
+  height: 10px;
+  background: #2b2014;
+  border-right: 2px solid var(--gold);
+  border-bottom: 2px solid var(--gold);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #intro *, #waymark { animation: none !important; }
+  .intro-black, .intro-caption p, #caption, .dream-not, #hud { transition: none !important; }
+}

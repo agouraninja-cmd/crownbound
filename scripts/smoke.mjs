@@ -23,8 +23,15 @@ if (!executablePath) {
 // must not both bind 5199, or one tests the other's build
 const PORT = Number(process.env.SMOKE_PORT) || 5199;
 // Every load holds the sky at one in the afternoon (main.js ?hour=), so the
-// screenshots look the same whatever hour the suite is run.
-const DAY = '&hour=13';
+// screenshots look the same whatever hour the suite is run — and skips the
+// opening a blank save would otherwise begin with (?intro=0). Only the `intro`
+// scenario loads without the second.
+const NOON = '&hour=13';
+const DAY = `${NOON}&intro=0`;
+// SMOKE_WAIT=load waits for the page's load event instead of a quiet network.
+// Where the software renderer keeps the page busy without a pause (a cloud
+// container at ~3fps), the browser never declares the network idle at all.
+const WAIT = process.env.SMOKE_WAIT || 'networkidle2';
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
   shell: true,
   stdio: 'ignore',
@@ -386,8 +393,8 @@ try {
     }, old);
   }
 
-  await page.goto(`http://localhost:${PORT}/?smoke=${scenario}${DAY}`, {
-    waitUntil: 'networkidle2',
+  await page.goto(`http://localhost:${PORT}/?smoke=${scenario}${scenario === 'intro' ? NOON : DAY}`, {
+    waitUntil: WAIT,
     timeout: 40000,
   });
   await new Promise((r) => setTimeout(r, 2500));
@@ -431,7 +438,7 @@ try {
     await page.evaluate(() => window.__game.openPanel('board'));
     await page.type('[data-input]', 'Morning run');
     await page.click('[data-post]');
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const s2 = await page.evaluate(() => {
       const st = window.__game.getState();
@@ -553,7 +560,7 @@ try {
       ];
       return { bad, ok: g.importSave(JSON.stringify(copy)) };
     });
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const coins = await page.evaluate(() => window.__game.getState().coins);
     console.log(`scribe round-trip: badRefused=${!trip.bad} ok=${trip.ok} coins=${coins}`);
@@ -1407,7 +1414,7 @@ try {
       return g.importSave(JSON.stringify(copy));
     });
     if (!imported) errors.push('house: ledger save import refused');
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const log = await page.evaluate(() => window.__game.getState().sleep.log);
     console.log('ledger log:', JSON.stringify(log));
@@ -1949,7 +1956,7 @@ try {
       return g.importSave(JSON.stringify(copy));
     }, [mk(-4), mk(-1)]);
     if (!seeded) errors.push('reckoning: seed save import refused');
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     // the reckoning opens already tallied with the coin laid in that month,
     // and "savings now" does not count it twice
@@ -2026,7 +2033,7 @@ try {
   } else if (scenario === 'alive') {
     // the villagers breathe, watch, nod, and fidget — force a market day so
     // the chapman is present too
-    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1${DAY}`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1${DAY}`, { waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
 
     // 1) breathing is visible: the clerk's sway lean actually moves
@@ -2202,7 +2209,7 @@ try {
         };
       });
     const reload = async () => {
-      await page.reload({ waitUntil: 'networkidle2' });
+      await page.reload({ waitUntil: WAIT });
       await new Promise((r) => setTimeout(r, 2000));
     };
 
@@ -2258,7 +2265,7 @@ try {
     await page.screenshot({ path: 'scripts/smoke-chronicle.png' });
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
-    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1${DAY}`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1${DAY}`, { waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     if (!(await page.evaluate(() => !!window.__game.cart)))
       errors.push('market: cart absent though market=1');
@@ -2268,7 +2275,7 @@ try {
       copy.coins = 2000;
       return g.importSave(JSON.stringify(copy));
     });
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
 
     // 2) the prompt offers the cart; E opens the shop
@@ -2450,7 +2457,7 @@ try {
     await page.evaluate(() => window.__game.orbitCam.setView(-1.1, 0.3, 5.5));
     await new Promise((r) => setTimeout(r, 600));
     await page.screenshot({ path: 'scripts/smoke-market.png' });
-    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0${DAY}`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0${DAY}`, { waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const offDay = await page.evaluate(() => {
       const g = window.__game;
@@ -2578,7 +2585,7 @@ try {
     if (!idle.toasts.includes('on the morrow')) errors.push(`farm: no word on what the strip waits for ("${idle.toasts}")`);
 
     // 6) the save carries the field across a reload
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const kept = await read();
     console.log('after reload:', JSON.stringify({ farm: kept.farm, looks: kept.looks, coins: kept.coins, job: kept.job }));
@@ -2832,7 +2839,7 @@ try {
     if (!(retired >= 0 && retired < 60000)) errors.push(`spent: retiring did not mark the bedtime (${retired}ms ago)`);
 
     // 6) opened again the same day: found abed at once
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await until(() => window.__game && window.__game.spent);
     await wait(1500);
     const reload = await page.evaluate(() => ({ ...window.__game.spent(), mode: window.__game.player.mode, enabled: window.__game.player.isEnabled() }));
@@ -2846,7 +2853,7 @@ try {
       s.stamina.date = '2000-01-01';
       localStorage.setItem('crownbound_save', JSON.stringify(s));
     });
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await until(() => window.__game && window.__game.spent);
     await wait(1000);
     const morning = await page.evaluate(() => ({ ...window.__game.spent(), enabled: window.__game.player.isEnabled(), stamina: window.__game.getState().stamina }));
@@ -2870,6 +2877,276 @@ try {
     if (!hurried || h.last !== 'hurried' || h.mode !== 'sleep') errors.push(`spent: E did not hurry him home (${JSON.stringify(h)})`);
   }
 
+  if (scenario === 'intro') {
+    // The opening: a blank save begins on the title, the dream, the waking and
+    // the oath; then the cold fire's waymark leads to the door and the board.
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const until = (fn, arg, ms = 20000) => page.waitForFunction(fn, { timeout: ms, polling: 100 }, arg).then(() => true, () => false);
+    const want = (ok, what) => {
+      if (!ok) errors.push(`intro: ${what}`);
+    };
+    const BASE = `http://localhost:${PORT}/?smoke=intro${NOON}`;
+    const booted = async () => {
+      await until(() => window.__game);
+      await wait(1500);
+    };
+    const load = async (extra = '') => {
+      await page.goto(BASE + extra, { waitUntil: WAIT, timeout: 40000 });
+      await booted();
+    };
+    // what the opening and the game around it are doing
+    const look = () =>
+      page.evaluate(() => {
+        const g = window.__game;
+        const p = g.player;
+        const s = g.getState();
+        const wm = document.getElementById('waymark');
+        const cap = document.getElementById('caption');
+        return {
+          beat: g.intro.beat(),
+          shown: !document.getElementById('intro').classList.contains('hidden'),
+          hudHidden: document.body.classList.contains('opening'),
+          owed: s.introOwed === true,
+          enabled: p.isEnabled(),
+          mode: p.mode,
+          lie: p.lie01,
+          x: p.pos.x,
+          z: p.pos.z,
+          panel: g.openPanelId(),
+          waymark: g.intro.waymark(),
+          mark: wm.classList.contains('hidden') ? '' : wm.textContent,
+          edge: wm.dataset.edge,
+          caption: cap.classList.contains('hidden') ? '' : cap.textContent,
+          toasts: document.getElementById('toasts').textContent,
+          epic: s.quests.epic.text,
+          daily: s.quests.daily.text,
+          dailyDone: s.quests.daily.completed,
+          coins: s.coins,
+          fireCold: g.intro.fireCold(),
+          url: location.href,
+        };
+      });
+    const inHovel = (v) => v.x > -10.6 && v.x < -7.4 && v.z > 0.6 && v.z < 3.4;
+
+    // 1) a blank save: the title, him abed in his hovel, nothing else on
+    let v = await look();
+    console.log('title:', JSON.stringify(v));
+    want(v.beat === 'title' && v.shown && v.hudHidden, `a blank save did not open on the title (${v.beat})`);
+    want(v.owed, 'a blank save does not owe the opening');
+    want(!v.enabled && v.mode === 'sleep' && v.lie > 0.9 && inHovel(v), `he is not abed in his hovel (${v.mode}, lie ${v.lie})`);
+    want(v.toasts === '' && v.mark === '', 'toasts or a waymark showed under the title');
+    const title = await page.evaluate(() => document.querySelector('.intro-title')?.textContent ?? '');
+    want(title.includes('Crownbound') && title.includes('Enter'), `the title reads "${title}"`);
+    // the game's own keys do nothing under it
+    await page.keyboard.press('KeyE');
+    await page.keyboard.press('KeyM');
+    await page.keyboard.down('KeyW');
+    await wait(600);
+    await page.keyboard.up('KeyW');
+    const still = await look();
+    want(still.panel === null && still.mode === 'sleep' && still.beat === 'title', `a game key reached the game under the title (${JSON.stringify({ panel: still.panel, mode: still.mode })})`);
+
+    // 2) left unfinished, it is owed again on the next load
+    await page.reload({ waitUntil: WAIT });
+    await booted();
+    v = await look();
+    want(v.beat === 'title' && v.owed, 'an unfinished opening was not played again on the next load');
+
+    // 3) Enter begins: the dream — a crown, and the line
+    await page.keyboard.press('Enter');
+    v = await look();
+    want(v.beat === 'dream', `Enter did not begin the dream (${v.beat})`);
+    const dream = await page.evaluate(() => ({ crown: !!document.querySelector('.dream-crown svg path'), line: document.querySelector('.dream-line')?.textContent }));
+    want(dream.crown && dream.line === 'Thou art King.', `the dream shows ${JSON.stringify(dream)}`);
+    await wait(4300);
+    await page.screenshot({ path: 'scripts/smoke-intro-dream.png' });
+    // ...snatched away, and "Not yet."
+    const snatched = await until(() => document.querySelector('.intro-dream.not'), null, 8000);
+    want(snatched, 'the dream was never snatched away');
+
+    // 4) the waking: the dark lifts on him abed; the village is named, the hour kept
+    await until(() => window.__game.intro.beat() === 'waking', null, 8000);
+    await until(() => document.querySelectorAll('.intro-caption p.on').length === 2, null, 10000);
+    const lines = await page.evaluate(() => [...document.querySelectorAll('.intro-caption p')].map((p) => p.textContent));
+    console.log('waking:', JSON.stringify(lines));
+    want(lines[0] === 'Another day in Brackenley.' && lines[1] === 'Nothing changes unless thou dost.', `the waking's lines read ${JSON.stringify(lines)}`);
+    await wait(1400);
+    await page.screenshot({ path: 'scripts/smoke-intro-waking.png' });
+
+    // 5) he gets up by himself, and the oath is laid before him
+    const sworn = await until(() => window.__game.intro.beat() === 'oath', null, 20000);
+    v = await look();
+    console.log('oath:', JSON.stringify({ beat: v.beat, mode: v.mode, lie: v.lie, x: v.x, z: v.z, enabled: v.enabled }));
+    want(sworn, 'the oath never came');
+    want(v.mode === 'normal' && v.lie === 0 && !v.enabled && inHovel(v), `he is not on his feet by the cot (${v.mode}, lie ${v.lie})`);
+    const wake = await page.evaluate(() => window.__game.wakeSpot);
+    want(Math.hypot(v.x - wake.x, v.z - wake.z) < 0.1, `he rose to (${v.x.toFixed(2)}, ${v.z.toFixed(2)}), not the wake spot`);
+    await wait(700); // the quill is put in his hand
+    const oath1 = await page.evaluate(() => ({ step: document.querySelector('.intro-oath').dataset.oath, text: document.querySelector('.intro-oath').textContent, focused: document.activeElement?.matches('[data-oath-input]') }));
+    want(oath1.step === 'epic' && oath1.text.includes('What great work wilt thou do this year?') && oath1.text.includes('70 levels of virtue'), `the first question reads "${oath1.text.slice(0, 160)}"`);
+    want(oath1.focused, 'the oath did not put the quill in his hand');
+    await page.screenshot({ path: 'scripts/smoke-intro-oath.png' });
+    // nothing written: the question stands
+    await page.keyboard.press('Enter');
+    want((await page.evaluate(() => document.querySelector('.intro-oath').dataset.oath)) === 'epic' && (await look()).epic === '', 'an empty oath was sworn');
+    // typing in it moves no one and opens nothing
+    await page.type('[data-oath-input]', 'Earn the degree, mew');
+    await page.keyboard.press('Enter');
+    v = await look();
+    want(v.epic === 'Earn the degree, mew' && v.panel === null, `the great work was not inscribed ("${v.epic}", panel ${v.panel})`);
+    await wait(600);
+    const oath2 = await page.evaluate(() => ({ step: document.querySelector('.intro-oath').dataset.oath, text: document.querySelector('.intro-oath').textContent }));
+    want(oath2.step === 'daily' && oath2.text.includes('what wilt thou do this day?') && oath2.text.includes('+25 XP, +10 coins'), `the second question reads "${oath2.text.slice(0, 200)}"`);
+    await page.type('[data-oath-input]', 'Lift for forty minutes');
+    await page.click('[data-oath-swear]');
+
+    // 6) the keys are his: the opening is over and owed no more, the keys told, the way out shown
+    await wait(1200);
+    v = await look();
+    console.log('handed over:', JSON.stringify(v));
+    want(v.beat === null && !v.shown && !v.hudHidden, 'the opening did not end with the oath');
+    want(v.daily === 'Lift for forty minutes' && !v.dailyDone, `today's deed was not posted ("${v.daily}")`);
+    want(!v.owed, 'the opening is still owed after it was played');
+    want(v.enabled && v.mode === 'normal', 'the keys were not handed over');
+    want(v.toasts.includes('WASD walk') && !v.toasts.includes('humble clearing'), `the first words were "${v.toasts}"`);
+    want(v.waymark === 'door' && v.fireCold, `the waymark is on ${v.waymark}`);
+    // his door is the first E, though the cot is nearer
+    const first = await promptOffered();
+    want(first.includes('open the door'), `the first prompt offers "${first}"`);
+    want((await look()).mark === '', 'the waymark hangs over the door while its own prompt is there');
+    await page.screenshot({ path: 'scripts/smoke-intro-door.png' });
+    await page.keyboard.press('KeyE');
+    await wait(600);
+    want(await page.evaluate(() => window.__game.door.isOpen), 'E did not open his door');
+
+    // 7) out under the sky: the line is said, and the waymark moves to the Quest Board
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.respawn(-6.3, 1.6);
+      g.orbitCam.setView(-2.2, 0.3, 7); // the board ahead
+    });
+    await until(() => window.__game.intro.waymark() === 'board', null, 6000);
+    await until(() => !document.getElementById('waymark').classList.contains('hidden') && document.getElementById('waymark').dataset.edge === '', null, 6000);
+    v = await look();
+    console.log('outside:', JSON.stringify({ waymark: v.waymark, mark: v.mark, edge: v.edge, caption: v.caption }));
+    want(v.waymark === 'board' && v.mark.includes('The Quest Board') && v.mark.includes('paces') && v.edge === '', `outside, the waymark reads "${v.mark}" (edge "${v.edge}")`);
+    want(v.caption === 'The fire is cold. Only a deed done will light it.', `the line said was "${v.caption}"`);
+    await wait(1200);
+    await page.screenshot({ path: 'scripts/smoke-intro-fire.png' });
+    // the board behind him: the waymark waits at the side to turn toward
+    await page.evaluate(() => window.__game.orbitCam.setView(-2.2 + Math.PI, 0.3, 7));
+    await until(() => ['left', 'right'].includes(document.getElementById('waymark').dataset.edge), null, 6000);
+    want(['left', 'right'].includes((await look()).edge), 'with the board behind him the waymark is not at the side of the screen');
+
+    // 8) the board, read: the waymark is put away, and the oath's words are on it
+    await page.evaluate(() => window.__game.openPanel('board'));
+    await wait(700);
+    v = await look();
+    const board = await page.evaluate(() => document.getElementById('quest-body').textContent);
+    want(v.waymark === null && v.mark === '', `the waymark stayed up over the board (${v.waymark})`);
+    want(board.includes('Lift for forty minutes') && board.includes('Earn the degree, mew'), 'the board does not hold what was sworn');
+
+    // 9) the first deed lights the fire
+    await page.click('[data-complete]');
+    await page.click('[data-pick="ath"]');
+    await until(() => document.getElementById('toasts').textContent.includes('The fire catches'), null, 5000);
+    v = await look();
+    const lit = await page.evaluate(() => ({ gutter: window.__game.campfire.getGutter(), streak: window.__game.getState().streak.current }));
+    console.log('first deed:', JSON.stringify(lit), JSON.stringify(v.toasts));
+    want(v.dailyDone && lit.streak === 1 && lit.gutter === 1, `the first deed did not light the fire (${JSON.stringify(lit)})`);
+    want(v.toasts.includes('The fire catches') && !v.fireCold, `no word that the fire caught ("${v.toasts}")`);
+
+    // 10) the next load: no opening, no waymark — an ordinary morning by the fire
+    await load();
+    v = await look();
+    want(v.beat === null && !v.shown && v.enabled && !inHovel(v) && v.waymark === null && !v.toasts.includes('WASD'), `the load after is not an ordinary one (${JSON.stringify({ beat: v.beat, waymark: v.waymark, toasts: v.toasts })})`);
+
+    // 11) ?intro=1 plays it again over that save, once; Esc skips it and nothing is lost
+    await load('&intro=1');
+    v = await look();
+    want(v.beat === 'title' && !v.url.includes('intro='), `?intro=1 did not play the opening once (${v.beat}, ${v.url})`);
+    await page.keyboard.press('Escape');
+    await wait(900);
+    v = await look();
+    console.log('skipped:', JSON.stringify({ beat: v.beat, enabled: v.enabled, mode: v.mode, epic: v.epic, waymark: v.waymark }));
+    want(v.beat === null && !v.shown && v.enabled && v.mode === 'normal' && inHovel(v), 'Esc did not skip the opening onto his feet by the cot');
+    want(v.epic === 'Earn the degree, mew' && v.dailyDone && v.waymark === null, 'the opening played again changed the save, or brought the waymark back');
+    // ...and played through again, the oath shows what is already sworn and posted
+    await load('&intro=1');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter'); // title → dream → waking → the oath, hurried
+    await wait(800);
+    v = await look();
+    const again = await page.evaluate(() => ({ epic: document.querySelector('[data-oath-input]')?.value, mode: window.__game.player.mode }));
+    want(v.beat === 'oath' && again.epic === 'Earn the degree, mew' && again.mode === 'normal', `hurried to the oath: ${v.beat}, "${again.epic}", ${again.mode}`);
+    await page.click('[data-oath-later]');
+    await wait(500);
+    const posted = await page.evaluate(() => document.querySelector('.intro-oath').textContent);
+    want(posted.includes('Lift for forty minutes') && posted.includes('done already'), `the second question does not show today's deed ("${posted.slice(0, 200)}")`);
+    await page.click('[data-oath-later]');
+    await wait(600);
+    v = await look();
+    want(v.beat === null && v.enabled && v.epic === 'Earn the degree, mew' && v.daily === 'Lift for forty minutes', 'leaving both questions for later changed something');
+
+    // 12) a newcomer back again with no deed yet: no opening, but the fire is still cold
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('crownbound_save'));
+      s.history = [];
+      s.streak = { current: 0, best: 0 };
+      s.quests.daily.completed = false;
+      s.lastQuestDate = null;
+      localStorage.setItem('crownbound_save', JSON.stringify(s));
+    });
+    await load();
+    await until(() => !document.getElementById('caption').classList.contains('hidden'), null, 6000);
+    v = await look();
+    console.log('back again:', JSON.stringify({ beat: v.beat, waymark: v.waymark, caption: v.caption, enabled: v.enabled }));
+    want(v.beat === null && v.enabled && !inHovel(v), 'a returning newcomer was shown the opening again');
+    want(v.waymark === 'board' && v.caption.includes('The fire is cold'), `a returning newcomer is not shown the way (${v.waymark}, "${v.caption}")`);
+
+    // 13) skipped at the title on a blank save: on his feet, owed no more, the door shown
+    await page.evaluate(() => localStorage.clear());
+    await load();
+    want((await look()).beat === 'title', 'a blank save did not open on the title the second time');
+    await page.click('[data-intro-skip]');
+    await wait(900);
+    v = await look();
+    want(v.beat === null && v.enabled && inHovel(v) && !v.owed && v.waymark === 'door' && v.toasts.includes('WASD walk'), `skipped at the title: ${JSON.stringify({ beat: v.beat, enabled: v.enabled, owed: v.owed, waymark: v.waymark })}`);
+    want(v.epic === '' && v.daily === '', 'a skipped opening wrote a quest');
+
+    // 14) ?intro=0 (every other scenario): a blank save as it ever was — by the fire, both greetings, no waymark
+    await page.evaluate(() => localStorage.clear());
+    await load('&intro=0');
+    v = await look();
+    console.log('intro=0:', JSON.stringify({ beat: v.beat, owed: v.owed, waymark: v.waymark, toasts: v.toasts.slice(0, 60) }));
+    want(v.beat === null && !v.shown && v.enabled && !inHovel(v) && !v.owed, '?intro=0 still played the opening, or left it owed');
+    want(v.waymark === null && v.caption === '' && v.toasts.includes('humble clearing') && v.toasts.includes('WASD walk'), `?intro=0 is not the old first load (${v.waymark}, "${v.toasts}")`);
+
+    // 15) the test world owes no opening; its `intro` command plays it once
+    await load('&test=1');
+    v = await look();
+    want(v.beat === null && v.enabled && !v.owed, 'a blank test world opened on the opening');
+    await page.keyboard.press('/');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }),
+      page.evaluate(() => {
+        const input = document.querySelector('#proving-console input');
+        input.value = 'intro';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      }),
+    ]);
+    await booted();
+    v = await look();
+    want(v.beat === 'title' && v.url.includes('test=1') && !v.url.includes('intro='), `the intro command: ${v.beat}, ${v.url}`);
+    await page.keyboard.press('/'); // no command line over the opening
+    want(await page.evaluate(() => document.getElementById('proving-console').classList.contains('hidden')), 'the command line opened over the opening');
+    await page.keyboard.press('Escape');
+    await wait(700);
+    want((await look()).beat === null, 'Esc did not skip the opening in the test world');
+    await page.evaluate(() => window.__game.orbitCam.setView(Math.PI * 0.75, 0.2, 5));
+  }
+
   if (scenario === 'proving') {
     // The Proving Ground: a test world on its own save, with a command line.
     // The one thing that matters most: the true save is never written there.
@@ -2891,7 +3168,7 @@ try {
       }, line);
     // ...and one that reloads the page
     const cmdReload = async (line) => {
-      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), cmd(line).catch(() => {})]);
+      await Promise.all([page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }), cmd(line).catch(() => {})]);
       await booted();
     };
     const st = () => page.evaluate(() => window.__game.getState());
@@ -2909,7 +3186,7 @@ try {
 
     // 2) the Tome's door leads to the test world, keeping the rest of the address
     await page.evaluate(() => window.__game.openPanel('tome'));
-    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), page.click('[data-world="test"]')]);
+    await Promise.all([page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }), page.click('[data-world="test"]')]);
     await booted();
     const url = page.url();
     want(url.includes('test=1') && url.includes('smoke=proving') && url.includes('hour=13'), `the Tome's door led to ${url}`);
@@ -3123,7 +3400,7 @@ try {
     want(after === TRUE, 'THE TRUE SAVE CHANGED in the test world');
 
     // 18) and back: the true world, on the true save
-    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), cmd('leave').catch(() => {})]);
+    await Promise.all([page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }), cmd('leave').catch(() => {})]);
     await until(() => window.__game);
     const home = await page.evaluate(() => ({ coins: window.__game.getState().coins, banner: !!document.getElementById('proving-banner'), url: location.href }));
     console.log('back:', JSON.stringify(home));

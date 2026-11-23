@@ -63,6 +63,7 @@ export function createPlayer(scene, spawn) {
     crouching: false,
     crouch01: 0, // eased crouch amount, 0 standing → 1 fully crouched
     lie01: 0, // eased lying-down amount on the cot, 0 upright → 1 flat
+    rising: null, // getting up off the cot in plain sight (the opening): { spot, facing, onUp, t, from }
     restY: 0, // where the waist settles on the mattress, above the ground
     hearth: null, // { x, z } of the campfire he sits down by (main.js sets it)
     stillFor: 0, // seconds stood still near the hearth
@@ -170,6 +171,10 @@ export function createPlayer(scene, spawn) {
   }
 
   function updateSleep(dt) {
+    if (player.rising) {
+      updateRise(dt);
+      return;
+    }
     const b = player.sleepTarget;
 
     // glide onto the cot; the animator is told a walking pace so the last
@@ -190,6 +195,40 @@ export function createPlayer(scene, spawn) {
     player.lie01 = lt * lt * (3 - 2 * lt);
     player.restY = b.y + 0.16 - player.pos.y;
     m.weapon.visible = player.lie01 < 0.5; // the stick rests for the night too
+  }
+
+  // Up off the cot where it can be seen (the opening's waking — every other
+  // rising happens behind a fade): the lying-back played the other way, as
+  // he comes off the cot to stand at `spot` turned to `facing`. onUp is
+  // called once he is on his feet.
+  const RISE_TIME = 1.4;
+  function startRise(spot, facing, onUp) {
+    if (player.mode !== 'sleep' || player.rising) return;
+    player.rising = { spot, facing, onUp, t: 0, from: { x: player.pos.x, z: player.pos.z, facing: player.facing } };
+  }
+
+  function updateRise(dt) {
+    const r = player.rising;
+    r.t += dt;
+    const ease = (k) => k * k * (3 - 2 * k);
+    const up = ease(clamp(r.t / (RISE_TIME * 0.7), 0, 1)); // sitting up...
+    const off = ease(clamp((r.t - RISE_TIME * 0.3) / (RISE_TIME * 0.7), 0, 1)); // ...then off the cot
+    player.lie01 = 1 - up;
+    player.pos.x = r.from.x + (r.spot.x - r.from.x) * off;
+    player.pos.z = r.from.z + (r.spot.z - r.from.z) * off;
+    player.pos.y = terrainHeight(player.pos.x, player.pos.z);
+    player.vel.set(0, 0);
+    player.facing = lerpAngle(r.from.facing, r.facing, off);
+    player.turnRate = 0;
+    m.group.rotation.y = player.facing;
+    m.weapon.visible = player.lie01 < 0.5; // the stick is taken up again
+    if (r.t < RISE_TIME) return;
+    player.rising = null;
+    player.mode = 'normal';
+    player.modeT = 0;
+    player.invulnerable = false;
+    player.lie01 = 0;
+    r.onUp?.();
   }
 
   // Warming by the fire: stood still near it for CONFIG.player.sitDelay, he
@@ -377,6 +416,7 @@ export function createPlayer(scene, spawn) {
     player.mode = 'normal';
     player.invulnerable = false;
     player.lie01 = 0;
+    player.rising = null;
     player.sitK = player.sit01 = player.stillFor = 0;
     player.route = null;
     stopWork(); // the stick back in hand — after a nap, or a death in the field
@@ -613,6 +653,7 @@ export function createPlayer(scene, spawn) {
 
   player.attack = startAttack;
   player.startSleep = startSleep;
+  player.rise = startRise;
   player.startWork = startWork;
 
   // walk himself through `points` ({x, z} each) in turn; onArrive at the last

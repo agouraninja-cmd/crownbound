@@ -61,7 +61,7 @@ src/scene/world.js    assembles scene, exposes interactables + terrainHeight; up
 src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements; the hoe and sickle, hidden in the stick hand
 src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
 src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
-src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed)
+src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed); setGaze / glideTo, the opening's two camera moves
 src/player/pathfind.js  the walk home: grid A* around the colliders, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
@@ -71,15 +71,16 @@ src/proving/console.js   the test world's command line (/), the owner's own comm
 src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
 src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep log, under the sage's key; run once after boot
 src/ui/ui.css         parchment styling
-src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
+src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt, the waymark (a newcomer shown the way)
 src/ui/toasts.js      flavor message queue
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Chest panel UIs; opens/closes every panel
 src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, lay in coin, the monthly reckoning, the seals and the climb chart (all SVG built here)
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
+src/ui/intro.js       the opening a blank save begins with: the title, the dream of the crown, the waking, the oath; caption() — a line of ink over the scene
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
 src/ui/wares.js       the wares pictured and explained: an ink-and-wash SVG per shop item + the stick, and each one's "read more" (shop + chest)
-src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
+src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle, the dream's bells)
 scripts/smoke.mjs     the headless regression suite (see Session notes)
 scripts/build-guide.py  builds CROWNBOUND-Guide.docx (`npm run guide`): the prose, with every number read from config.js via scripts/guide-config.mjs, laid over scripts/guide-template.docx
 scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / python) and runs build-guide.py
@@ -131,7 +132,10 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
                                                         //   2 tend · 3 reap), the ridges done of it, the local
                                                         //   day the last job was finished (one job a day);
                                                         //   a harvest also lands in history as type "harvest"
-  coronationAt                                          // ISO timestamp, set once at rank King (else null)
+  coronationAt,                                         // ISO timestamp, set once at rank King (else null)
+  introOwed                                             // true on a save begun from nothing, until the opening has
+                                                        //   been played or skipped; absent = owes nothing (every
+                                                        //   older save — no version bump). Never set in the test world.
 }
 ```
 
@@ -665,7 +669,7 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     `commit('coins' | 'stats' | …)`-ed. `game` is the handle main.js gives `initConsole`:
     player, world, rouse, moveTo, applyPurchases, abed, typing, busy.
   - The built-ins: stamina, heal, hp · rank, level, xp · coins, streak · daily, weekly,
-    monthly · nextday, time · tp, market, give, take, farm · reset, copy, leave. "Sage" is
+    monthly · nextday, time · tp, market, give, take, farm · reset, copy, intro, leave. "Sage" is
     not a rank — `rank sage` answers with the ladder (Peasant … King) and changes nothing.
     Setting levels below King takes the crown back, so the Coronation can be tried again.
   - The owner's own commands: `make fresh = stamina full; heal` then `fresh`; `forget fresh`.
@@ -687,6 +691,66 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     before the reload, so a stray step cannot put the old save back.
   - Not told in the game: the Charter has no section for it (it is a tool, not a rule).
     CROWNBOUND-Guide.docx has one (in scripts/build-guide.py, after Saving).
+
+- The Opening (2026-11-23), asked for by the owner ("Give me some good ideas of introductions
+  when they are first loading into the game", then "build the full chain" of the four he was
+  offered). A blank save no longer drops a newcomer by the fire with two toasts: it plays an
+  opening of about 45 seconds and then shows him the way. No rule, reward or number changed.
+  What a future session must know:
+  - The chain, in src/ui/intro.js (`BEATS`, one function each; `go(beat)` moves on, and each
+    beat's timings are `later(ms, fn)` calls inside it):
+    **title** — black, "Crownbound", the premise in one line, "Press Enter to begin". It waits
+    for the key: a browser plays no sound before a gesture, and that key press is what lets
+    the bells be heard (`wakeAudio()`). The title was not one of the four ideas; it is there
+    for that reason.
+    **dream** — bells (`sfx.bells()`, on a gain bus of their own so they can be hushed), a
+    crown drawn in SVG lowered in gold light, "Thou art King." At 5.6s it is snatched away,
+    bells and all; then "Not yet."
+    **waking** — the dark lifts on him lying on his cot, seen side-on; two lines of ink
+    ("Another morning in Brackenley." — morning / day / night by the hour the sky keeps, the
+    village from `CONFIG.realm` — and "Nothing changes unless thou dost."); then he gets up.
+    **oath** — a parchment, one question at a time: the year's great work (`setEpicText`)
+    and today's deed (`postDaily`). They are the Quest Board's own Epic and Daily, written
+    here so the board is not found empty. Either can be left for "Later". The numbers in it
+    (the daily's XP and coins, the 70 levels) are read from config.js.
+  - Enter, Space or a click hurries a beat on; Esc (or "Skip the opening") ends the whole
+    thing from wherever it stands. However it ends, he is on his feet at the wake spot with
+    his door ahead, and `end()` (main.js) hands over the keys.
+  - `introOwed` (the save): set by `defaultState()`, dropped by `introDone()` when the opening
+    ends. So an opening left unfinished (the tab shut mid-dream) plays again next load, and
+    no older save ever sees it. `?intro=1` plays it over any save, once (main.js takes the
+    word back off the address, or every reload would replay it); it changes nothing unless
+    an oath is rewritten — the questions open on what is already sworn and posted.
+    `?intro=0` never plays it, and switches the cold fire off too: the old first load, which
+    is what the smoke suite's other scenarios stand on. It never plays on a day already
+    spent (he is abed under the rest card).
+  - intro.js owns the screen and the order; the world is main.js's, through the handle it
+    gives `initIntro`: `lieDown`, `rise`, `stand`, `end`, `hour`. While it plays,
+    `introPlaying()` keeps the keys from him (`keysWithheld()` = abed or the opening), the
+    mouse unlocked, and the test world's command line shut. The sim itself runs on — he
+    breathes abed, and gets up in the world, not in a cutscene.
+  - Two things the player's body and the camera learned for it, both small. `player.rise(spot,
+    facing, onUp)` (player.js): the tuck-in played the other way, in plain sight — every
+    other rising (a nap, a death, the daily from bed) still happens behind a fade or snaps.
+    `orbitCam.setGaze(height)` looks at a spot lower than his head (he is lying down), and
+    `orbitCam.glideTo(yaw, pitch, seconds)` swings the eye round behind him as he rises, so
+    the keys are handed over with the door straight ahead and not behind the camera.
+  - The Cold Fire is what follows, and it outlives the opening: `fireCold` (main.js) is true
+    while `noDeedYet()` — no daily deed has ever been logged. A gold **waymark** (hud.js:
+    `showWaymark` / `placeWaymark`; main.js `waymarkPlace`) hangs over the target with the
+    paces to it, or waits at the side of the screen to turn toward when the target is out of
+    view. Straight out of the opening it is on his door; once he is outside the line is said
+    (`caption()`: "The fire is cold. Only a deed done will light it.") and it moves to the
+    Quest Board; opening the board puts it away for the sitting. A newcomer who comes back
+    with still no deed logged gets the line and the board's waymark again at each load. The
+    first daily ever completed ends it for good, with one toast ("The fire catches…") — the
+    fire lighting is the streak's own rule (0 → 1), nothing new.
+  - One exception to "nearest target wins", for one moment: while the waymark is on the door
+    and the door is shut, E is the door from anywhere within its reach (`nearestAction`). At
+    the wake spot the cot is nearer, and a newcomer's first E would have put him back to bed.
+  - The test world owes no opening (`introOwed` is never set there); its `intro` command
+    plays it by reloading with `?intro=1`.
+  - Not in the Charter (it is not a rule). CROWNBOUND-Guide.docx tells it under getting started.
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -1111,6 +1175,22 @@ headlessly; everything else covered by the regression suite below.
   2026-11-17 on the owner's machine, The Goal's Prize included (see Session notes).
   Details: "No mouse needed" under Noted decisions.
 
+- [x] Post-v1 — "The Opening" (2026-11-23): a newcomer's first load is no longer two toasts by
+  the fire. A title card ("Press Enter to begin"), then the chain the owner chose: **the
+  dream** — bells, a crown in gold light, "Thou art King.", snatched away: "Not yet."; **the
+  waking** — the dark lifts on him abed in his hovel, two lines of ink, and he gets up;
+  **the oath** — a parchment that asks the year's great work and today's deed, so the Quest
+  Board is not found empty; **the cold fire** — a gold waymark to his door and on to the
+  Quest Board, the line "The fire is cold. Only a deed done will light it.", and a word when
+  the first deed lights it. Enter hurries, Esc skips. Only a save begun from nothing sees it
+  (`introOwed`; no saveVersion bump); `?intro=1` plays it again, and so does `intro` in the
+  Proving Ground. No rule, reward or number changed. CROWNBOUND-Guide.docx rebuilt with it.
+  New smoke scenario `intro`. SUITE_RESULT
+  Seen only in a cloud container's software renderer (~3fps), not yet on the owner's screen:
+  the motion — the crown's descent, the rise off the cot, the camera's swing behind him — was
+  judged from slowed stills, and the bells are untested by ear.
+  Details: "The Opening" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1126,6 +1206,10 @@ headlessly; everything else covered by the regression suite below.
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
 - The suite opens every page with `&hour=13` (the sky held at one in the afternoon), so its
   screenshots are daylit whenever it is run. For a look at another hour: `?hour=21`.
+- It also opens every page with `&intro=0` (`DAY` in smoke.mjs): no opening, no cold fire's
+  waymark — a blank save as it was before The Opening. Only the `intro` scenario loads
+  without it. A new scenario that begins on a blank save must keep `${DAY}` on its address,
+  or it will sit on the title card with the keys withheld.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy/rats/miller-tally greeting/death
@@ -1194,6 +1278,19 @@ headlessly; everything else covered by the regression suite below.
   `time`, `nextday` (the game's day moves, the streak holds; two missed nights kill it),
   `time real`, `market on`, `copy`, `reset world` — and at the end THE TRUE SAVE UNCHANGED to
   the letter, then `leave` back onto it (screenshot → scripts/smoke-proving.png) ·
+  `intro` the opening on a blank save: the title with him abed and the game's keys dead, an
+  unfinished opening owed again on reload, Enter → the dream (crown, "Thou art King.", snatched
+  away), the waking's two lines (the village named, the hour kept), he rises by himself to the
+  wake spot, the oath (an empty answer refused, the Epic inscribed, the daily's config numbers,
+  the Daily posted), the keys handed over (owed no more, the keys told, no "humble clearing"),
+  his door offered first though the cot is nearer and E opens it, outside the line said and
+  the waymark on the board with its paces — at the screen's side when the board is behind —
+  put away when the board is read, the first deed lighting the fire with its one toast, an
+  ordinary load after, `?intro=1` once (the word taken off the address; Esc skips, nothing
+  lost; played through, the oath shows what is sworn), a newcomer back with no deed shown the
+  way again, skipped at the title, `?intro=0` the old first load, the test world owing none
+  and its `intro` command (screenshots → scripts/smoke-intro-dream.png, -waking.png,
+  -oath.png, -door.png, -fire.png) ·
   `aerial`/`front` screenshots.
 - Two sessions sharing this folder (no worktree) both serve the suite on port 5199 by default,
   and whichever binds second silently tests the other's server — an old build ("getView is
@@ -1216,6 +1313,12 @@ headlessly; everything else covered by the regression suite below.
   (2026-11-16: median frame ~400ms there, before The Turning Sky and after it alike.
   `exchequer` and `market` failed the same way — a prompt read 400ms after the player was
   moved — and now wait for the prompt to appear, `promptOffered()` in smoke.mjs.)
+  (2026-11-23: in that day's container `networkidle2` never arrived at all — every page
+  loaded, then the navigation timed out at 40s. Chrome only counts the network as idle while
+  the page's main thread is idle too, and at ~2.6fps of software rendering it never is.
+  `SMOKE_WAIT=load` makes the suite wait for the load event instead; the default is unchanged.
+  The opening's motion was looked at there by slowing the page's own clock — `performance.now`
+  made to run at a tenth — and taking a burst of screenshots.)
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - `npm run guide` runs scripts/guide.mjs, which finds a real Python 3 (`py -3`, then
   `python3`, then `python` — on the owner's machine `python` is only the Microsoft Store
