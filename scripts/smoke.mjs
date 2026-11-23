@@ -2535,13 +2535,29 @@ try {
     if (!(await until(() => document.getElementById('interact-prompt').textContent.includes('till this ridge'))))
       errors.push(`farm: prompt "${(await read()).prompt}" does not offer the tilling`);
     await page.keyboard.press('KeyE');
-    if (!(await until(() => window.__game.player.mode === 'work'))) errors.push('farm: E at the ridge did not start the work');
-    // the prompt goes with the next frame, not the keypress — give it one
-    await until(() => document.getElementById('interact-prompt').classList.contains('hidden'), undefined, 1000);
-    const working = await read();
-    console.log('working:', JSON.stringify({ mode: working.mode, hoe: working.hoe, stick: working.stick, prompt: working.prompt }));
-    if (!working.hoe || working.stick) errors.push(`farm: tilling with hoe ${working.hoe} / stick ${working.stick} — the hoe should be in hand`);
-    if (working.prompt) errors.push(`farm: prompt "${working.prompt}" still showing while he works`);
+    // Looked at every frame: the work is ~1.5s, only a few frames where the software
+    // renderer is slow, so a wait-then-read can land after it is over. A frame mid-work
+    // with the prompt gone (it goes with the next frame, not the keypress) is the snapshot.
+    const midWork = await page
+      .waitForFunction(
+        () => {
+          const g = window.__game;
+          const prompt = document.getElementById('interact-prompt');
+          if (g.player.mode !== 'work') return false;
+          window.__farmSeen = { mode: 'work', hoe: g.player.mesh.tools.hoe.visible, stick: g.player.mesh.weapon.visible, prompt: prompt.classList.contains('hidden') ? '' : prompt.textContent };
+          return window.__farmSeen.prompt === '' && window.__farmSeen;
+        },
+        { polling: 'raf', timeout: 8000 }
+      )
+      .then((h) => h.jsonValue(), () => null);
+    // never caught mid-work with the prompt gone: report the last work frame seen, if any
+    const working = midWork ?? (await page.evaluate(() => window.__farmSeen ?? null));
+    console.log('working:', JSON.stringify(working));
+    if (!working) errors.push('farm: E at the ridge did not start the work');
+    else {
+      if (!working.hoe || working.stick) errors.push(`farm: tilling with hoe ${working.hoe} / stick ${working.stick} — the hoe should be in hand`);
+      if (working.prompt) errors.push(`farm: prompt "${working.prompt}" still showing while he works`);
+    }
 
     // 3) the ridge is done: redrawn as a furrow, the stick back, no pay yet,
     // and the prompt has moved on to a ridge that still wants the hoe

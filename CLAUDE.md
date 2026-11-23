@@ -1154,9 +1154,10 @@ headlessly; everything else covered by the regression suite below.
   the pledge and the 300 Intelligence XP for a goal won are unchanged. saveVersion 13
   (coin laid in becomes day-book entries). Charter and build-guide.py reworded (the .docx
   not rebuilt — no python-docx here). `reckoning` and `exchequer` rewritten; they and
-  `''`, `tome`, `crown`, `farm`, `chronicle`, `guide`, `proving`, `rollover`, `quests` pass
+  `''`, `tome`, `crown`, `chronicle`, `guide`, `proving`, `rollover`, `quests` pass
   (cloud container, headless Chromium, with `networkidle2` swapped for `load` in a local
-  copy — see Session notes). Details: "The Day Book" under Noted decisions.
+  copy — see Session notes). `farm` failed there, on `main` before this change too; fixed
+  2026-11-23 (see Session notes). Details: "The Day Book" under Noted decisions.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
@@ -1267,6 +1268,12 @@ headlessly; everything else covered by the regression suite below.
   died at "Navigation timeout". The game itself loads fine. Running a local copy with
   `networkidle2` → `load` worked (`sed "s/networkidle2/load/g" scripts/smoke.mjs >
   scripts/_smoke_local.mjs`, delete it after); the suites already wait 2s after each load.
+- 2026-11-23: `farm` failed in the cloud container on every run ("tilling with hoe false /
+  stick true", "prompt still showing while he works") — on `main` too. The game was right:
+  the ~1.5s of tilling is only 3–4 frames at ~400ms a frame, so the old wait-for-work, then
+  wait-for-the-prompt-to-go, then read landed after the ridge was done. The check now polls
+  every frame (`polling: 'raf'`) and snapshots the first work frame with the prompt gone;
+  passes twice running there.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - `npm run guide` runs scripts/guide.mjs, which finds a real Python 3 (`py -3`, then
   `python3`, then `python` — on the owner's machine `python` is only the Microsoft Store
