@@ -83,8 +83,9 @@ function defaultState(now = new Date()) {
       inf: { level: 1, xp: 0 },
     },
     coins: 0,
-    // real savings: a named cumulative summit plus the monthly reckoning rolls
-    treasury: { name: '', current: 0, goal: 10000, pledge: 0, laid: {}, rolls: [], conquered: [] },
+    // real savings: a named cumulative summit, the day book of money in / out / saved,
+    // and the monthly rolls the clerk closes from it
+    treasury: { name: '', current: 0, goal: 10000, pledge: 0, log: [], rolls: [], conquered: [] },
     streak: { current: 0, best: 0 },
     quests: {
       daily: { text: '', completed: false, date: today },
@@ -155,6 +156,15 @@ function migrate(s) {
   if (s.saveVersion === 11) {
     s.saveVersion = 12; // v12: the miller's strip — the field begins fallow
   }
+  if (s.saveVersion === 12) {
+    s.saveVersion = 13; // v13: the daily money book — coin laid in becomes the month's first entry
+    const t = s.treasury ?? {};
+    t.log = Object.entries(t.laid ?? {})
+      .filter(([, n]) => n > 0)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([month, amount]) => ({ date: `${month}-01`, kind: 'save', amount, note: 'laid in' }));
+    delete t.laid;
+  }
   // hand-edited or restored saves may miss fields regardless of version
   if (!s.farm) s.farm = { stage: 0, done: [], workedOn: null };
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
@@ -167,7 +177,7 @@ function migrate(s) {
   if (!('pledge' in s.treasury)) s.treasury.pledge = 0;
   if (!s.treasury.rolls) s.treasury.rolls = [];
   if (!s.treasury.conquered) s.treasury.conquered = [];
-  if (!s.treasury.laid) s.treasury.laid = {}; // coin laid in, by month, not yet on a roll
+  if (!s.treasury.log) s.treasury.log = []; // the day book: entries of months not yet closed
   return s;
 }
 
@@ -271,6 +281,16 @@ function rollover() {
     });
     state.sleep.retiredAt = null;
   }
+  // the clerk closes every finished month from the day book — nothing to remember, nothing to file
+  for (const res of closeMonths()) {
+    const v = { fat: 'the hoard grew fat', held: 'held the line', bled: 'the purse bled' }[res.roll.verdict];
+    if (v) messages.push({ text: `The clerk has closed ${monthLabel(res.roll.month)} — ${v}.`, style: res.roll.verdict === 'fat' ? 'gold' : '' });
+    if (res.conquered) {
+      messages.push({ text: `${res.conquered.name} — conquered! +${res.xp} Intelligence XP.`, style: 'gold' });
+      for (const lvl of res.levelUps) messages.push({ text: `Intelligence rises to level ${lvl}!`, style: 'gold' });
+    }
+  }
+
   if (verdict === 'reward' && applySleepReward()) {
     const S = CONFIG.sleep;
     messages.push({
@@ -656,14 +676,26 @@ export function workFarmRow(row, now = new Date()) {
   return { job, done, coins };
 }
 
-// ---------- treasury (the monthly reckoning) ----------
+// ---------- treasury (the day book and the monthly rolls) ----------
 // Real savings, honor system, no game value: the Exchequer is a virtual
-// summarized financial statement. Filing a reckoning pays no XP and no coins —
-// coins and the hoard never mix in either direction.
+// summarized financial statement. Coins and the hoard never mix in either
+// direction; its one reward is Intelligence XP for a goal won.
+//
+// The player keeps a DAY BOOK (`log`): money in, money out and money put into
+// savings, entered on the day it happens. When a month is over the clerk
+// closes it himself on the next load (closeMonths): the month's entries are
+// summed onto one roll and judged, so nobody has to remember last month.
 
-// corrections outside the ritual: fix the count or move the summit line.
-// Deliberately NO conquest check here — a summit falls only to a filed
-// reckoning (see fileReckoning), never to a typo in the goal box.
+const MONTH_LABELS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthLabel = (key) => MONTH_LABELS[Number(key.split('-')[1]) - 1];
+
+// the kinds of entry: money that came in, money spent, money moved into
+// savings — and 'fix', a recount's correction to the savings (a signed delta)
+export const LOG_KINDS = ['in', 'out', 'save'];
+
+// raw setter for the opening questions (savings today) and the goal line.
+// Deliberately NO conquest check here — a summit falls only when a month is
+// closed (see closeMonths), never to a typo in the goal box.
 export function setTreasury(current, goal) {
   state.treasury.current = Math.max(0, current);
   state.treasury.goal = Math.max(0, goal); // 0 = no summit raised (post-conquest)
@@ -678,23 +710,72 @@ export function setPledge(n) {
   emit('treasury');
 }
 
-// Coin laid in between reckonings: the player moved real money into savings
-// and says so. The hoard grows at once, and the month it was laid in
-// remembers the sum (`laid`), so that month's reckoning opens already tallied.
-// Like a correction, it never takes a summit — only a filed reckoning does.
-export function layIn(amount, now = new Date()) {
-  if (!(amount > 0)) return null;
+// Enter money in the day book. 'save' grows the savings at once, so the coffer
+// answers the deed on the day it is done. Returns the entry, or null.
+export function logMoney(kind, amount, note = '', now = new Date()) {
+  if (!LOG_KINDS.includes(kind) || !(amount > 0)) return null;
   const t = state.treasury;
-  const month = monthKey(now);
-  t.current += amount;
-  t.laid[month] = (t.laid[month] ?? 0) + amount;
+  const entry = { date: todayStr(now), kind, amount };
+  if (note && note.trim()) entry.note = note.trim().slice(0, 60);
+  t.log.push(entry);
+  if (kind === 'save') t.current += amount;
   save();
   emit('treasury');
-  return { month, laid: t.laid[month], current: t.current };
+  return entry;
 }
 
-// What the savings stood at when a month was last reckoned (null if never) —
-// the mark a month with no income and spending given is judged against.
+// the old name for putting money into savings (kept for the smoke suite's hooks)
+export const layIn = (amount, now = new Date()) => logMoney('save', amount, '', now);
+
+// Strike out an entry made by mistake (by its place in the log); what it did to
+// the savings is undone with it. Only open months are in the log at all.
+export function unlogMoney(index) {
+  const t = state.treasury;
+  const entry = t.log[index];
+  if (!entry) return null;
+  t.log.splice(index, 1);
+  if (entry.kind === 'save' || entry.kind === 'fix') t.current = Math.max(0, t.current - entry.amount);
+  save();
+  emit('treasury');
+  return entry;
+}
+
+// "My account really shows N": set the savings, and note the difference in the
+// day book so the month it happened in carries it when it is closed.
+export function recount(n, now = new Date()) {
+  const t = state.treasury;
+  const delta = Math.max(0, n) - t.current;
+  if (delta === 0) return 0;
+  t.log.push({ date: todayStr(now), kind: 'fix', amount: delta });
+  t.current += delta;
+  save();
+  emit('treasury');
+  return delta;
+}
+
+// A month's sums from the day book (`YYYY-MM`). hasIn / hasOut say whether any
+// income or spending was entered at all — the verdict uses them only when both were.
+export function monthTally(month, log = state.treasury.log) {
+  const tally = { earned: 0, spent: 0, saved: 0, fixed: 0, hasIn: false, hasOut: false, entries: 0 };
+  for (const e of log) {
+    if (e.date.slice(0, 7) !== month) continue;
+    tally.entries++;
+    if (e.kind === 'in') (tally.earned += e.amount), (tally.hasIn = true);
+    else if (e.kind === 'out') (tally.spent += e.amount), (tally.hasOut = true);
+    else if (e.kind === 'save') tally.saved += e.amount;
+    else if (e.kind === 'fix') tally.fixed += e.amount;
+  }
+  return tally;
+}
+
+// was anything entered in the day book today?
+export function loggedToday(now = new Date()) {
+  const today = todayStr(now);
+  return state.treasury.log.some((e) => e.date === today && e.kind !== 'fix');
+}
+
+// What the savings stood at when a month was last closed (null if never) —
+// the mark a month with no income and spending entered is judged against.
 export function lastCounted() {
   const rolls = state.treasury.rolls;
   for (let i = rolls.length - 1; i >= 0; i--) {
@@ -705,85 +786,88 @@ export function lastCounted() {
 
 // Pure verdict on a month's numbers, judged against the pledge (exported for
 // the smoke suite):
-//   'fat'   laid in the hoard at least the pledged amount (needs a pledge set)
-//   'held'  lost no ground — spent no more than was earned
-//   'bled'  lost ground — spent more than was earned
-// Income and spending are optional. Without them the month is judged on the
-// savings alone: bled if they stand lower than at the last reckoning
-// (`before`), held otherwise.
+//   'fat'   put at least the pledged amount into savings (needs a pledge set)
+//   'held'  lost no ground — spent no more than came in
+//   'bled'  lost ground — spent more than came in
+// Without both income and spending the month is judged on the savings alone:
+// bled if they stand lower than at the last close (`before`), held otherwise.
 export function judgeReckoning({ earned, spent, saved, counted, before }, pledge) {
   if (pledge > 0 && saved >= pledge) return 'fat';
   if (Number.isFinite(earned) && Number.isFinite(spent)) return earned - spent >= 0 ? 'held' : 'bled';
   return Number.isFinite(before) && counted < before ? 'bled' : 'held';
 }
 
-// The month a reckoning is owed for — the one that just ended — or null once
-// it has been filed. One roll per month, ever.
-export function reckoningDue(now = new Date()) {
-  const due = prevMonthKey(now);
-  return state.treasury.rolls.some((r) => r.month === due) ? null : due;
+// The months owed a close: every finished month after the last roll (or, on a
+// ledger with no rolls yet, from the first month with an entry), oldest first.
+export function monthsToClose(now = new Date()) {
+  const t = state.treasury;
+  const thisMonth = monthKey(now);
+  const last = t.rolls[t.rolls.length - 1];
+  let m = last ? nextMonthKey(last.month) : t.log.map((e) => e.date.slice(0, 7)).sort()[0];
+  const owed = [];
+  for (let guard = 0; m && m < thisMonth && guard < 240; guard++) {
+    owed.push(m);
+    m = nextMonthKey(m);
+  }
+  return owed;
 }
 
-// File the month's statement. Skipped months between the last roll and this
-// one land as 'unreckoned' (like unwitnessed nights) rather than vanishing.
-// Two figures are needed: `saved` (put into savings that month) and `counted`
-// — the reconciliation, what the accounts truly say, which becomes the new
-// hoard total. `earned` and `spent` are optional (given together or not at
-// all); a roll filed without them simply does not carry them.
-// Returns { roll, conquered, xp, levelUps } or null if nothing is due.
-export function fileReckoning({ earned, spent, saved, counted }, now = new Date()) {
-  const due = reckoningDue(now);
-  if (!due) return null;
+// Close every finished month from the day book. A month with entries becomes a
+// roll of its sums and is judged; one with none lands as 'unreckoned' (like an
+// unwitnessed night). Its entries leave the log — the roll keeps the sums.
+// A goal falls only here: when a closed month finds the savings at it.
+// Returns [{ roll, conquered, xp, levelUps }] for the months closed.
+export function closeMonths(now = new Date()) {
   const t = state.treasury;
-  const before = lastCounted();
-
-  const last = t.rolls[t.rolls.length - 1];
-  if (last) {
-    let m = nextMonthKey(last.month);
-    for (let guard = 0; m < due && guard < 240; guard++) {
-      t.rolls.push({ month: m, verdict: 'unreckoned' });
-      m = nextMonthKey(m);
+  const results = [];
+  for (const month of monthsToClose(now)) {
+    const tally = monthTally(month);
+    // the savings as the month ended: today's, less what later months moved
+    const later = t.log
+      .filter((e) => e.date.slice(0, 7) > month && (e.kind === 'save' || e.kind === 'fix'))
+      .reduce((a, e) => a + e.amount, 0);
+    const counted = Math.max(0, t.current - later);
+    let roll;
+    if (!tally.entries) {
+      roll = { month, verdict: 'unreckoned' };
+    } else {
+      const full = tally.hasIn && tally.hasOut;
+      roll = {
+        month,
+        ...(full ? { earned: tally.earned, spent: tally.spent } : {}),
+        saved: tally.saved,
+        counted,
+      };
+      roll.verdict = judgeReckoning({ ...roll, before: lastCounted() }, t.pledge);
     }
-  }
+    t.rolls.push(roll);
+    t.log = t.log.filter((e) => e.date.slice(0, 7) !== month);
 
-  const full = Number.isFinite(earned) && Number.isFinite(spent);
-  const roll = {
-    month: due,
-    ...(full ? { earned: Math.max(0, earned), spent: Math.max(0, spent) } : {}),
-    saved: Math.max(0, saved),
-    counted: Math.max(0, counted),
-    verdict: judgeReckoning({ earned, spent, saved, counted, before }, t.pledge),
-  };
-  t.rolls.push(roll);
-  t.current = roll.counted;
-  // the coin laid in for that month (and any month before it) is on the rolls now
-  for (const month of Object.keys(t.laid)) {
-    if (month <= due) delete t.laid[month];
+    let conquered = null;
+    if (t.goal > 0 && Number.isFinite(roll.counted) && roll.counted >= t.goal) {
+      conquered = { name: t.name || 'the unnamed hoard', goal: t.goal, conqueredAt: new Date().toISOString() };
+      t.conquered.push(conquered);
+      t.goal = 0;
+      t.name = '';
+      state.history.push({
+        date: todayStr(),
+        questText: `${conquered.name} — the hoard reached ${conquered.goal.toLocaleString()}`,
+        statTrained: 'int',
+        type: 'treasury',
+      });
+    }
+    save();
+    // the one thing the Treasury ever pays: a goal won is a great deed of judgment, and earns
+    // Intelligence XP (never coins). At most one goal a month — one close, one goal.
+    const xp = conquered ? CONFIG.rewards.goalXp : 0;
+    const levelUps = conquered ? addXp('int', xp) : [];
+    results.push({ roll, conquered, xp, levelUps });
   }
-
-  // conquest: the clerk declares a summit taken only at a filing. The fallen
-  // summit is archived and the goal cleared until the next one is raised.
-  let conquered = null;
-  if (t.goal > 0 && t.current >= t.goal) {
-    conquered = { name: t.name || 'the unnamed hoard', goal: t.goal, conqueredAt: new Date().toISOString() };
-    t.conquered.push(conquered);
-    t.goal = 0;
-    t.name = '';
-    state.history.push({
-      date: todayStr(),
-      questText: `${conquered.name} — the hoard reached ${conquered.goal.toLocaleString()}`,
-      statTrained: 'int',
-      type: 'treasury',
-    });
+  if (results.length) {
+    save();
+    emit('treasury');
   }
-
-  save();
-  emit('treasury');
-  // the one thing the Treasury ever pays: a goal won is a great deed of judgment, and earns
-  // Intelligence XP (never coins). At most one goal can be won a month — one filing, one goal.
-  const xp = conquered ? CONFIG.rewards.goalXp : 0;
-  const levelUps = conquered ? addXp('int', xp) : [];
-  return { roll, conquered, xp, levelUps };
+  return results;
 }
 
 // raise the next summit after a conquest (or rename/re-aim the current one)

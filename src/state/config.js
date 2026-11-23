@@ -8,7 +8,7 @@ export const CONFIG = {
     village: 'Brackenley', // the Chronicler is told to name it in every entry
     lake: 'Lake Laney', // the great lake at the kingdom's heart
   },
-  saveVersion: 12, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip
+  saveVersion: 13, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip; v13 the daily money book
 
   xpPerLevel: 100, // next level costs 100 × current level
 
@@ -25,7 +25,7 @@ export const CONFIG = {
     weekly: { xp: 100, coins: 50 },
     monthly: { xp: 300, coins: 150 },
     ratCoins: 2,
-    // a savings goal won at a reckoning: Intelligence XP only — never coins (the two purses never mix)
+    // a savings goal won when a month closes: Intelligence XP only — never coins (the two purses never mix)
     goalXp: 300,
   },
 
@@ -197,11 +197,12 @@ export const CONFIG = {
     strokeTime: 0.5, // seconds each takes
   },
 
-  // The sky keeps the hour of the player's own clock: sun, moon and stars
-  // stand where they would for someone at this latitude, today.
+  // The sky keeps the hour of the player's own clock: the sun rises and sets
+  // at fixed clock hours wherever he plays; the season sets only how high it rides.
   sky: {
-    latitude: 45, // degrees north of the equator: how long the days run, season by season.
-    //               Set it to where the game is played for truer dawns and dusks.
+    sunrise: 6, // the clock hour the sun clears the eastern hills (dawn's colours come before it)
+    sunset: 18, // the clock hour the sun meets the western hills (the golden hour comes before it)
+    latitude: 45, // degrees north of the equator: how high the sun rides, season by season
     refresh: 5, // seconds between repaints of the sky and its light (the sun moves a hair in that time)
   },
 

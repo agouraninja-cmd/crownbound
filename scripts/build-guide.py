@@ -184,10 +184,10 @@ set_text(P[29], "The Treasury is real money, on your honor. A coffer fills with 
 w = P[29]
 for kind, line in [
     (BULLET, "**Opening the ledger.** The first time, the clerk asks three questions, one at a time: what you are saving for and how much it needs, what you have saved already, and what you will set aside each month (your pledge)."),
-    (BULLET, "**Lay in coin.** Whenever you move real money into savings, tell the clerk. The coffer and this month’s pledge meter fill at once. “Recount” corrects the figure to what your account truly shows."),
-    (BULLET, "**The monthly reckoning.** When a month ends the clerk asks two figures: what you put into savings that month (already tallied from the coin you laid in) and what your savings stand at now. Income and spending are optional. One reckoning per month, and it cannot be undone."),
-    (BULLET, "**The verdict.** Each month is sealed in wax: **fat** (pledge kept), **held** (no ground lost) or **bled** (ground lost). A skipped month is marked unreckoned."),
-    (BULLET, "**Goals.** A goal is won when a filed reckoning finds your savings at it; then you name the next. Months past, goals won and the plan are folded away at the bottom of the panel."),
+    (BULLET, "**The day book.** Enter money the day it moves: **Money in**, **Money out** or **Into savings**, each with an optional note. Money put into savings fills the coffer and this month’s pledge meter at once. A mistaken entry is struck out with its ×; “Recount” corrects your savings to what your account truly shows."),
+    (BULLET, "**The month closes itself.** On the 1st, the clerk adds up the month just ended from your entries and enters it on the rolls — there is nothing to remember and nothing to file. With both money in and money out entered he judges by them; otherwise by whether your savings grew."),
+    (BULLET, "**The verdict.** Each month is sealed in wax: **fat** (pledge kept), **held** (no ground lost) or **bled** (ground lost). A month with nothing entered is marked unreckoned."),
+    (BULLET, "**Goals.** A goal is won when a month closes with your savings at it; then you name the next. Months past, goals won and the plan are folded away at the bottom of the panel."),
 ]:
     w = para_after(w, kind, line)
 
@@ -221,7 +221,7 @@ g2 = para_after(g1, BULLET, "**The Sage** names the virtue of each completed dee
 g3 = para_after(g2, BULLET, "**The Chronicler** writes one short entry of medieval prose for each finished week, from your deeds and your sleep. He writes at most one entry each time you open the game, and they are read in the Tome under Weekly Chronicle.")
 mh = para_after(g3, H2, "The Map & the Sky")
 m1 = para_after(mh, BODY, f"**M** unrolls the Map of the Kingdom of {C['realm']['kingdom']} — coast, mountains, {C['realm']['lake']}, roads and towns, each named when you hover — with {C['realm']['village']} ringed in wax. Beside it is a plan of the village drawn from the game itself: the buildings, the trees, today’s crop on the strip, and an arrow for where you stand. Only the village can be walked; the kingdom is a picture.")
-m2 = para_after(m1, BODY, "The sky keeps the hour of your own clock. The sun rises, crosses and sets at the real time of day, with long days in summer and early dark in winter; night brings stars, the moon in her true phase, a lit window in the hovel and the campfire as the village’s light.")
+m2 = para_after(m1, BODY, "The sky keeps the hour of your own clock. The sun rises at six in the morning and sets at six in the evening by your clock, wherever you play, riding high in summer and low in winter; night brings stars, the moon in her true phase, a lit window in the hovel and the campfire as the village’s light.")
 
 # ---- saving ----
 set_text(P[39], "Your save lives only in this browser, and separately for each address the game is opened at — the hosted game and the dev server do not share one. The **Scribe**, at the bottom of the Tome, guards against misfortune and carries your progress between them: **Download a copy** writes your whole chronicle to a JSON file; **Restore from a copy** validates the file, keeps your replaced save as a fallback, and reloads the realm from the copy. Take a copy now and then — a browser cleanup would otherwise take the year with it.")

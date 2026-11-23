@@ -28,14 +28,29 @@ export function compass(east, north, up, out = new THREE.Vector3()) {
   return out.set(-SIN_N * east + COS_N * north, up, COS_N * east + SIN_N * north).normalize();
 }
 
-// The hour by the sun, 0..24, from the hour by the clock: summer time puts the
-// clocks forward, and the sun does not follow. (Where the player stands inside
-// his time zone is not known, so this can still run some minutes out.)
-export function solarHour(date) {
-  const year = date.getFullYear();
-  const winter = Math.max(new Date(year, 0, 1).getTimezoneOffset(), new Date(year, 6, 1).getTimezoneOffset());
-  const putForward = winter - date.getTimezoneOffset(); // minutes of summer time
-  return date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600 - putForward / 60;
+// The hour by the player's clock, 0..24. Summer time or not, it is the hour
+// he reads on his own wall: the sun keeps the clock's hours (see sunAngle).
+export function clockHour(date) {
+  return date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+}
+
+// How far the sun turns from noon to setting (degrees of hour angle) for a
+// watcher at `lat` on a day when the sun rides `decl` north of the equator.
+function halfDay(lat, decl) {
+  const cosH = -Math.tan(lat * RAD) * Math.tan(decl * RAD);
+  return Math.acos(Math.max(-1, Math.min(1, cosH))) / RAD;
+}
+
+// The sun's hour angle (0 at noon, + after it) at clock hour `hour`. The sky
+// keeps the season's road — high in June, low in December — but walks it on
+// a fixed timetable: up at `rise` and down at `set` by the player's own clock,
+// wherever and whenever he plays, the day's arc spread evenly between them
+// and the night's beneath.
+function sunAngle(hour, rise, set, half) {
+  const dayLen = set - rise;
+  if (hour >= rise && hour < set) return -half + ((hour - rise) / dayLen) * 2 * half;
+  const intoNight = (((hour - set) % 24) + 24) % 24; // hours since sunset
+  return half + (intoNight / (24 - dayLen)) * (360 - 2 * half);
 }
 
 function dayOfYear(date) {
@@ -58,29 +73,30 @@ function place(lat, decl, hourAngle, out) {
   return Math.asin(Math.max(-1, Math.min(1, up))) / RAD;
 }
 
-// The sky at a moment, for a watcher `latitude` degrees north.
-//   hour      the hour by the sun, 0..24
+// The sky at a moment, for a watcher `latitude` degrees north, with the sun
+// rising at clock hour `rise` and setting at `set`.
+//   hour      the hour by the clock, 0..24
 //   sun/moon  unit vectors toward each, in world axes
 //   sunAlt/moonAlt  their heights in degrees (negative: under the horizon)
 //   phase     the moon's age, 0 new → 0.5 full → 1 new again
 //   moonLit   how much of her face is bright, 0..1
 //   turn      how far the stars have wheeled about the pole, radians
-export function skyAt(date, latitude) {
-  const hour = solarHour(date);
+export function skyAt(date, latitude, rise = 6, set = 18) {
+  const hour = clockHour(date);
   const day = dayOfYear(date);
 
-  // the sun: high in summer, low in winter, due south at noon
+  // the sun: high in summer, low in winter, due south halfway through the day
   const sunDecl = -TILT * Math.cos(((day + 10) / 365) * Math.PI * 2);
-  const sunAngle = (hour - 12) * 15;
+  const angle = sunAngle(hour, rise, set, halfDay(latitude, sunDecl));
   const sun = new THREE.Vector3();
-  const sunAlt = place(latitude, sunDecl, sunAngle, sun);
+  const sunAlt = place(latitude, sunDecl, angle, sun);
 
   // the moon trails the sun by her age: new, she keeps his company; full, she
   // stands opposite him — up all night, and high in winter when he is low
   const age = ((((date - A_NEW_MOON) / DAY_MS) % MOON_MONTH) + MOON_MONTH) % MOON_MONTH;
   const phase = age / MOON_MONTH;
   const moon = new THREE.Vector3();
-  const moonAlt = place(latitude, sunDecl * Math.cos(phase * Math.PI * 2), sunAngle - phase * 360, moon);
+  const moonAlt = place(latitude, sunDecl * Math.cos(phase * Math.PI * 2), angle - phase * 360, moon);
 
   return {
     hour,
