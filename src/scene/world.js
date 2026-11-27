@@ -237,6 +237,15 @@ export function buildWorld(scene, marketToday = false, skyClock) {
     },
   };
 
+  // the peg rack by the door: the weapon hung up, in the look of its tier,
+  // or nothing (null). main.js keeps it in step with the save.
+  function setRackWeapon(look) {
+    hovel.rack.group.visible = !!look;
+    if (!look) return;
+    hovel.rack.hang.scale.set(...look.scale);
+    hovel.rack.shaft.material = new THREE.MeshLambertMaterial({ color: look.color, flatShading: true });
+  }
+
   // the indoor camera zone + where you stand up from the cot
   const hovelInterior = {
     minX: hx - inX,
@@ -263,6 +272,8 @@ export function buildWorld(scene, marketToday = false, skyClock) {
     // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bedReach.x, z: hz + H.bedReach.z, radius: H.bedReach.radius, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
+    // the rack's prompt is worded by main.js (hang up / take down)
+    { id: 'rack', label: 'the weapon rack', x: hx + 1.25, z: hz + H.rack.z, radius: 0.85, insideOnly: true },
     {
       id: 'chest',
       label: 'open the chest',
@@ -332,5 +343,5 @@ export function buildWorld(scene, marketToday = false, skyClock) {
   // the village plan on the map draws the real trees and boulders
   const mapMarks = { trees: scatter.trees, rocks: scatter.rocks };
 
-  return { colliders, interactables, sky, campfire, dummy, door, chest, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
+  return { colliders, interactables, sky, campfire, dummy, door, chest, setRackWeapon, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
 }

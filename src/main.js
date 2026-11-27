@@ -5,10 +5,11 @@ import { buildWorld } from './scene/world.js';
 import { skyAt, clockHour, compass } from './scene/daylight.js';
 import { LAYOUT } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
+import { WEAPON_LOOKS } from './player/playerMesh.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, placePrompt, showWaymark, placeWaymark, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
-import { loadState, getState, onChange, introOwed, introDone, noDeedYet, KEYS_LINE, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, wieldedWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
+import { loadState, getState, onChange, introOwed, introDone, noDeedYet, KEYS_LINE, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, wieldedWeapon, weaponHungUp, hangUpWeapon, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
 import { initPanels, openPanel, closePanel, openPanelId, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
@@ -66,6 +67,9 @@ function applyPurchases() {
   player.attackDamage = w.damage ?? CONFIG.player.attackDamage;
   player.attackReach = CONFIG.player.attackRange + (w.reach ?? 0);
   player.setWeaponTier(w.tier ?? 0);
+  // hung on the rack by the door: empty hands, and the weapon seen on its pegs
+  player.setUnarmed(weaponHungUp());
+  world.setRackWeapon(weaponHungUp() ? WEAPON_LOOKS[w.tier ?? 0] : null);
   world.applyHomeUpgrades(getState().shop.owned);
 }
 applyPurchases();
@@ -74,6 +78,8 @@ applyPurchases();
 player.trySpend = (cost) => spendStamina(cost);
 // walking and running draw on it too; emptied, he is done for the day (see "spent")
 player.tire = (n) => drainStamina(n);
+player.onUnarmed = () =>
+  toast(`Thy hands are empty — ${wieldedWeapon().name} hangs on the rack at home.`, 'grim');
 player.onActionBlocked = () =>
   toast('Your arms are spent. Earn your strength — the board awaits.', 'grim');
 
@@ -532,7 +538,10 @@ function nearestAction() {
 }
 
 function promptText(a) {
-  const label = a.id === 'door' ? (world.door.isOpen ? 'close the door' : 'open the door') : a.label;
+  const label =
+    a.id === 'door' ? (world.door.isOpen ? 'close the door' : 'open the door')
+    : a.id === 'rack' ? (weaponHungUp() ? `take down ${wieldedWeapon().name}` : `hang up ${wieldedWeapon().name}`)
+    : a.label;
   return `Press <b>E</b> — ${label}`;
 }
 
@@ -683,6 +692,8 @@ window.addEventListener('keydown', (e) => {
     sfx.creak();
     orbitCam.unlock();
     openPanel('chest');
+  } else if (a.id === 'rack') {
+    toggleRack();
   } else if (a.id === 'miller') {
     millerGreeting();
   } else if (a.id === 'field') {
@@ -692,6 +703,16 @@ window.addEventListener('keydown', (e) => {
     openPanel(a.id);
   }
 });
+
+// E at the peg rack by the door: hang up the weapon in hand, or take it down
+function toggleRack() {
+  const name = wieldedWeapon().name;
+  const hang = !weaponHungUp();
+  hangUpWeapon(hang);
+  applyPurchases();
+  sfx.creak();
+  toast(hang ? `Thou hangest ${name} on its pegs by the door.` : `Thou takest down ${name}.`, '');
+}
 
 // The Proving Ground (?test=1): the test world's command line, and what its
 // commands may lay hands on. Nothing here exists in the true world.

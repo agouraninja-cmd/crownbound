@@ -1317,7 +1317,53 @@ try {
     if (!open.open) errors.push('house: E near the door did not open it');
     if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
 
-    // 3) sleep: standing beside the cot offers it, E tucks him in (the cot's
+    // 2b) the peg rack by the door: E hangs the stick up (empty hands, no
+    //     swing, no stamina), the rack shows it, the save keeps it; E again
+    //     takes it down
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -7.95; // local (1.05, 0.3): the floor before the rack
+      g.player.pos.z = 2.3;
+    });
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('hang up'), { timeout: 4000 }).catch(() => {});
+    const rackPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    console.log(`rack prompt: ${rackPrompt}`);
+    if (!rackPrompt.includes('hang up the trusty stick')) errors.push(`house: the rack did not offer to hang up the stick ("${rackPrompt}")`);
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 200));
+    const before = await page.evaluate(() => window.__game.getState().stamina.current);
+    await page.keyboard.press('KeyF');
+    await new Promise((r) => setTimeout(r, 300));
+    const hung = await page.evaluate(() => {
+      const g = window.__game;
+      const saved = JSON.parse(localStorage.getItem('crownbound_save'));
+      return { unarmed: g.player.unarmed, saved: !!saved.chest.hungUp, mode: g.player.mode, stamina: g.getState().stamina.current };
+    });
+    console.log(`hung up: ${JSON.stringify(hung)}`);
+    if (!hung.unarmed || !hung.saved) errors.push(`house: E at the rack did not hang the stick up (${JSON.stringify(hung)})`);
+    if (hung.mode === 'attack' || hung.stamina !== before) errors.push(`house: empty hands still swung (${JSON.stringify(hung)})`);
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -8.4; // stood off to the side, so the rack is in view past him
+      g.player.pos.z = 1.75;
+      g.player.facing = 0.6;
+      g.orbitCam.setView(Math.PI + 0.75, 0.25, 3);
+    });
+    await new Promise((r) => setTimeout(r, 800));
+    await page.screenshot({ path: 'scripts/smoke-rack.png' });
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -7.95;
+      g.player.pos.z = 2.3;
+    });
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('take down'), { timeout: 4000 }).catch(() => {});
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    const down = await page.evaluate(() => ({ unarmed: window.__game.player.unarmed, saved: !!JSON.parse(localStorage.getItem('crownbound_save')).chest.hungUp }));
+    console.log(`taken down: ${JSON.stringify(down)}`);
+    if (down.unarmed || down.saved) errors.push(`house: E at the rack again did not take the stick down (${JSON.stringify(down)})`);
+
+
     //    middle can't be reached, so this once never offered sleep at all);
     //    tuck-in animation plays, wounds mend, the night is marked, you stand
     //    up by the cot

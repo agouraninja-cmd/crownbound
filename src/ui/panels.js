@@ -1,4 +1,5 @@
 import {
+  weaponHungUp,
   getState,
   postDaily,
   completeDaily,
@@ -656,13 +657,14 @@ function renderShop() {
 function renderChest() {
   const s = getState();
   const inHand = wieldedWeapon();
+  const hung = weaponHungUp(); // on the peg rack by the door, not in hand
   const damageOf = (w) => w.damage ?? CONFIG.player.attackDamage;
 
   const weapons = ownedWeapons()
     .map((w) => {
       const action =
         w.id === inHand.id
-          ? `<span class="deed-tag tag-gold">in hand</span>`
+          ? `<span class="deed-tag tag-gold">${hung ? 'on the rack' : 'in hand'}</span>`
           : `<button data-wield="${w.id}">Take up</button>`;
       return `<div class="deed ware">
         ${warePic(w)}
@@ -679,8 +681,12 @@ function renderChest() {
   const loaf = CONFIG.shop.items.find((i) => i.id === 'loaf');
   chestBody.innerHTML = `
     <div class="sheet-section">
-      <div class="kv"><span>In thy hand</span><span class="v">${inHand.name}</span></div>
-      <p class="muted">Thou carriest one weapon; the chest keeps the rest.</p>
+      <div class="kv"><span>In thy hand</span><span class="v">${hung ? 'nothing' : inHand.name}</span></div>
+      <p class="muted">${
+        hung
+          ? `${inHand.name[0].toUpperCase() + inHand.name.slice(1)} hangs on the rack by the door. Take up another and it goes back in the chest.`
+          : 'Thou carriest one weapon; the chest keeps the rest. The rack by the door will hold it.'
+      }</p>
     </div>
     <div class="sheet-section">
       <h2>Weapons</h2>
