@@ -3182,6 +3182,31 @@ try {
     await page.keyboard.press('Escape');
     await wait(700);
     want((await look()).beat === null, 'Esc did not skip the opening in the test world');
+
+    // 16) `newgame` starts the test world over from nothing, opening and all
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('crownbound_test_save');
+      const s = JSON.parse(raw);
+      s.coins = 777;
+      localStorage.setItem('crownbound_test_save', JSON.stringify(s));
+    });
+    await load('&test=1');
+    await page.keyboard.press('/');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }),
+      page.evaluate(() => {
+        const input = document.querySelector('#proving-console input');
+        input.value = 'newgame';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      }),
+    ]);
+    await booted();
+    v = await look();
+    const coins = await page.evaluate(() => JSON.parse(localStorage.getItem('crownbound_test_save') || '{}').coins);
+    want(v.beat === 'title' && v.url.includes('test=1') && !v.url.includes('intro='), `the newgame command: ${v.beat}, ${v.url}`);
+    want(coins !== 777, `newgame kept the old test save (coins ${coins})`);
+    await page.keyboard.press('Escape');
+    await wait(700);
     await page.evaluate(() => window.__game.orbitCam.setView(Math.PI * 0.75, 0.2, 5));
   }
 

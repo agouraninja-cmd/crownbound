@@ -700,7 +700,7 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     `commit('coins' | 'stats' | …)`-ed. `game` is the handle main.js gives `initConsole`:
     player, world, rouse, moveTo, applyPurchases, abed, typing, busy.
   - The built-ins: stamina, heal, hp · rank, level, xp · coins, streak · daily, weekly,
-    monthly · nextday, time · tp, market, give, take, farm · reset, copy, intro, leave. "Sage" is
+    monthly · nextday, time · tp, market, give, take, farm · reset, copy, newgame, intro, leave. "Sage" is
     not a rank — `rank sage` answers with the ladder (Peasant … King) and changes nothing.
     Setting levels below King takes the crown back, so the Coronation can be tried again.
   - The owner's own commands: `make fresh = stamina full; heal` then `fresh`; `forget fresh`.
@@ -780,7 +780,10 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     and the door is shut, E is the door from anywhere within its reach (`nearestAction`). At
     the wake spot the cot is nearer, and a newcomer's first E would have put him back to bed.
   - The test world owes no opening (`introOwed` is never set there); its `intro` command
-    plays it by reloading with `?intro=1`.
+    plays it by reloading with `?intro=1`. `newgame` (also `beginning`, `start`; 2026-11-27,
+    the owner: "a command in the proving ground to start from the beginning of the game")
+    is `reset world` + `intro` in one: wipes the test save, puts back the real clock, and
+    reloads with `?intro=1` — a newcomer's first load, title card first. Own commands kept.
   - Not in the Charter (it is not a rule). CROWNBOUND-Guide.docx tells it under getting started.
 
 ## Roadmap (do NOT build before its phase)
