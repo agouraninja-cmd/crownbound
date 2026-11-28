@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../state/config.js';
 import { terrainHeight } from '../scene/terrain.js';
-import { buildPlayerMesh } from './playerMesh.js';
+import { buildPlayerMesh, RIG } from './playerMesh.js';
 import { createPlayerAnimator } from './playerAnim.js';
 import { flash } from '../scene/meshUtils.js';
 
@@ -25,6 +25,37 @@ export function createPlayer(scene, spawn) {
   m.group.position.set(spawn.x, terrainHeight(spawn.x, spawn.z), spawn.z);
   m.group.rotation.y = Math.PI / 3;
   scene.add(m.group);
+
+  // Sat by the fire, the stick is laid on the ground beside him rather than
+  // kept in the fist: the weapon mesh itself moves from his hand into this
+  // group and back, so the cudgel or quarterstaff lies there as it is.
+  const laid = new THREE.Group();
+  laid.visible = false;
+  scene.add(laid);
+  let stickLaid = false;
+  function layStick(down) {
+    if (down === stickLaid) return;
+    stickLaid = down;
+    const w = m.weapon;
+    if (down) {
+      // to his stick-hand side, as he will sit facing the flames
+      const h = player.hearth;
+      const f = h ? Math.atan2(h.x - player.pos.x, h.z - player.pos.z) : player.facing;
+      const x = player.pos.x + Math.cos(f) * 0.42 + Math.sin(f) * 0.08;
+      const z = player.pos.z - Math.sin(f) * 0.42 + Math.cos(f) * 0.08;
+      laid.position.set(x, terrainHeight(x, z), z);
+      laid.rotation.set(0, f + 0.25, 0); // along his side, angled a touch out
+      laid.add(w);
+      w.position.set(0, 0.036 * w.scale.x, 0); // resting on the ground, not in it
+      w.rotation.set(Math.PI / 2, 0, 0);
+      laid.visible = true;
+    } else {
+      m.hold.add(w);
+      w.position.set(0, -RIG.stickDrop, 0);
+      w.rotation.set(0, 0, 0);
+      laid.visible = false;
+    }
+  }
 
   const keys = new Set();
   let enabled = true;
@@ -579,8 +610,9 @@ export function createPlayer(scene, spawn) {
       len === 0 && !player.crouching && player.hp > 0 && player.vel.lengthSq() < 0.01;
     player.stillFor = still && hearthDist() < P.sitNear ? player.stillFor + dt : 0;
     if (player.stillFor >= P.sitDelay) startSit();
-    // the stick is laid down beside him while he sits (the field's tools manage their own)
-    if (player.mode !== 'work') m.weapon.visible = player.sit01 < 0.5;
+    // the stick is laid on the ground beside him while he sits, and taken up
+    // again as he rises (the field's tools manage their own)
+    if (player.mode !== 'work') layStick(player.sit01 >= 0.5);
 
     // feel the ground's tilt: it slows a climb and lays the soles to the slope
     player.slope.x = (terrainHeight(px + SLOPE_PROBE, pz) - terrainHeight(px - SLOPE_PROBE, pz)) / (SLOPE_PROBE * 2);

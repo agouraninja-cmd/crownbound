@@ -941,7 +941,7 @@ headlessly; everything else covered by the regression suite below.
   standing near the fire pit the player sits down to warm up"): stood still within
   `CONFIG.player.sitNear` (2.0) of the campfire for `sitDelay` (2s), he turns to the flames and
   sits on the ground — knees drawn up, palms held out, now and then rubbing his hands, the
-  stick laid aside. Too close to the ring, he shuffles back to `sitSeat` (1.45). Any movement
+  stick laid on the ground at his side. Too close to the ring, he shuffles back to `sitSeat` (1.45). Any movement
   key, Space, C, a roll, a click or a bite stands him up; the click swings nothing, and his
   pace is held back while he finds his feet (`sit01`). Looks only — no rule, reward or save
   change. The spawn (2.2 from the fire) is deliberately just outside the range, so a load
@@ -1111,6 +1111,15 @@ headlessly; everything else covered by the regression suite below.
   2026-11-17 on the owner's machine, The Goal's Prize included (see Session notes).
   Details: "No mouse needed" under Noted decisions.
 
+- [x] Fix — "The Stick Laid Down" (2026-11-27), the owner: "if the stick is in hand make sure to
+  put the stick down rather then the stick disapeering". Sat by the fire, the stick used to be
+  hidden; now the weapon mesh itself moves from the fist into a group on the ground at his
+  stick-hand side (player.js `layStick`, as he sits half down, placed for facing the flames),
+  so a cudgel or quarterstaff lies there as it is, and goes back to `hold` as he rises. Looks
+  only; no save change. `hearth` checks it is shown, beside him, on the ground and flat;
+  `hearth`, `body`, `combat`, `farm`, `house`, `spent` and the render pass (owner's machine,
+  headless Edge).
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1138,7 +1147,7 @@ headlessly; everything else covered by the regression suite below.
   standing) and one landing per leap (mid-stride screenshot →
   scripts/smoke-body.png) ·
   `hearth` by the fire: not sat at 1.5s, sat by 2.2s (waist low, knees up, facing the
-  fire, stick laid aside), W stands him up slowly then walks on, the spawn is not near enough,
+  fire, the stick lying flat on the ground beside him, not vanished), W stands him up (stick back in the fist) slowly then walks on, the spawn is not near enough,
   too close he shuffles back, a click (no swing, no stamina) and a bite both get him up
   (screenshot → scripts/smoke-hearth.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·

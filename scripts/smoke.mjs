@@ -1210,7 +1210,20 @@ try {
         early, after, sit01: p.sit01,
         waist: p.mesh.roller.position.y,
         knee: p.mesh.legs[0].shin.rotation.x,
-        offFire: h.offFire(), dist: h.fireDist(), stick: p.mesh.weapon.visible,
+        offFire: h.offFire(), dist: h.fireDist(),
+        stick: p.mesh.weapon.parent === p.mesh.hold, // still in the fist?
+        laid: (() => {
+          // laid down: shown, on the ground at his side, lying flat
+          const w = p.mesh.weapon;
+          const at = w.getWorldPosition(new w.position.constructor());
+          const up = new w.position.constructor(0, 1, 0).transformDirection(w.matrixWorld);
+          return {
+            shown: w.visible && w.parent.visible,
+            off: Math.hypot(at.x - p.pos.x, at.z - p.pos.z),
+            height: at.y - p.pos.y, // the ground by the fire is near level
+            tilt: Math.abs(up.y),
+          };
+        })(),
       };
     });
     console.log('sat:', JSON.stringify(sat));
@@ -1221,6 +1234,10 @@ try {
     if (sat.knee < 1.4) errors.push(`hearth: knee bent ${sat.knee.toFixed(2)}, expected knees drawn up`);
     if (sat.offFire > 0.15) errors.push(`hearth: facing ${sat.offFire.toFixed(2)} rad off the fire`);
     if (sat.stick) errors.push('hearth: still holding the stick while sat');
+    if (!sat.laid.shown) errors.push('hearth: the stick vanished instead of being laid down');
+    if (sat.laid.off > 0.8) errors.push(`hearth: stick laid ${sat.laid.off.toFixed(2)} away, not beside him`);
+    if (sat.laid.height < -0.1 || sat.laid.height > 0.2) errors.push(`hearth: stick ${sat.laid.height.toFixed(2)} above the ground`);
+    if (sat.laid.tilt > 0.1) errors.push(`hearth: stick not lying flat (tilt ${sat.laid.tilt.toFixed(2)})`);
 
     // 2) eyeball him sat there, side-on, the fire in shot
     await page.evaluate(() => window.__game.orbitCam.setView(-0.5, 0.18, 3.6));
@@ -1239,7 +1256,7 @@ try {
       const walking = h.speed();
       h.key('KeyW', false);
       h.run(0.5);
-      return { mode, rising, walking, sit01: p.sit01, stick: p.mesh.weapon.visible };
+      return { mode, rising, walking, sit01: p.sit01, stick: p.mesh.weapon.visible && p.mesh.weapon.parent === p.mesh.hold };
     });
     console.log('rose:', JSON.stringify(rose));
     if (rose.mode !== 'normal') errors.push(`hearth: W left him ${rose.mode}`);
