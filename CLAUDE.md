@@ -1633,9 +1633,15 @@ headlessly; everything else covered by the regression suite below.
   zoom, The Village, where every roof reads whose it is. Also new, because the houses needed
   them: a collider turned on the map, a path-finder that will not start a walk inside a pen,
   and a camera that is drawn in rather than let a house hide the player. No rule, reward or
-  save change. New smoke scenario `village`, which passes (cloud container, headless Chromium,
-  `SMOKE_WAIT=load`); the rest of the suite is being re-run on the final build.
-  CROWNBOUND-Guide.docx rebuilt. Details: "The Neighbours" under Noted decisions.
+  save change. New smoke scenario `village`. All 28 scenarios pass, first time, on the build
+  with `main` merged in (cloud container, headless Chromium, `SMOKE_WAIT=load`), and a way home
+  is found from every spot a man can reach. Each house was built in rounds on the bench by its
+  own builder; the fresh-eyed review planned for each was cut short when the session's model
+  ran out its week's usage, so Claude looked over all 24 on the bench and in the game, and a
+  second model reviewed the engine and kit code (it found the camera passing into a house when
+  his back was to a wall — put right). Seen only in the software renderer, not yet on the
+  owner's screen; the frame rate on a real GPU is not measured, and night in the lanes wants
+  his eye. CROWNBOUND-Guide.docx rebuilt. Details: "The Neighbours" under Noted decisions.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
