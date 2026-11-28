@@ -1321,7 +1321,20 @@ try {
         early, after, sit01: p.sit01,
         waist: p.mesh.roller.position.y,
         knee: p.mesh.legs[0].shin.rotation.x,
-        offFire: h.offFire(), dist: h.fireDist(), stick: p.mesh.weapon.visible,
+        offFire: h.offFire(), dist: h.fireDist(),
+        stick: p.mesh.weapon.parent === p.mesh.slot, // still in the fist?
+        laid: (() => {
+          // laid down: shown, on the ground at his side, lying flat
+          const w = p.mesh.weapon;
+          const at = w.getWorldPosition(new w.position.constructor());
+          const up = new w.position.constructor(0, 1, 0).transformDirection(w.matrixWorld);
+          return {
+            shown: w.visible && w.parent.visible,
+            off: Math.hypot(at.x - p.pos.x, at.z - p.pos.z),
+            height: at.y - p.pos.y, // the ground by the fire is near level
+            tilt: Math.abs(up.y),
+          };
+        })(),
       };
     });
     console.log('sat:', JSON.stringify(sat));
@@ -1332,6 +1345,10 @@ try {
     if (sat.knee < 1.4) errors.push(`hearth: knee bent ${sat.knee.toFixed(2)}, expected knees drawn up`);
     if (sat.offFire > 0.15) errors.push(`hearth: facing ${sat.offFire.toFixed(2)} rad off the fire`);
     if (sat.stick) errors.push('hearth: still holding the stick while sat');
+    if (!sat.laid.shown) errors.push('hearth: the stick vanished instead of being laid down');
+    if (sat.laid.off > 0.8) errors.push(`hearth: stick laid ${sat.laid.off.toFixed(2)} away, not beside him`);
+    if (sat.laid.height < -0.1 || sat.laid.height > 0.2) errors.push(`hearth: stick ${sat.laid.height.toFixed(2)} above the ground`);
+    if (sat.laid.tilt > 0.1) errors.push(`hearth: stick not lying flat (tilt ${sat.laid.tilt.toFixed(2)})`);
 
     // 2) eyeball him sat there, side-on, the fire in shot
     await page.evaluate(() => window.__game.orbitCam.setView(-0.5, 0.18, 3.6));
@@ -1350,7 +1367,7 @@ try {
       const walking = h.speed();
       h.key('KeyW', false);
       h.run(0.5);
-      return { mode, rising, walking, sit01: p.sit01, stick: p.mesh.weapon.visible };
+      return { mode, rising, walking, sit01: p.sit01, stick: p.mesh.weapon.visible && p.mesh.weapon.parent === p.mesh.slot };
     });
     console.log('rose:', JSON.stringify(rose));
     if (rose.mode !== 'normal') errors.push(`hearth: W left him ${rose.mode}`);
@@ -1666,11 +1683,15 @@ try {
       const asked = !!q('[data-w-goal]') && !q('[data-w-current]') && !q('[data-log-open]');
       let pace = '';
       if (asked) {
-        q('[data-chip]').click(); // a suggested name fills the box
-        const chipped = q('[data-w-name]').value;
+        // no buttons to pick from: what he saves for is typed, and is required
+        const typed = !document.querySelector('#treasury-body [data-chip]') && q('[data-w-name]').type === 'text';
+        q('[data-w-goal]').value = '20000';
+        q('[data-w-next]').click(); // no name: refused, still on the first question
+        const unnamed = !!q('[data-w-goal]');
+        q('[data-w-goal]').value = '';
         q('[data-w-name]').value = 'The War Chest';
         q('[data-w-next]').click(); // no sum yet: refused, still on the first question
-        const held = !!q('[data-w-goal]');
+        const held = unnamed && !!q('[data-w-goal]');
         q('[data-w-name]').value = 'The War Chest';
         q('[data-w-goal]').value = '20000';
         q('[data-w-next]').click();
@@ -1700,7 +1721,7 @@ try {
         q('[data-count-set]').click();
         const t2 = window.__game.getState().treasury;
         return {
-          opened, asked, chipped, held, pace, sealed, shown,
+          opened, asked, typed, held, pace, sealed, shown,
           laidCurrent: laid.current, laid: laid.month, amountAfter: laid.amount,
           monthMeter: laid.meter.replace(/\s+/g, ' ').trim(), todayRows: laid.todayRows,
           recounted: t2.current, laidAfterRecount: window.__game.monthTally(month).saved,
@@ -1712,8 +1733,8 @@ try {
     if (!bank.opened) errors.push('exchequer: E at the counter did not open the Treasury');
     if (!bank.asked) errors.push('exchequer: an untouched ledger did not open on its first question');
     else {
-      if (!bank.chipped) errors.push('exchequer: a suggested goal name did not fill the box');
-      if (!bank.held) errors.push('exchequer: a goal with no sum was let past the first question');
+      if (!bank.typed) errors.push('exchequer: the goal is not typed into a text box (or preset buttons remain)');
+      if (!bank.held) errors.push('exchequer: a goal with no name or no sum was let past the first question');
       if (!bank.pace.includes('59 months')) errors.push(`exchequer: pace "${bank.pace}" does not reckon 17,500 at 300 a month`);
       const s0 = bank.sealed;
       if (s0.current !== 2500 || s0.goal !== 20000 || s0.pledge !== 300 || s0.name !== 'The War Chest')
@@ -2759,14 +2780,16 @@ try {
     if (!all(fallow.looks, 'stubble')) errors.push(`farm: fallow strip drawn as ${fallow.looks}`);
     if (fallow.job !== 'till') errors.push(`farm: first job ${fallow.job} != till`);
 
-    // 2) at a ridge the prompt offers the day's job; E takes up the hoe
+    // 2) at a ridge the prompt offers the day's job; E sends him to the head
+    // of the ridge and he takes up the hoe there
     await standAt(2);
     if (!(await until(() => document.getElementById('interact-prompt').textContent.includes('till this ridge'))))
       errors.push(`farm: prompt "${(await read()).prompt}" does not offer the tilling`);
     await page.keyboard.press('KeyE');
-    // Looked at every frame: the work is ~1.5s, only a few frames where the software
-    // renderer is slow, so a wait-then-read can land after it is over. A frame mid-work
-    // with the prompt gone (it goes with the next frame, not the keypress) is the snapshot.
+    const walking = await page.evaluate(() => ({ route: !!window.__game.player.route, mode: window.__game.player.mode }));
+    if (!walking.route && walking.mode !== 'work') errors.push('farm: E at the ridge sent him nowhere');
+    // Looked at every frame: a frame at work with the prompt gone (it goes with
+    // the next frame, not the keypress) is the snapshot.
     const midWork = await page
       .waitForFunction(
         () => {
@@ -2776,7 +2799,7 @@ try {
           window.__farmSeen = { mode: 'work', hoe: g.player.mesh.tools.hoe.visible, stick: g.player.mesh.weapon.visible, prompt: prompt.classList.contains('hidden') ? '' : prompt.textContent };
           return window.__farmSeen.prompt === '' && window.__farmSeen;
         },
-        { polling: 'raf', timeout: 8000 }
+        { polling: 'raf', timeout: 15000 }
       )
       .then((h) => h.jsonValue(), () => null);
     // never caught mid-work with the prompt gone: report the last work frame seen, if any
@@ -2788,13 +2811,74 @@ try {
       if (working.prompt) errors.push(`farm: prompt "${working.prompt}" still showing while he works`);
     }
 
+    // 2b) the ridge changes only as far as the hoe has gone: partway along,
+    // a stretch is furrow from the end he began at and the rest still stubble
+    if (!(await until(() => (window.__game.getState().farm.part[2]?.k ?? 0) >= 0.3, undefined, 20000)))
+      errors.push(`farm: no stretch of ridge 2 worked (${JSON.stringify((await read()).farm)})`);
+    const partway = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.getState().farm.part[2];
+      const HL = g.field.halfLength;
+      const at = (u) => { const w = g.field.ridgePoint(2, u); return g.field.riseAt(w.x, w.z); };
+      const doneU = p.end * (HL - 1); // a step in from the end he began at
+      const leftU = -p.end * (HL - 1); // ...and a step in from the other
+      return { part: p, parts: g.farmRowParts(), done: g.getState().farm.done, crownWorked: at(doneU), crownLeft: at(leftU), mode: g.player.mode,
+        // he stands on the earth, not in it
+        feet: g.player.pos.y, ground: g.player.groundAt(g.player.pos.x, g.player.pos.z), rise: g.field.riseAt(g.player.pos.x, g.player.pos.z) };
+    });
+    console.log('partway:', JSON.stringify(partway));
+    if (partway.done.length) errors.push(`farm: ridge done ${partway.done} partway along it`);
+    if (partway.parts[2]?.look !== 'furrow') errors.push(`farm: the worked stretch wears ${partway.parts[2]?.look}, not furrow`);
+    if (!(partway.crownWorked > 0.2 && partway.crownLeft < 0.12))
+      errors.push(`farm: the crown stands ${partway.crownWorked} where worked and ${partway.crownLeft} where not — the whole ridge changed at once`);
+    if (Math.abs(partway.feet - partway.ground) > 0.02 || !(partway.rise > 0.03))
+      errors.push(`farm: his feet at ${partway.feet} and the earth at ${partway.ground} (rise ${partway.rise}) — he is not walking on it`);
+
+    // 2c) a movement key calls him off; what is worked stays worked, and is saved
+    await page.keyboard.down('KeyS');
+    await new Promise((r) => setTimeout(r, 450));
+    await page.keyboard.up('KeyS');
+    await new Promise((r) => setTimeout(r, 900));
+    const left = await page.evaluate(() => ({
+      mode: window.__game.player.mode,
+      stick: window.__game.player.mesh.weapon.visible,
+      part: window.__game.getState().farm.part[2],
+      saved: JSON.parse(localStorage.getItem('crownbound_save')).farm.part[2],
+    }));
+    console.log('called off:', JSON.stringify(left));
+    if (left.mode !== 'normal' || !left.stick) errors.push(`farm: a movement key left him at ${left.mode} (stick ${left.stick})`);
+    if (!left.part || left.part.k < partway.part.k) errors.push(`farm: the stretch worked was lost on leaving the ridge (${JSON.stringify(left.part)})`);
+    if (!left.saved || left.saved.k !== left.part?.k) errors.push(`farm: the stretch worked was not saved (${JSON.stringify(left.saved)})`);
+
+    // 2d) E again takes up where he left off, from the same end
+    await standAt(2);
+    await until(() => window.__game.field.spot.row === 2, undefined, 5000);
+    await page.keyboard.press('KeyE');
+    // where he stands the first frame he is back at work (read in that frame: they are slow here)
+    const resumed = await page
+      .waitForFunction(
+        () => {
+          const g = window.__game;
+          if (g.player.mode !== 'work') return false;
+          const HL = g.field.halfLength;
+          const u = g.field.toField(g.player.pos.x, g.player.pos.z).u;
+          return { k: (HL - g.getState().farm.part[2].end * u) / (HL * 2) };
+        },
+        { polling: 'raf', timeout: 15000 }
+      )
+      .then((h) => h.jsonValue(), () => null);
+    console.log('resumed:', JSON.stringify(resumed));
+    if (!resumed) errors.push('farm: E did not take him back to the ridge');
+    else if (Math.abs(resumed.k - left.part.k) > 0.12) errors.push(`farm: resumed at ${resumed.k.toFixed(2)} of the ridge, not where he left off (${left.part.k})`);
+
     // 3) the ridge is done: redrawn as a furrow, the stick back, no pay yet,
     // and the prompt has moved on to a ridge that still wants the hoe
-    if (!(await until(() => window.__game.getState().farm.done.length === 1))) errors.push('farm: the ridge was never finished');
+    if (!(await until(() => window.__game.getState().farm.done.length === 1, undefined, 30000))) errors.push('farm: the ridge was never finished');
     await new Promise((r) => setTimeout(r, 300));
     const one = await read();
     console.log('one ridge:', JSON.stringify({ farm: one.farm, looks: one.looks, coins: one.coins, prompt: one.prompt, promptRow: one.promptRow }));
     if (one.farm.done[0] !== 2) errors.push(`farm: worked ridge ${one.farm.done[0]} != 2, the one he stood at`);
+    if (Object.keys(one.farm.part).length) errors.push(`farm: a finished ridge still counted as begun (${JSON.stringify(one.farm.part)})`);
     if (one.looks[2] !== 'furrow' || one.looks.filter((l) => l === 'stubble').length !== rows - 1)
       errors.push(`farm: after one ridge the strip is drawn ${one.looks}`);
     if (one.mode !== 'normal' || !one.stick || one.hoe) errors.push(`farm: after the ridge mode ${one.mode}, stick ${one.stick}, hoe ${one.hoe}`);
@@ -2802,7 +2886,21 @@ try {
     if (!one.prompt.includes('till this ridge') || one.promptRow === 2)
       errors.push(`farm: prompt "${one.prompt}" on ridge ${one.promptRow} — should offer a ridge still untilled`);
 
-    // 4) the other ridges: the last one finishes the job and the miller pays, once
+    // the tilled ridge stands up off the ground: on its crown he is higher than in the furrow beside it
+    const heights = await page.evaluate(() => {
+      const g = window.__game;
+      const at = (side) => {
+        const w = g.field.ridgePoint(2, 0, side);
+        return g.player.groundAt(w.x, w.z);
+      };
+      return { crown: at(0), furrow: at(g.field.ridgeHalf) };
+    });
+    if (!(heights.crown - heights.furrow > 0.15)) errors.push(`farm: the tilled crown ${heights.crown} is not above its furrow ${heights.furrow} underfoot`);
+
+    // 4) the other ridges (worked briskly — the pace is a tuning number): the
+    // last one finishes the job and the miller pays, once
+    const pace = await page.evaluate(() => window.__game.CONFIG.farm.workPace);
+    await page.evaluate(() => { window.__game.CONFIG.farm.workPace = 9; });
     for (const row of Array.from({ length: rows }, (_, r) => r).filter((r) => r !== 2)) {
       await standAt(row);
       await until((r) => window.__game.field.spot.row === r, row, 5000);
@@ -2810,9 +2908,10 @@ try {
       const worked = await until((r) => {
         const f = window.__game.getState().farm;
         return f.done.includes(r) || f.stage === 1;
-      }, row);
+      }, row, 30000);
       if (!worked) errors.push(`farm: ridge ${row} was never finished`);
     }
+    await page.evaluate((p) => { window.__game.CONFIG.farm.workPace = p; }, pace);
     await new Promise((r) => setTimeout(r, 300));
     const tilled = await read();
     console.log('tilled:', JSON.stringify({ farm: tilled.farm, looks: tilled.looks, coins: tilled.coins, job: tilled.job, prompt: tilled.prompt, toasts: tilled.toasts }));
@@ -2866,7 +2965,16 @@ try {
       out.firstSown = g.workFarmRow(3, day(1));
       out.twice = g.workFarmRow(3, day(1)); // the same ridge again
       out.partSown = g.farmRowLooks(day(1));
+      // a stretch of ridge 5 sown from its +u end: begun, not done, and not
+      // to be begun again from the other end
+      out.stretch = g.workFarmStretch(5, 1, 0.4, day(1));
+      out.shorter = g.workFarmStretch(5, 1, 0.2, day(1)); // no ground lost
+      out.otherEnd = g.workFarmStretch(5, -1, 0.5, day(1));
+      out.parts = g.farmRowParts(day(1));
+      out.stretchLooks = g.farmRowLooks(day(1));
       out.sowing = workAll(day(1)); // ridge 3 refuses, the rest finish it
+      out.partsAfter = g.farmRowParts(day(1));
+      out.partLeft = g.getState().farm.part;
       out.sown = g.farmRowLooks(day(1));
       out.sameDay = g.farmJob(day(1));
       out.coinsSown = g.getState().coins;
@@ -2899,6 +3007,13 @@ try {
     if (crop.twice !== null) errors.push('farm: the same ridge was sown twice');
     if (crop.partSown[3] !== 'sown' || crop.partSown.filter((l) => l === 'furrow').length !== rows - 1)
       errors.push(`farm: half-sown strip drawn ${crop.partSown}`);
+    if (crop.stretch?.done !== false || crop.shorter?.done !== false || crop.otherEnd !== null)
+      errors.push(`farm: stretches of ridge 5 returned ${JSON.stringify([crop.stretch, crop.shorter, crop.otherEnd])}`);
+    if (JSON.stringify(crop.parts) !== JSON.stringify({ 5: { end: 1, k: 0.4, look: 'sown' } }))
+      errors.push(`farm: ridge 5 half sown is ${JSON.stringify(crop.parts)}`);
+    if (crop.stretchLooks[5] !== 'furrow') errors.push(`farm: a ridge half sown counted as sown (${crop.stretchLooks[5]})`);
+    if (Object.keys(crop.partsAfter).length || Object.keys(crop.partLeft).length)
+      errors.push(`farm: begun ridges ${JSON.stringify(crop.partLeft)} outlived the finished job`);
     const last = crop.sowing.at(-1);
     if (!last?.done || last.coins !== wage) errors.push(`farm: the last sown ridge returned ${JSON.stringify(last)}`);
     if (!all(crop.sown, 'sown') || crop.sameDay !== null) errors.push(`farm: sown strip drawn ${crop.sown}, job ${crop.sameDay}`);
@@ -2928,16 +3043,22 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
-    // for the eye: a strip part brought in, the sickle mid-cut, seen from the gate side
+    // for the eye: a strip part brought in, the sickle mid-cut on a ridge half
+    // reaped, seen from the gate side
     await page.evaluate(() => {
       const g = window.__game;
-      g.field.draw(g.field.looks().map((_, r) => (r < 3 ? 'stook' : 'ripe')));
-      const p = g.field.nearestOnRow(3, g.field.at.x - 2, g.field.at.z);
-      g.player.pos.x = p.x - 0.4; // in the stubble, facing the standing wheat
-      g.player.pos.z = p.z - 0.58;
+      const HL = g.field.halfLength;
+      g.field.draw(g.field.looks().map((_, r) => (r < 3 ? 'stook' : 'ripe')), { 3: { end: -1, k: 0.45, look: 'stook' } });
+      const u = -HL + 0.45 * HL * 2 + 0.6; // just short of the standing wheat
+      const from = g.field.ridgePoint(3, u, -0.5);
+      const to = g.field.ridgePoint(3, HL - 0.6, -0.5);
+      const ahead = g.field.ridgePoint(3, u + 0.6, 0);
+      g.player.pos.x = from.x;
+      g.player.pos.z = from.z;
       g.orbitCam.setView(-2.75, 0.36, 6.5);
       g.CONFIG.farm.strokeTime = 4; // hold the pose for the camera
-      g.player.startWork('reap', p.x, p.z);
+      g.CONFIG.farm.workPace = 0.01; // ...and the man
+      g.player.startWork('reap', from, to, Math.atan2(ahead.x - from.x, ahead.z - from.z));
     });
     await new Promise((r) => setTimeout(r, 2600));
     await page.screenshot({ path: 'scripts/smoke-farm.png' });

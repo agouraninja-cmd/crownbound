@@ -142,10 +142,14 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
                                                         //   the chest's larder; hungUp: true while the one in
                                                         //   hand hangs on the rack too (empty hands; absent =
                                                         //   in hand, no version bump)
-  farm: { stage, done, workedOn },                      // the miller's strip: the job owed (0 till · 1 sow ·
+  farm: { stage, done, workedOn, part },                // the miller's strip: the job owed (0 till · 1 sow ·
                                                         //   2 tend · 3 reap), the ridges done of it, the local
                                                         //   day the last job was finished (one job a day);
-                                                        //   a harvest also lands in history as type "harvest"
+                                                        //   part: { [row]: { end: ±1, k } } the ridges begun —
+                                                        //   worked from that end for k (0..1) of the length;
+                                                        //   emptied when the job is done (absent = {}, no
+                                                        //   version bump); a harvest also lands in history
+                                                        //   as type "harvest"
   coronationAt,                                         // ISO timestamp, set once at rank King (else null)
   introOwed                                             // true on a save begun from nothing, until the opening has
                                                         //   been played or skipped; absent = owes nothing (every
@@ -197,8 +201,10 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 - The miller's strip (the farming job): a fenced wheat field of 10 ridges (`CONFIG.farm.rows`),
   each 18.4 long and 1.4 wide, out past the granary to the north-east at (27, 33), reached by a cart track
   from the granary yard. One job per real local day, each in its
-  turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → ~1.5s of work
-  (hoe, sowing hand or sickle in place of the stick) → that ridge changes its look. The last
+  turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → he walks to
+  its head and works his way along it (hoe, sowing hand or sickle in place of the stick), the
+  ridge changing its look only as far as each blow has reached (~12s a ridge at
+  `CONFIG.farm.workPace`). A movement key calls him off; the stretch worked is kept. The last
   ridge finishes the job and the miller pays: +4 coins for a day's tilling, sowing or weeding,
   +20 for the harvest (`wage` / `harvestPay`). The crop grows only across the days worked
   (shoots the night after sowing, ripe wheat the night after weeding). Nothing spoils: a missed
@@ -422,8 +428,10 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     everywhere: pledge kept / no ground lost / ground lost. A bled month is answered with a
     next step (cut one cost, post it as a quest), never a scolding.
   - An untouched ledger (no rolls, no conquests, nothing saved, no pledge, no name) opens on
-    three questions, one at a time; sealing them names an unnamed goal "The Hoard", because
-    the name is what marks a ledger as opened.
+    three questions, one at a time. What the goal is for is TYPED by the player and required
+    (2026-11-28, the owner: "have the user type what they are saving for") — the preset chips
+    are gone, and Next / "Raise the goal" refuse a blank name. The name is what marks a ledger
+    as opened.
   - Inputs are never focused when the panel opens (the E that opened it would be typed into
     the box) — only after a click inside it. Esc closes the panel from inside a box.
   - The `data-*` hooks the smoke suite drives (`data-w-*` the questions, `data-lay-*`,
@@ -584,9 +592,9 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   - One interactable, `field.spot`, re-aimed every step by main.js `aimFieldSpot` at the
     nearest ridge that still wants today's job (any ridge once the job is done — E then only
     says what the strip is waiting on). No prompt shows while he is working.
-  - Player mode `work`: rooted and turned to the ridge for `CONFIG.farm.strokes` ×
-    `strokeTime` seconds; `onWorkStroke` (sounds) and `onWorkDone` (main.js works the ridge)
-    fire from player.js. The hoe and sickle are hidden Groups in the stick hand
+  - Player mode `work`: he walks a line along the ridge (see "Worked along the ridge"
+    below); `onWorkStroke` (sounds, the ridge worked up to the blow) and `onWorkDone`
+    (main.js finishes the ridge) fire from player.js. The hoe and sickle are hidden Groups in the stick hand
     (`mesh.tools`); `takeUp()` swaps them for the stick, `stopWork()` puts it back — also on
     death and respawn. Poses are [drawn, struck] pairs in playerAnim.js (`WORK`): a fifth job
     is one more row there, one in `FARM_JOBS`/`FARM_LOOKS`, and a look if it needs one.
@@ -639,6 +647,48 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
       `field.update` from world.update) — earth and dust off the hoe, a fan of seed from the
       hand, chaff drifting off the sickle. main.js `onWorkStroke` calls it at the stroke's
       landing spot, a step ahead of him. Looks only.
+    - Worked along the ridge, standing on it (2026-11-28, the owner's three bugs: "you
+      just do it in one spot and the whole row goes down", "the hoe is invisable when you
+      are using it at first", "you litterly just walk through the dirt instead of over it"):
+      - A ridge is worked from one end to the other. E at a ridge: main.js `workTheField`
+        picks the end (the one a begun ridge was begun from, else the nearer), walks him
+        there (`walkRoute(..., { yields: true })` — a movement key calls the walk off) and
+        starts `player.startWork(kind, from, to, facing)`. In work mode player.js walks
+        him along that line at `CONFIG.farm.workPace` (a blow each `strokeTime`, his feet
+        still as it lands and stepping on between), and a movement key, Space, C or a roll
+        stops it (`onWorkStopped`). He walks the furrow side `FURROW_SIDE` (0.5) off the
+        crown, on the side he stood, turned in toward it so the blow (`workReach` ahead)
+        lands on the crown.
+      - Each blow calls `workFarmStretch(row, end, k)` (state.js) with k = how far along
+        the ridge it landed; `farm.part[row] = { end, k }` is saved, never shrinks, and
+        refuses the other end while it stands. k ≥ 1 (onWorkDone) is `workFarmRow` — the
+        ridge done, the job paid when it is the last. `farmRowParts()` gives the drawn
+        stretches; field.js `draw(looks, parts)` shows the worked look up to the blow
+        and the old look past it: each cached growth keeps the u of every triangle
+        (`triU`) and is filtered by it, stooks are cached one by one with their u, and
+        the earth takes a `lookOf(row, u)`. A redraw a blow (~every 0.5s).
+      - He stands on the earth: `player.groundAt` (default terrainHeight) is set by
+        main.js to terrainHeight + `field.riseAt(x, z)` — the crowns and furrows as drawn,
+        ramped where a ridge changes partway and at its ends, the lumps left out. It is
+        used for his feet, landings and the slope probes, so he rises over the ridges
+        and his soles lie to their flanks. The camera's floor still reads terrainHeight.
+      - The hoe was hidden in the old way twice over: he stood ~0.25 sunk in the ridge, so
+        the blade struck out of sight, and from the usual camera behind him his body hid
+        the rest. Now he stands on top, turned three-quarters to the ridge, and as each
+        ridge begins the camera glides round to his side (`orbitCam.glideTo(facing + π −
+        1.0, …, 0.9s)`). Any mouse movement or look key now cancels a glide (camera.js).
+      - The `farm` smoke scenario checks a stretch partway (the crown up where worked,
+        down where not), his feet on the earth, a movement key keeping and saving the
+        stretch, E resuming from the same place, the tilled crown higher underfoot than
+        its furrow, and on a pinned clock a stretch refused from the other end. It
+        works the other nine ridges at `workPace` 9 to keep its time.
+    - The seedlip (same day, the owner: "the stick is still invisable" — seen sowing,
+      when the stick was put away and the hand cast seed from nothing): sowing now takes
+      up `mesh.tools.seedlip`, a wicker seed basket carried at the left hip (on the
+      chest, not a fist; `TOOL_FOR.sow`). It first had a shoulder strap — a straight
+      brown band across his round chest, which the owner rightly read as "the stick is
+      in his stomick"; the strap is gone, do not put one back as a straight box. The
+      stick is still put away for all four jobs and back in hand when he stops.
     - About 5 draw calls. Triangles for the whole field in one look (yard included):
       stubble ~25k, furrow ~19k, sown ~17k, weedy ~27k, tended ~38k, ripe ~56k, stook ~51k
       (was ~20k in wheat). The village view measured ~290k in all with the fallow strip.
@@ -1286,7 +1336,7 @@ headlessly; everything else covered by the regression suite below.
   standing near the fire pit the player sits down to warm up"): stood still within
   `CONFIG.player.sitNear` (2.0) of the campfire for `sitDelay` (2s), he turns to the flames and
   sits on the ground — knees drawn up, palms held out, now and then rubbing his hands, the
-  stick laid aside. Too close to the ring, he shuffles back to `sitSeat` (1.45). Any movement
+  stick laid on the ground at his side. Too close to the ring, he shuffles back to `sitSeat` (1.45). Any movement
   key, Space, C, a roll, a click or a bite stands him up; the click swings nothing, and his
   pace is held back while he finds his feet (`sit01`). Looks only — no rule, reward or save
   change. The spawn (2.2 from the fire) is deliberately just outside the range, so a load
@@ -1538,6 +1588,35 @@ headlessly; everything else covered by the regression suite below.
   software renderer, not yet on the owner's screen. Details: "Twice the size and true to
   the year" under "The Miller's Strip" in Noted decisions.
 
+- [x] Fix — "Along the Ridge" (2026-11-28), the owner's three farming bugs. (1) Working one
+  spot changed the whole ridge: now E sends him to the head of the ridge and he works his way
+  along it, blow by blow, the ridge changing only as far as he has got. A movement key calls
+  him off, keeping (and saving) the stretch done, and E later resumes where he left off.
+  `farm.part` holds the begun ridges (no saveVersion bump). (2) The hoe was out of sight: he
+  stood sunk in the ridge and his body hid the tool from behind. Now he walks the furrow side
+  turned in to the crown, and the camera swings round to his side as each ridge begins.
+  (3) He walked through the raised earth: he now walks on the ridges and furrows
+  (`player.groundAt`). A ridge takes ~12s (`CONFIG.farm.workPace`). The day's job is
+  unchanged, and so is the pay. The Charter and CROWNBOUND-Guide.docx (rebuilt) say
+  so. `farm` was rewritten for it; it, `spent`, `body`, `intro`, `keys`, `proving`, `walk`,
+  `hearth`, `guide` and the render pass (cloud container, `SMOKE_WAIT=load`).
+  Not yet seen on the owner's screen. Details: "Worked along the ridge, standing on it"
+  under "The Miller's Strip".
+- [x] Post-v1 — "Thine Own Words" (2026-11-28), the owner: "in the what are you saving for
+  part have the user type what they are saving for". The opening question's three preset
+  buttons (A rainy-day fund / A great purchase / A lord's fortune) are gone; the player
+  writes the goal in a "Saving for" box, and it is required there and when naming the next
+  goal (no more silent "The Hoard"). No save change. `exchequer` and `reckoning` pass
+  (cloud container, headless Chromium, `SMOKE_WAIT=load`).
+- [x] Fix — "The Stick Laid Down" (2026-11-27), the owner: "if the stick is in hand make sure to
+  put the stick down rather then the stick disapeering". Sat by the fire, the stick used to be
+  hidden; now the weapon mesh itself moves from the fist into a group on the ground at his
+  stick-hand side (player.js `layStick`, as he sits half down, placed for facing the flames),
+  so a cudgel or quarterstaff lies there as it is, and goes back to the fist (`slot`) as he rises; empty-handed (the weapon on the peg rack) there is nothing to lay. Looks
+  only; no save change. `hearth` checks it is shown, beside him, on the ground and flat;
+  `hearth`, `body`, `combat`, `farm`, `house`, `spent` and the render pass (owner's machine,
+  headless Edge).
+
 - [x] Post-v1 — "The Neighbours" (2026-11-28), the owner: "Add 24 more houses to the villege
   dont, make all of the houses look the same, have a unique touch to each one of the houses,
   make sure to have it look like an actual villege for peasents in 1250 AD". Brackenley is a
@@ -1589,13 +1668,13 @@ headlessly; everything else covered by the regression suite below.
   standing) and one landing per leap (mid-stride screenshot →
   scripts/smoke-body.png) ·
   `hearth` by the fire: not sat at 1.5s, sat by 2.2s (waist low, knees up, facing the
-  fire, stick laid aside), W stands him up slowly then walks on, the spawn is not near enough,
+  fire, the stick lying flat on the ground beside him, not vanished), W stands him up (stick back in the fist) slowly then walks on, the spawn is not near enough,
   too close he shuffles back, a click (no swing, no stamina) and a bite both get him up
   (screenshot → scripts/smoke-hearth.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + the peg rack (E opens its panel, all three weapons listed, Hang up empties the hands — no swing, no stamina, saved — and Take up the cudgel puts it in hand) + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
-  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (chip fills the name, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + money put into savings from the Today card (savings, the month's saving, pledge kept, today's entry listed) + a recount leaves the month's saving + booth screenshot ·
+  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (no preset chips, a goal with no name refused, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + money put into savings from the Today card (savings, the month's saving, pledge kept, today's entry listed) + a recount leaves the month's saving + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
   (the cudgel's unfolds with its config damage and folds again; the chest's three pictures and
   a chest read-more without the buying talk checked later; shop panel →

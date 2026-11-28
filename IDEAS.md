@@ -23,6 +23,8 @@ Each entry has a name, the idea as the owner gave it, then the questions it leav
 | **The Craft** | The game teaches real-world experience, not only schoolwork |
 | **The Market Square** | Players trade micro-transactions with one another |
 | **The Heralds** | In-game marketing |
+| **The Fuller Board** | More choices and stats on the Quest Board |
+| **The Vices** | Track addictions and drug use against a limit — going past it weakens your guy |
 
 The Homelands and The Four Crowns are two different answers to the same question — what a
 kingdom *is*. They are alternatives; the owner has not picked one.
@@ -31,18 +33,72 @@ kingdom *is*. They are alternatives; the owner has not picked one.
 
 ## The Finer Virtues — substats under the four virtues
 
-*Noted 2026-11-15.*
+*Noted 2026-11-15; grown 2026-11-27.*
 
 Each main virtue (Athleticism, Intelligence, Wisdom, Influence) gets substats beneath it.
 Substats affect what the player can do in the game: they change his ability to do certain
 things, or unlock certain abilities later on.
 
+### What you do is what you become (the owner, 2026-11-27)
+
+**The kind of deed decides which substat grows** — so the character comes to move and play
+like the person behind him. Two people at the same Athleticism level can be different
+athletes: a runner is fast, a tennis player is nimble.
+
+**Athleticism has three substats:**
+
+| Substat | Grows from (real life) | Changes in the game |
+| --- | --- | --- |
+| **Speed** | Running, above all | He moves faster |
+| **Agility** | Tennis and the like — quick, changing play | He changes direction quickly |
+| **Strength** | Lifting (the owner named the substat, not yet what it does) | — |
+
+- One deed can feed more than one substat, unevenly: **running is mostly Speed; tennis gives
+  less Speed XP and more Agility.**
+- **As Athleticism itself levels up, the whole body gets better too** — his vert (how high he
+  leaps) and his flexibility rise with the main virtue, whichever substats were trained.
+
+(Agility was once a main virtue; it made way for Intelligence on 2026-11-15. Here it comes
+back as a substat of Athleticism — the save's `int` key and Intelligence are untouched.)
+
+### Intelligence — suggestions, nothing chosen
+
+*The owner asked for ideas (2026-11-27). These are Claude's, not the owner's — strike or
+change freely.* In this game Intelligence is conduct, not learning (learning is Wisdom): the
+planning, strategy, discipline, judgment and money. Three substats to match Athleticism's
+three:
+
+| Substat | Grows from (real life) | Could change in the game |
+| --- | --- | --- |
+| **Strategy** | Planning the week, chess, a business decision thought through, a hard problem solved | He reads a fight: a rat's lunge is given away a beat early, a foe's health is shown, a blow struck from behind or straight out of a roll lands harder. Later: traps set at the granary, the militia commanded (v5), the duel in Kingdoms |
+| **Discipline** | Keeping to the routine — up on time, the diet held, the hard task done first, the phone left alone | His strength goes further: walking and sprinting drain less stamina, the three blows chain over a longer pause, a bite staggers him less, a ridge of the field is worked faster |
+| **Thrift** | Budgeting, tracking spending, saving, a purchase weighed and declined | A sharper bargain: the chapman's prices come down a little, the miller pays a little more a tail and a day, the larder holds more, tomorrow's stock is known ahead (once stock rotates) |
+
+- **As Intelligence itself levels up, he knows more of the world** (its answer to vert and
+  flexibility): the Map fills in and shows more — market days ahead, what the strip wants
+  tomorrow, where the rats are; waymarks to things not yet found; more told on the HUD.
+- Unevenly shared, as with tennis: *a weekly budget written* is mostly Thrift with some
+  Strategy; *a month without sweets* is all Discipline; *a business plan* is mostly Strategy.
+- Other names and powers that were weighed: **Foresight** (planning on its own — seeing ahead:
+  the weather, the market, a foe's next move), **Judgment** (reading people — would sit close
+  to Influence), **Focus** (aim, once there are bows).
+- Two cautions. Thrift must never touch the Treasury — real money and game coins stay two
+  purses; it only bends the game's own prices. And Discipline stretches stamina, which is
+  what ends a day's play — so its ceiling decides how long a session can run.
+
 Open questions:
-- Which substats sit under each virtue, and how many?
-- How does a substat grow — its own XP from deeds, a share of its virtue's XP, or points spent
-  on a level-up?
-- What does each one change or unlock in play?
-- Does the Sage name a substat as well as a virtue when he judges a deed?
+- What Strength changes in play — the weight of a blow, what he can carry, how fast he works
+  the field?
+- Which substats sit under Wisdom and Influence?
+- How a substat grows — the deed's XP split among the substats it trained (a new, *uneven*
+  share: today's `shareXp` splits evenly between whole virtues), or XP of its own on top?
+- Who decides the split for a deed — the Sage (naming "tennis: agility 70, speed 30"), or the
+  player with the picker?
+- How far a substat may bend the numbers the game is balanced on (walk and sprint speed, turn
+  rate, leap height, stamina drain, prices) — a few percent, or a visible difference?
+- Does a substat only change numbers, or unlock abilities at certain levels as first noted?
+- Do unused substats ever fade, as a real body does? (The owner has said streaks are not
+  healthy — fading may be the same kind of pressure.)
 
 ---
 
@@ -324,3 +380,56 @@ Open questions (it could mean either of two things):
   goal tracker; worth deciding early.
 - If players advertise: honesty rules, and keeping adverts to the setting (heralds, signboards,
   hand-bills — no logos in a medieval village).
+
+---
+
+## The Fuller Board — more choices and stats on the Quest Board
+
+*Noted 2026-11-27.*
+
+- **More choices and more stats** on the task board (the Quest Board).
+- Today it holds up to five daily deeds, a weekly bounty, a monthly campaign and the Epic.
+  Each deed is typed by hand and trains one or more of the four virtues, its XP shared evenly.
+
+Open questions (the idea was one line; the examples are guesses, not the owner's):
+- Which choices: more virtues to tick, kinds of deed to pick from (run, lift, tennis, study,
+  budget), saved deeds to post again with one click, a size or difficulty, a time spent?
+- Which stats: the substats of The Finer Virtues on each deed's picker, or numbers about the
+  deeds themselves — how many done this week and month, XP by virtue, the most trained and the
+  most neglected?
+- Where the new stats show: on the board, or in the Tome with the rest of the character?
+- Does any choice change what a deed pays? Today every daily pays the same, and naming more
+  virtues never pays more. A difficulty setting on the honor system would tempt everyone to
+  pick "hard".
+- How to keep logging quick: sessions are meant to be 10–15 minutes a day.
+
+---
+
+## The Vices — addictions and drug use, with a limit
+
+*Noted 2026-11-27.*
+
+- The game **tracks addictions and drug use**.
+- There is **a certain limit**; going past it **weakens your guy**.
+
+Open questions (guesses and cautions are Claude's, not the owner's):
+- What can be tracked: alcohol, nicotine, cannabis, other drugs — and habits that are not
+  drugs, such as gambling, the phone, caffeine or sugar? A set list, or typed by the player?
+- Who sets the limit, over what span (a day, a week, a month), and can it be raised on the
+  spot? A limit of none must be possible.
+- What "weakens" means: less stamina, a slower walk, softer blows, a tired look? For how long,
+  and how does he recover — time, days within the limit, good deeds?
+- Does it ever take away virtue XP or levels already earned, or only dim him for a while?
+- Does staying within the limit give anything back?
+- Honor system: if logging costs him strength, the temptation is not to log. How is telling
+  the truth kept from feeling like punishing yourself?
+- Tone: no shaming, and one bad day should not feel like ruin (the owner has said streaks are
+  not healthy). Should a day over the limit offer a next step, as a bled month does in the
+  Treasury?
+- Safety: the game gives no medical advice and should never call any amount safe. Stopping
+  some things suddenly (heavy drinking, some pills) can be dangerous, so it should not push
+  quitting all at once, and should say where real help is found.
+- Privacy: this is far more sensitive than a deed. Today the history goes to the Chronicler
+  (the Anthropic API), and the save goes into the Scribe's export and the dev mirror file.
+  Should this record be kept out of any of them?
+- How it sits with The Finer Virtues: keeping within a limit could feed Discipline.

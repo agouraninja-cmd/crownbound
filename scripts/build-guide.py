@@ -174,7 +174,7 @@ set_text(P[24], f"{WORDS[C['rats']['count']].capitalize()} rats haunt the granar
 
 # ---- the miller's strip (after Death) ----
 fh = para_after(P[26], H2, "The Miller’s Strip")
-f1 = para_after(fh, BODY, f"The farming job. The strip is a fenced field of **{FM['rows']} ridges**, entered by its gate. There is **one job per real day**, each in its turn: **till, sow, weed, reap**. A job is every ridge — press E at a ridge and he works it for a second or two with the hoe, the sowing hand or the sickle. Finish the last ridge and the miller pays: **+{FM['wage']} coins** for a day’s tilling, sowing or weeding, **+{FM['harvestPay']} coins** for the harvest.")
+f1 = para_after(fh, BODY, f"The farming job. The strip is a fenced field of **{FM['rows']} ridges**, entered by its gate. There is **one job per real day**, each in its turn: **till, sow, weed, reap**. A job is every ridge — press E at a ridge and he goes to its head and works his way along it to the other end with the hoe, the sowing hand or the sickle, the ridge changing as he goes. Step away and he stops; the stretch done stays done, and E takes him back to it. Finish the last ridge and the miller pays: **+{FM['wage']} coins** for a day’s tilling, sowing or weeding, **+{FM['harvestPay']} coins** for the harvest.")
 f2 = para_after(f1, BODY, "The crop grows only across the days you turn up: shoots the night after sowing, ripe wheat the night after weeding. Nothing spoils — a missed day costs only the day, and a half-done job keeps its ridges. Field work pays **coins only**: no XP, no stamina cost, no streak. Virtue is still earned only by real deeds.")
 
 # ---- wealth ----

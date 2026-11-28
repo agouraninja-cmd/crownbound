@@ -455,7 +455,7 @@ export const COMMANDS = [
       }
       const stage = FARM_JOBS.indexOf(word);
       if (stage < 0) fail(`farm ${FARM_JOBS.join(', ')}, grow or finish.`);
-      s.farm = { stage, done: [], workedOn: null };
+      s.farm = { stage, done: [], workedOn: null, part: {} };
       commit('farm');
       return `The strip waits to be worked: ${word}.`;
     },
@@ -492,7 +492,7 @@ export const COMMANDS = [
           reloadWith('The rats are back in the granary.');
           return 'The rats return…';
         case 'farm':
-          s.farm = { stage: 0, done: [], workedOn: null };
+          s.farm = { stage: 0, done: [], workedOn: null, part: {} };
           commit('farm');
           return 'The strip lies in stubble, waiting to be tilled.';
         case 'world':
