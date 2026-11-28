@@ -1284,8 +1284,11 @@ headlessly; everything else covered by the regression suite below.
   posted in error can be taken down. The Tome's deed list and the Chronicler name every
   virtue a deed trained. saveVersion 14 (the one daily slot becomes the day's list). Charter,
   opening oath, test-world `daily` command and CROWNBOUND-Guide.docx (rebuilt) say so.
-  `quests` and `sage` smoke scenarios extended. Details: "Many Deeds, Many Virtues" under
-  Noted decisions.
+  `quests` and `sage` smoke scenarios extended; `proving`'s farm check now expects the five
+  daily deeds' coins. `quests`, `sage`, `rollover`, `fire`, `crown`, `spent`, `intro`,
+  `proving` (on a re-run, after that fix), `chronicle`, `tome`, `guide` and the render pass
+  (cloud container, headless Chromium, `SMOKE_WAIT=load`). Not yet seen on the owner's
+  screen. Details: "Many Deeds, Many Virtues" under Noted decisions.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
@@ -1398,6 +1401,10 @@ headlessly; everything else covered by the regression suite below.
   On Linux (a cloud session) it runs unchanged with `SMOKE_BROWSER=<path to chromium>` and a
   tiny `taskkill` stand-in script on PATH that kills the given PID's process tree; without the
   stand-in the run ends in an unhandled spawn error and leaves `vite preview` holding port 5199.
+  The stand-in must kill the WHOLE tree of the PID in its second argument
+  (`taskkill /PID <pid> /T /F`): vite preview runs four processes deep under the spawned
+  shell, and while it lives node never exits after "SMOKE OK" (2026-11-27). One that works:
+  `tree() { for c in $(pgrep -P "$1"); do tree "$c"; done; echo "$1"; }; kill -9 $(tree "$2")`.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door

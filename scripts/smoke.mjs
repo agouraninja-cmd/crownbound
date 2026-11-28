@@ -3459,7 +3459,7 @@ try {
     // 9) the strip
     await cmd('farm finish');
     s = await st();
-    want(s.farm.stage === 1 && s.coins === 14, `farm finish: stage ${s.farm.stage}, coins ${s.coins}`); // 10 from the daily + the wage
+    want(s.farm.stage === 1 && s.coins === 54, `farm finish: stage ${s.farm.stage}, coins ${s.coins}`); // 50 from the five daily deeds + the wage
     want((await cmd('farm finish')).bad, 'a second job in one day was not refused');
     await cmd('farm grow');
     want((await page.evaluate(() => window.__game.farmJob())) === 'sow', 'farm grow did not bring the next job');
