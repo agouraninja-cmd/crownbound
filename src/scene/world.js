@@ -10,6 +10,7 @@ import { buildAmbient } from './ambient.js';
 import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, buildMiller, HOVEL } from './structures.js';
 import { buildCart } from './cart.js';
 import { buildField } from './field.js';
+import { buildVillage } from './village.js';
 import { makeAlive, makeStroll } from './alive.js';
 import { createCampfire } from './campfire.js';
 
@@ -42,11 +43,19 @@ export function buildWorld(scene, marketToday = false, skyClock) {
   const hovel = buildHovel();
   placeAt(hovel.group, LAYOUT.hovel); // walls collide per-rect below, not as one circle
 
+  // the neighbours' houses: 24 of them, round the green and down the lanes
+  // (village.js). Scenery only — nobody is at home to the E key — but solid.
+  const village = buildVillage(terrainHeight);
+  scene.add(village.group);
+  colliders.push(...village.colliders);
+
   // the window keeps the hour: from within it shows the sky's own colour, from
-  // without the hearth shows through it once the light goes
+  // without the hearth shows through it once the light goes — in the hovel and
+  // in every neighbour's doorway and window
   sky.onLook = (look) => {
     hovel.windowLight.material.color.copy(look.horizon);
     hovel.windowGlow.material.color.lerpColors(WINDOW_BY_DAY, WINDOW_BY_NIGHT, daylight.night);
+    village.setNight(daylight.night);
   };
   sky.refresh();
 
@@ -316,9 +325,10 @@ export function buildWorld(scene, marketToday = false, skyClock) {
     });
   }
 
-  // ambient life: smoke from the hovel's roof, motes, birds, butterflies
+  // ambient life: smoke from the hovel's roof and the neighbours', motes, birds, butterflies
   const ambient = buildAmbient({
     smokeAt: { x: hx + H.smoke.x, y: terrainHeight(hx, hz) + H.smoke.y, z: hz + H.smoke.z },
+    hearths: village.smokes,
     flowerSpots: flora.userData.patches,
   });
   scene.add(ambient.group);
@@ -346,5 +356,5 @@ export function buildWorld(scene, marketToday = false, skyClock) {
   // the village plan on the map draws the real trees and boulders
   const mapMarks = { trees: scatter.trees, rocks: scatter.rocks };
 
-  return { colliders, interactables, sky, campfire, dummy, door, chest, setRackWeapons, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
+  return { colliders, interactables, sky, campfire, dummy, door, chest, setRackWeapons, exchequer, cart, miller, field, village, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
 }

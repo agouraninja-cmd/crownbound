@@ -3,13 +3,15 @@
 //    mere, rivers, roads, towns — with the home village ringed in wax;
 //  - a plan of the village itself, drawn from the game's own layout every time
 //    the map is opened, so it can never disagree with the ground: the path,
-//    every building, the real trees, the miller's strip as it stands today,
+//    the lanes, every building and every neighbour's house, the real trees,
+//    the miller's strip as it stands today,
 //    the bounds of the walkable world, and the player as a red arrow.
 // The realm is a picture only — the walkable world is the village, as ever.
 // Names live in CONFIG.realm; everything else here is fixed art.
 import { CONFIG } from '../state/config.js';
 import { LAYOUT, NORTH, pathX, fieldToWorld, FIELD } from '../scene/layout.js';
 import { makeRng } from '../scene/meshUtils.js';
+import { HOUSES } from '../scene/houses/index.js';
 
 const INK = '#2b2014';
 const FADED = '#5a4a33';
@@ -128,7 +130,7 @@ function realmPlaces() {
   const R = CONFIG.realm;
   return [
     { id: 'home', name: R.village, kind: 'village', x: 330, y: 442, lx: 0, ly: 22, home: true,
-      note: `${R.village} — thy village, a clearing in the Brackenwood: a hovel, a granary, the miller’s strip. Thy feet are bound here, for now.` },
+      note: `${R.village} — thy village, a clearing in the Brackenwood: five-and-twenty thatched houses about a green, a granary, the miller’s strip. Thy feet are bound here, for now.` },
     { id: 'kingsholt', name: 'Kingsholt', kind: 'city', x: 662, y: 292, lx: 0, ly: 20, big: true,
       note: 'Kingsholt — the royal seat, walled and towered. Somewhere within it a crown waits for one who earns it.' },
     { id: 'hollin', name: 'Hollin Cross', kind: 'town', x: 470, y: 402, lx: 0, ly: 19,
@@ -400,6 +402,7 @@ const COS_N = Math.cos(NORTH);
 const PLAN = 400; // the plan's frame, in its own units
 const VIEWS = {
   green: { cx: 1, cz: 3, r: 16, title: 'The Green' }, // the village's heart
+  village: { cx: 0, cz: 3, r: 50, title: 'The Village' }, // every roof, the lanes and the strip
   bounds: { cx: 0, cz: 0, r: 100, title: 'The Bounds' }, // all the walkable land and the wood's edge
 };
 const WORLD_RADIUS = 78; // where the player is held (player.js)
@@ -407,8 +410,11 @@ const WORLD_RADIUS = 78; // where the player is held (player.js)
 let planView = null; // chosen per session; first open picks by where the player stands
 
 function siteNotes() {
+  // each neighbour's house reads its own line (src/scene/houses/<id>.js)
+  const houses = Object.fromEntries(LAYOUT.houses.map((h) => [`house-${h.id}`, HOUSES[h.id].note]));
   return {
-    hovel: 'Thy hovel — cot, hearth, chest, and the sleep ledger on the wall.',
+    ...houses,
+    hovel: 'Thy hovel — cot, hearth, chest, and the sleep ledger on the wall. The smallest roof in the village, and thine own.',
     campfire: 'The campfire — it burns as long as thy streak does.',
     board: 'The Quest Board — where deeds are posted and claimed.',
     tome: 'The Tome — thy chronicle and thy virtues, the Scribe and the Sage.',
@@ -457,7 +463,7 @@ function drawPlan(view, info) {
   out.push(`<g clip-path="url(#m-plan-clip)">`);
 
   // the wood beyond the bounds
-  if (!close) {
+  if (view === 'bounds') {
     const R = WORLD_RADIUS * k;
     out.push(`<path d="M0,0H${PLAN}V${PLAN}H0ZM${PLAN / 2 - R},${PLAN / 2}a${R},${R} 0 1,0 ${2 * R},0a${R},${R} 0 1,0 ${-2 * R},0Z" fill-rule="evenodd" fill="${WOOD}" opacity="0.16" data-place="bounds"/>`);
     const rng = makeRng(78);
@@ -489,6 +495,9 @@ function drawPlan(view, info) {
   out.push(`<path d="${smooth(road)}" fill="none" stroke="#6b4a2a" stroke-width="0.8" stroke-dasharray="5 4" opacity="0.7"/>`);
   const gate = fieldToWorld(0, -(FIELD.halfWidth + FIELD.margin));
   out.push(`<path d="M${pt(gate.x, gate.z)}L${pt(L.fieldTrackEnd.x, L.fieldTrackEnd.z)}" stroke="#8a6a3e" stroke-width="${f1(Math.max(1.6 * k, 2.5))}" opacity="0.4" stroke-linecap="round"/>`);
+  // the lanes worn between the houses
+  const lanes = L.lanes.map((lane) => `M${lane.map(([x, z]) => pt(x, z)).join('L')}`).join('');
+  out.push(`<path d="${lanes}" fill="none" stroke="#8a6a3e" stroke-width="${f1(Math.max(1.1 * k, 1.6))}" opacity="0.32" stroke-linecap="round" stroke-linejoin="round"/>`);
 
   // the miller's strip, each ridge in the colour of what stands on it today
   const fu = FIELD.halfLength;
@@ -544,6 +553,8 @@ function drawPlan(view, info) {
       return `<path d="M${f1(px - s)},${f1(py - s)}l${f1(2 * s)},${f1(2 * s)}M${f1(px + s)},${f1(py - s)}l${f1(-2 * s)},${f1(2 * s)}" stroke="${INK}" stroke-width="1.6"/>`;
     })()),
   ];
+  // the neighbours' houses, each turned as it stands
+  for (const h of L.houses) marks.push(site(`house-${h.id}`, `<path d="${rect(h.x, h.z, h.length / 2, h.width / 2, h.rotY)}" class="m-roof"/>`));
   if (info.market) marks.push(site('cart', `<path d="${rect(L.cart.x, L.cart.z, 1.1, 0.7, L.cart.rotY)}" fill="#a0703c" stroke="${INK}" stroke-width="0.8"/>`));
   out.push(marks.join(''));
 
@@ -566,15 +577,23 @@ function drawPlan(view, info) {
       label('cart', L.cart.x, L.cart.z, info.market ? 'Chapman' : 'chapman’s spot', 10, info.market ? -14 : -4, info.market ? 'm-name m-small' : 'm-name m-small m-faint')
     );
   } else {
-    const home = P(1, 3);
-    out.push(`<text x="${f1(home[0])}" y="${f1(home[1] + 28)}" class="m-name m-home" data-place="home">${CONFIG.realm.village}</text>`);
+    const wide = view === 'bounds';
+    if (wide) {
+      const home = P(1, 3);
+      // the village's name, set below its roofs
+      out.push(`<text x="${f1(home[0])}" y="${f1(home[1] + 60)}" class="m-name m-home" data-place="home">${CONFIG.realm.village}</text>`);
+      out.push(`<text class="m-name m-small m-faint" data-place="bounds"><textPath href="#m-bounds-arc" startOffset="50%">the bounds of thy wandering</textPath></text>`);
+      out.push(`<circle cx="${PLAN / 2}" cy="${PLAN / 2}" r="${f1(WORLD_RADIUS * k)}" fill="none" stroke="${WAX}" stroke-width="1" stroke-dasharray="6 4" data-place="bounds"/>`);
+    } else {
+      // the village: only the places one looks for are named — every roof tells its own tale under the pointer
+      out.push(label('hovel', L.hovel.x, L.hovel.z, 'Thy hovel', 0, 16) + label('granary', L.granary.x, L.granary.z, 'Granary', 22, 14));
+    }
     out.push(label('field', fc.x, fc.z, 'the miller’s strip', 0, 4 + fw * k + 10));
-    out.push(`<text class="m-name m-small m-faint" data-place="bounds"><textPath href="#m-bounds-arc" startOffset="50%">the bounds of thy wandering</textPath></text>`);
-    out.push(`<circle cx="${PLAN / 2}" cy="${PLAN / 2}" r="${f1(WORLD_RADIUS * k)}" fill="none" stroke="${WAX}" stroke-width="1" stroke-dasharray="6 4" data-place="bounds"/>`);
     // where the road leaves: east toward Hollin Cross, west toward the Marches
-    const east = P(pathX(92), 92);
-    const west = P(pathX(-92), -92);
-    out.push(`<text x="${f1(Math.min(east[0], PLAN - 50))}" y="${f1(east[1] - 8)}" class="m-name m-small" data-place="road">to Hollin Cross →</text>`);
+    const far = wide ? 92 : 46;
+    const east = P(pathX(far), far);
+    const west = P(pathX(-far), -far);
+    out.push(`<text x="${f1(Math.min(east[0], PLAN - 50))}" y="${f1(east[1] + (wide ? -8 : 18))}" class="m-name m-small" data-place="road">to Hollin Cross →</text>`);
     out.push(`<text x="${f1(Math.max(west[0], 52))}" y="${f1(west[1] + 18)}" class="m-name m-small" data-place="roadWest">← to the Marches</text>`);
   }
 
@@ -614,7 +633,11 @@ function notesById() {
 // info: { x, z, facing, trees, rocks, market, looks } — from main.js
 export function renderMap(body, info) {
   if (!realmCache) realmCache = drawRealm();
-  if (!planView) planView = Math.hypot(info.x - VIEWS.green.cx, info.z - VIEWS.green.cz) < VIEWS.green.r * 0.9 ? 'green' : 'bounds';
+  if (!planView) {
+    // the closest plan that holds him
+    const within = (v) => Math.hypot(info.x - v.cx, info.z - v.cz) < v.r * 0.9;
+    planView = within(VIEWS.green) ? 'green' : within(VIEWS.village) ? 'village' : 'bounds';
+  }
 
   const notes = notesById();
   const paint = () => {

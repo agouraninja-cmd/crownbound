@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { pathX, LAYOUT, fieldGap, trackGap } from './layout.js';
+import { pathX, LAYOUT, fieldGap, trackGap, houseGap, yardGap, doorGap, laneGap } from './layout.js';
 import { smoothstep, fbm2, hash2 } from './meshUtils.js';
 
 // Analytic height so gameplay code can sample the ground anywhere without raycasts.
@@ -100,6 +100,22 @@ function groundColor(x, z, out) {
   if (gap < 40) {
     const worn = (1 - smoothstep(trackGap(x, z) + (fbm2(x * 0.6 + 2.2, z * 0.6 - 7.4, 2) - 0.5) * 0.7, 0.45, 1.25)) * 0.62;
     if (worn > 0) out.lerp(DIRT, worn);
+  }
+
+  // The neighbours' houses: earth under each and along its walls where the
+  // eaves drip, a trodden patch before each door, and the lanes worn between
+  // them. Like the strip, kept out of dirtAmount so the meadow is not re-rolled.
+  if (d < 70) {
+    const fray = (fbm2(x * 0.6 - 5.1, z * 0.6 + 8.3, 2) - 0.5) * 0.6;
+    // a yard is lived in: its turf worn thin in patches, right out to its fence
+    const yard = yardGap(x, z);
+    if (yard < 1.5) out.lerp(DIRT, (1 - smoothstep(yard + fray, 0, 0.9)) * (0.22 + fbm2(x * 0.31 + 40.7, z * 0.31 - 12.9, 2) * 0.42));
+    const walls = houseGap(x, z);
+    if (walls < 2) out.lerp(DIRT_DARK, (1 - smoothstep(walls + fray * 0.5, 0.2, 1.0)) * 0.9);
+    const step = doorGap(x, z);
+    if (step < 3) out.lerp(DIRT, (1 - smoothstep(step + fray, 0.7, 1.9)) * 0.75);
+    const lane = laneGap(x, z);
+    if (lane < 3) out.lerp(DIRT, (1 - smoothstep(lane + fray, 0.4, 1.3)) * 0.6);
   }
   return out;
 }
