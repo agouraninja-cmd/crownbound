@@ -1481,3 +1481,36 @@ body.opening #hud { opacity: 0; }
   #intro *, #waymark { animation: none !important; }
   .intro-black, .intro-caption p, #caption, .dream-not, #hud { transition: none !important; }
 }
+
+/* ---------- Damage numbers (src/ui/damage.js) ---------- */
+
+#damage-numbers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* gold with an ink ring, so it reads on sky, grass and night alike;
+   placed, scaled and faded from damage.js each frame */
+.dmg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* IM Fell writes its figures old-style (a 1 is a short I); a book face with
+     full-height figures reads at a glance */
+  font-family: "Palatino Linotype", "Book Antiqua", Palatino, "Times New Roman", serif;
+  font-variant-numeric: lining-nums;
+  font-size: 44px;
+  font-weight: bold;
+  color: #f4d778;
+  text-shadow:
+    -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), 0 -2px 0 var(--ink), 0 2px 0 var(--ink),
+    -2px 2px 0 var(--ink), 2px 2px 0 var(--ink),
+    0 3px 6px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+.dmg[data-tier='2'] { font-size: 50px; color: #f7c45a; }
+.dmg[data-tier='3'] { font-size: 56px; color: #ffad4a; }

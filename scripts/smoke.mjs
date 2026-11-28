@@ -683,10 +683,50 @@ try {
       g.player.pos.z = g.dummy.z;
       g.player.faceToward(g.dummy.x, g.dummy.z);
     });
+    let dmgShown = null;
     for (let i = 0; i < 2; i++) {
       await page.evaluate(() => window.__game.player.attack());
+      if (i === 0) {
+        // the blow's damage number thrown up over the dummy (the stick: 1)
+        // once placed: its screen spot against the dummy's head projected the same way
+        const placed = await page
+          .waitForFunction(() => {
+            const g = window.__game;
+            const el = document.querySelector('.dmg');
+            if (!el || !el.style.transform || el.style.visibility === 'hidden') return null;
+            const r = el.getBoundingClientRect();
+            const v = g.camera.position.clone().set(g.dummy.x, 0, g.dummy.z);
+            v.y = g.player.pos.y + 2.0; // about the dummy's crown (ground there ~ his feet)
+            v.project(g.camera);
+            return {
+              shown: g.damageShown(),
+              at: [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)],
+              head: [Math.round((v.x * 0.5 + 0.5) * innerWidth), Math.round((-v.y * 0.5 + 0.5) * innerHeight)],
+              size: Math.round(r.height),
+            };
+          }, { timeout: 4000, polling: 'raf' })
+          .then((h) => h.jsonValue())
+          .catch(() => null);
+        // the page's clock held while the (slow, software) screenshot is taken,
+        // or the number has faded before it is captured; let go after
+        await page.evaluate(() => {
+          window.__realNow = performance.now.bind(performance);
+          const t = window.__realNow();
+          performance.now = () => t;
+        });
+        await page.screenshot({ path: 'scripts/smoke-damage.png' });
+        await page.evaluate(() => { performance.now = window.__realNow; });
+        console.log('dummy damage number:', JSON.stringify(placed));
+        dmgShown = placed?.shown ?? [];
+        if (placed) {
+          const off = Math.hypot(placed.at[0] - placed.head[0], placed.at[1] - placed.head[1]);
+          if (off > 160) errors.push(`combat: damage number ${Math.round(off)}px from the dummy's head`);
+          if (placed.size < 20) errors.push(`combat: damage number only ${placed.size}px tall`);
+        }
+      }
       await new Promise((r) => setTimeout(r, 600));
     }
+    if (!dmgShown.length || dmgShown[0] !== 1) errors.push(`combat: no damage number of 1 over the dummy (${JSON.stringify(dmgShown)})`);
     const afterDummy = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
