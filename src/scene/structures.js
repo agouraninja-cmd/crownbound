@@ -716,7 +716,8 @@ export function buildGranary() {
 
 // The miller: the man who has been paying the rat bounty since M6 finally
 // gets to stand in his own yard. Flour-dusted, arms folded, watching the
-// grain. Mute until v2; E gets you a word about the day's tally (main.js).
+// grain. He says who he is the first time he is come near (src/ui/miller.js),
+// and after that E gets you a word about the day's tally (main.js).
 // Faces local +x; world.js turns him toward the village and walks him on
 // his rounds (alive.js makeStroll). Returns { group, props, sway, head,
 // armR, armL } — props (sack + fork) stay planted at his home spot.

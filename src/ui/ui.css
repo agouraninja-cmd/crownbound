@@ -1514,3 +1514,40 @@ body.opening #hud { opacity: 0; }
 
 .dmg[data-tier='2'] { font-size: 50px; color: #f7c45a; }
 .dmg[data-tier='3'] { font-size: 56px; color: #ffad4a; }
+
+/* ---------- The miller's introduction ---------- */
+/* his likeness beside his words; the likeness goes above them on a narrow screen */
+.miller-meet { display: flex; gap: 18px; align-items: flex-start; margin-top: 14px; }
+.miller-face { flex: 0 0 150px; margin: 0; text-align: center; }
+.miller-svg {
+  display: block;
+  width: 150px;
+  height: 150px;
+  border: 1px solid var(--parchment-edge);
+  border-radius: 3px;
+  background: rgba(255, 248, 220, 0.4);
+  box-shadow: inset 0 0 12px rgba(140, 105, 50, 0.2);
+}
+.miller-face figcaption { margin-top: 6px; font-size: 13px; font-style: italic; color: var(--ink-faded); }
+.miller-says { flex: 1; min-width: 0; }
+.miller-says p { margin: 0 0 10px; font-size: 16px; line-height: 1.4; }
+.miller-says h3 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: normal;
+  font-variant: small-caps;
+  letter-spacing: 1px;
+  color: var(--ink-faded);
+}
+.miller-after {
+  margin: 4px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--parchment-edge);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink-faded);
+}
+.miller-actions { margin-top: 12px; text-align: center; }
+@media (max-width: 560px) {
+  .miller-meet { flex-direction: column; align-items: center; }
+}
