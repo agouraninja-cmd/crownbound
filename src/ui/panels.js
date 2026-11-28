@@ -1,7 +1,13 @@
 import {
+  weaponHungUp,
+  hangUpWeapon,
   getState,
   postDaily,
   completeDaily,
+  removeDaily,
+  dailyDeeds,
+  shareXp,
+  deedVirtues,
   postWeekly,
   completeWeekly,
   postMonthly,
@@ -32,24 +38,41 @@ import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, mapPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody, mapBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, rackPanel, mapPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody, rackBody, mapBody;
 let open = null;
 let onOpenChange = () => {};
 let shopActions = { isWounded: () => false, onPurchase: () => {}, onEat: () => {}, onWield: () => {}, mapView: null }; // wired by main.js
-let statPickFor = null; // 'daily' | 'weekly' | 'monthly'
-let judgingFor = null; // quest kind awaiting the sage's verdict
+// A quest on the board is known by its slot: 'weekly', 'monthly', or one of
+// today's deeds — 'daily:0', 'daily:1' …
+let pickFor = null; // the slot whose virtues are being chosen
+let picked = []; // the virtues ticked for it so far, in the order ticked
+let judgingFor = null; // the slot awaiting the sage's verdict
 let judgeSeq = 0; // bumped to orphan any in-flight verdict (cancel, close, dismiss)
 let editingEpic = false;
 let pendingImport = null; // { name, text } awaiting the player's confirmation
 
-const QUEST_TITLES = { daily: 'Daily Quest', weekly: 'Weekly Bounty', monthly: 'Monthly Campaign' };
+const QUEST_TITLES = { daily: 'Daily Quests', weekly: 'Weekly Bounty', monthly: 'Monthly Campaign' };
 const QUEST_DONE_LINES = {
   daily: 'The day is won. The fire grows.',
   weekly: 'A bounty well earned.',
   monthly: 'A campaign concluded in glory.',
 };
 const POST_FNS = { daily: postDaily, weekly: postWeekly, monthly: postMonthly };
-const COMPLETE_FNS = { daily: completeDaily, weekly: completeWeekly, monthly: completeMonthly };
+
+const slotKind = (slot) => slot.split(':')[0];
+const slotIndex = (slot) => Number(slot.split(':')[1]); // a daily deed's place in today's list
+const slotQuest = (slot) => (slotKind(slot) === 'daily' ? dailyDeeds()[slotIndex(slot)] : getState().quests[slot]);
+
+function completeSlot(slot, virtues) {
+  if (slotKind(slot) === 'daily') return completeDaily(virtues, slotIndex(slot));
+  return (slot === 'weekly' ? completeWeekly : completeMonthly)(virtues);
+}
+
+// 'Athleticism', 'Athleticism and Influence', 'Athleticism, Wisdom and Influence'
+function virtueNames(keys) {
+  const names = keys.map((k) => STAT_NAMES[k]);
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+}
 
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -67,6 +90,43 @@ function crownText() {
 
 // ---------- Quest Board ----------
 
+// A posted quest not yet done, in whichever state it stands: before the sage,
+// its virtues being chosen, or waiting to be marked. `strike` lets one of
+// today's deeds, posted in error, be taken down.
+function waitingBody(slot, q, strike = false) {
+  const text = `<div class="quest-text">“${esc(q.text)}”</div>`;
+  if (judgingFor === slot) {
+    return `${text}
+      <p class="muted">The sage reads thy deed…</p>
+      <div class="row right"><button data-sage-cancel>Choose thyself</button></div>`;
+  }
+  if (pickFor === slot) {
+    const picks = Object.entries(STAT_NAMES)
+      .map(([k, name]) => {
+        const on = picked.includes(k);
+        return `<button data-pick="${k}" class="${on ? 'chosen' : ''}" aria-pressed="${on}">${name}</button>`;
+      })
+      .join('');
+    // how the XP would fall, as it is chosen
+    const share = picked.length
+      ? shareXp(CONFIG.rewards[slotKind(slot)].xp, picked).map((g) => `${STAT_NAMES[g.stat]} +${g.xp}`).join(' · ')
+      : 'Choose at least one.';
+    return `${text}
+      <p class="muted">Which virtue did this deed train? Choose one — or each it truly trained, and the XP is shared among them.</p>
+      <div class="stat-pick">${picks}</div>
+      <div class="row">
+        <span class="grow muted" data-pick-share>${share}</span>
+        <button class="primary" data-pick-done ${picked.length ? '' : 'disabled'}>Claim</button>
+      </div>`;
+  }
+  return `${text}
+    <div class="row right">
+      ${strike ? '<button class="tr-quiet" data-strike title="Take this deed down">Take down</button>' : ''}
+      <button class="primary" data-complete>Mark Complete</button>
+    </div>`;
+}
+
+// the weekly bounty and the monthly campaign: one quest each
 function questSlot({ kind, q, sub, placeholder }) {
   if (!q.text) {
     return `
@@ -80,33 +140,11 @@ function questSlot({ kind, q, sub, placeholder }) {
         </div>
       </div>`;
   }
-  if (!q.completed && judgingFor === kind) {
-    return `
-      <div class="quest-block" data-kind="${kind}">
-        <h2>${QUEST_TITLES[kind]} <span class="sub">${sub}</span></h2>
-        <div class="quest-text">“${esc(q.text)}”</div>
-        <p class="muted">The sage reads thy deed…</p>
-        <div class="row right"><button data-sage-cancel>Choose thyself</button></div>
-      </div>`;
-  }
-  if (!q.completed && statPickFor === kind) {
-    const picks = Object.entries(STAT_NAMES)
-      .map(([k, name]) => `<button data-pick="${k}">${name}</button>`)
-      .join('');
-    return `
-      <div class="quest-block" data-kind="${kind}">
-        <h2>${QUEST_TITLES[kind]} <span class="sub">${sub}</span></h2>
-        <div class="quest-text">“${esc(q.text)}”</div>
-        <p class="muted">Which virtue did this deed train?</p>
-        <div class="stat-pick">${picks}</div>
-      </div>`;
-  }
   if (!q.completed) {
     return `
-      <div class="quest-block" data-kind="${kind}">
+      <div class="quest-block" data-kind="${kind}" data-slot="${kind}">
         <h2>${QUEST_TITLES[kind]} <span class="sub">${sub}</span></h2>
-        <div class="quest-text">“${esc(q.text)}”</div>
-        <div class="row right"><button class="primary" data-complete>Mark Complete</button></div>
+        ${waitingBody(kind, q)}
       </div>`;
   }
   return `
@@ -115,6 +153,39 @@ function questSlot({ kind, q, sub, placeholder }) {
       <h2>${QUEST_TITLES[kind]}</h2>
       <div class="quest-text">“${esc(q.text)}”</div>
       <p class="muted">${QUEST_DONE_LINES[kind]}</p>
+    </div>`;
+}
+
+// Today's deeds: as many as the board will take in a day, each done and paid
+// on its own. The first one done claims the day (the fire, the stamina).
+function dailyBlock(sub) {
+  const deeds = dailyDeeds();
+  const max = CONFIG.quests.dailyMax;
+  const rows = deeds
+    .map((q, i) =>
+      q.completed
+        ? `<div class="deed-slot done">
+            <div class="quest-text">“${esc(q.text)}”</div>
+            <span class="deed-done">Done${q.virtues?.length ? ` · ${q.virtues.map((k) => STAT_NAMES[k]).join(' · ')}` : ''}</span>
+          </div>`
+        : `<div class="deed-slot" data-slot="daily:${i}">${waitingBody(`daily:${i}`, q, true)}</div>`
+    )
+    .join('');
+  const post =
+    deeds.length >= max
+      ? `<p class="muted">The board holds ${max} deeds a day, and no more. Tomorrow it is bare again.</p>`
+      : `${deeds.length ? '' : '<p class="muted">What real deeds will you do today? Lift, learn, build, reach out...</p>'}
+        <div class="row">
+          <input type="text" class="grow" data-input maxlength="120"
+            placeholder="${deeds.length ? `Another deed for today (${deeds.length} of ${max} posted)...` : 'Write it in your own words...'}" />
+          <button class="primary" data-post>Post</button>
+        </div>`;
+  return `
+    <div class="quest-block" data-kind="daily">
+      <h2>${QUEST_TITLES.daily} <span class="sub">${sub}</span></h2>
+      ${rows}
+      ${deeds.some((q) => q.completed) ? `<p class="muted">${QUEST_DONE_LINES.daily}</p>` : ''}
+      ${post}
     </div>`;
 }
 
@@ -143,12 +214,7 @@ function renderBoard() {
         </div>`;
 
   boardBody.innerHTML = `
-    ${questSlot({
-      kind: 'daily',
-      q: s.quests.daily,
-      sub: `+${r.daily.xp} XP · +${r.daily.coins} coins · refills stamina`,
-      placeholder: 'What real deed will you do today? Lift, learn, build, reach out...',
-    })}
+    ${dailyBlock(`+${r.daily.xp} XP · +${r.daily.coins} coins each · the first refills stamina`)}
     ${questSlot({
       kind: 'weekly',
       q: s.quests.weekly,
@@ -170,50 +236,65 @@ function renderBoard() {
   bindBoard();
 }
 
-function rewardToast(name, res) {
-  toast(`+${res.xp} ${name} XP · +${res.coins} coins`, 'gold');
+function rewardToast(res) {
+  const xp = res.gains.map((g) => `+${g.xp} ${STAT_NAMES[g.stat]} XP`).join(' · ');
+  toast(`${xp} · +${res.coins} coins`, 'gold');
   sfx.questDone();
-  for (const lvl of res.levelUps) {
-    toast(`${name} rises to level ${lvl}!`, 'gold');
-    sfx.levelUp();
+  for (const g of res.gains) {
+    for (const lvl of g.levelUps) {
+      toast(`${STAT_NAMES[g.stat]} rises to level ${lvl}!`, 'gold');
+      sfx.levelUp();
+    }
   }
 }
 
+// the manual picker, begun afresh for a slot
+function openPicker(slot) {
+  pickFor = slot;
+  picked = [];
+}
+
 function bindBoard() {
+  // posting: one box per kind (the daily's adds another deed to today's list)
   for (const block of boardBody.querySelectorAll('.quest-block[data-kind]')) {
     const kind = block.dataset.kind;
     const input = block.querySelector('[data-input]');
     const postBtn = block.querySelector('[data-post]');
-    if (postBtn) {
-      const post = () => {
-        if (!input.value.trim()) return;
-        POST_FNS[kind](input.value);
-        renderBoard();
-      };
-      postBtn.addEventListener('click', post);
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') post();
-        e.stopPropagation(); // typing must not move the player
-      });
-    }
-    block.querySelector('[data-complete]')?.addEventListener('click', () => {
+    if (!postBtn) continue;
+    const post = () => {
+      if (!input.value.trim()) return;
+      POST_FNS[kind](input.value);
+      renderBoard();
+    };
+    postBtn.addEventListener('click', post);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') post();
+      e.stopPropagation(); // typing must not move the player
+    });
+  }
+
+  // a posted quest's own buttons
+  for (const el of boardBody.querySelectorAll('[data-slot]')) {
+    const slot = el.dataset.slot;
+    el.querySelector('[data-complete]')?.addEventListener('click', () => {
       if (!sageEnabled()) {
-        statPickFor = kind;
+        openPicker(slot);
         renderBoard();
         return;
       }
       // the sage's verdict is final; the picker is every failure's fallback
-      judgingFor = kind;
+      judgingFor = slot;
+      pickFor = null;
       const seq = ++judgeSeq;
       renderBoard();
-      judgeDeed(getState().quests[kind].text).then(({ virtue, keyTrouble }) => {
-        if (seq !== judgeSeq || judgingFor !== kind) return; // cancelled, closed, or superseded
+      judgeDeed(slotQuest(slot).text).then(({ virtues, keyTrouble }) => {
+        if (seq !== judgeSeq || judgingFor !== slot) return; // cancelled, closed, or superseded
         judgingFor = null;
-        if (virtue) {
-          const res = COMPLETE_FNS[kind](virtue);
+        if (virtues) {
+          const res = completeSlot(slot, virtues);
           if (res) {
-            toast(`The sage judges this deed ${STAT_NAMES[virtue]}.`, '');
-            rewardToast(STAT_NAMES[virtue], res);
+            toast(`The sage judges this deed ${virtueNames(virtues)}.`, '');
+            rewardToast(res);
           }
         } else {
           toast(
@@ -222,26 +303,39 @@ function bindBoard() {
               : 'The sage is silent. Choose thyself.',
             'grim'
           );
-          statPickFor = kind;
+          openPicker(slot);
         }
         renderBoard();
       });
     });
-    block.querySelector('[data-sage-cancel]')?.addEventListener('click', () => {
+    el.querySelector('[data-sage-cancel]')?.addEventListener('click', () => {
       judgeSeq += 1; // orphan the in-flight verdict
       judgingFor = null;
-      statPickFor = kind;
+      openPicker(slot);
       renderBoard();
     });
-    for (const btn of block.querySelectorAll('[data-pick]')) {
+    for (const btn of el.querySelectorAll('[data-pick]')) {
       btn.addEventListener('click', () => {
         const stat = btn.dataset.pick;
-        const res = COMPLETE_FNS[kind](stat);
-        statPickFor = null;
-        if (res) rewardToast(STAT_NAMES[stat], res);
+        picked = picked.includes(stat) ? picked.filter((k) => k !== stat) : [...picked, stat];
         renderBoard();
       });
     }
+    el.querySelector('[data-pick-done]')?.addEventListener('click', () => {
+      if (!picked.length) return;
+      const res = completeSlot(slot, picked);
+      pickFor = null;
+      picked = [];
+      if (res) rewardToast(res);
+      renderBoard();
+    });
+    el.querySelector('[data-strike]')?.addEventListener('click', () => {
+      // the deeds below it move up a place: nothing may be left pointing at the old one
+      judgeSeq += 1;
+      judgingFor = pickFor = null;
+      removeDaily(slotIndex(slot));
+      renderBoard();
+    });
   }
 
   const epicInput = boardBody.querySelector('[data-epic-input]');
@@ -285,7 +379,7 @@ function deedRows(history) {
       const tag =
         h.type === 'epic'
           ? `the great work · ${h.progressPct}%`
-          : `${STAT_NAMES[h.statTrained] ?? '—'} · ${h.type}`;
+          : `${deedVirtues(h).map((k) => STAT_NAMES[k]).join(' + ') || '—'} · ${h.type}`;
       return `<div class="deed">
         <span class="deed-date">${deedDate(h.date)}</span>
         <span class="deed-text">“${esc(h.questText)}”</span>
@@ -651,19 +745,21 @@ function renderShop() {
   }
 }
 
-// ---------- The Chest (beside the cot) ----------
+// ---------- The Weapon Rack (by the door) ----------
+// Every weapon not in hand hangs here, the stick among them; the hand holds
+// one, or none while all of them are on their pegs.
 
-function renderChest() {
-  const s = getState();
+function renderRack() {
   const inHand = wieldedWeapon();
+  const hung = weaponHungUp(); // every weapon on the pegs, hands empty
   const damageOf = (w) => w.damage ?? CONFIG.player.attackDamage;
 
   const weapons = ownedWeapons()
     .map((w) => {
-      const action =
-        w.id === inHand.id
-          ? `<span class="deed-tag tag-gold">in hand</span>`
-          : `<button data-wield="${w.id}">Take up</button>`;
+      const held = w.id === inHand.id && !hung;
+      const action = held
+        ? `<span class="deed-tag tag-gold">in hand</span> <button data-hang>Hang up</button>`
+        : `<button data-wield="${w.id}">Take up</button>`;
       return `<div class="deed ware">
         ${warePic(w)}
         <span class="deed-text"><b>${w.name}</b> — <span class="muted">${w.flavor}</span>
@@ -674,17 +770,45 @@ function renderChest() {
     })
     .join('');
 
+  rackBody.innerHTML = `
+    <div class="sheet-section">
+      <div class="kv"><span>In thy hand</span><span class="v">${hung ? 'nothing' : inHand.name}</span></div>
+      <p class="muted">Thou carriest one weapon; the rest hang here on their pegs. Hang up the one
+        in hand to walk about empty-handed &#8212; but empty hands cannot swing.</p>
+    </div>
+    <div class="sheet-section">
+      <h2>Weapons</h2>
+      ${weapons}
+    </div>`;
+
+  for (const btn of rackBody.querySelectorAll('[data-wield]')) {
+    btn.addEventListener('click', () => {
+      if (wieldWeapon(btn.dataset.wield)) {
+        toast(`Thou takest down ${wieldedWeapon().name}.`, '');
+        shopActions.onWield();
+      }
+      renderRack();
+    });
+  }
+  rackBody.querySelector('[data-hang]')?.addEventListener('click', () => {
+    hangUpWeapon(true);
+    toast(`Thou hangest ${inHand.name} on its pegs.`, '');
+    shopActions.onWield();
+    renderRack();
+  });
+  bindWareToggles(rackBody, renderRack);
+}
+
+// ---------- The Chest (beside the cot) ----------
+
+function renderChest() {
+  const s = getState();
   const loaves = s.chest.loaves;
   const hale = !shopActions.isWounded();
   const loaf = CONFIG.shop.items.find((i) => i.id === 'loaf');
   chestBody.innerHTML = `
     <div class="sheet-section">
-      <div class="kv"><span>In thy hand</span><span class="v">${inHand.name}</span></div>
-      <p class="muted">Thou carriest one weapon; the chest keeps the rest.</p>
-    </div>
-    <div class="sheet-section">
-      <h2>Weapons</h2>
-      ${weapons}
+      <p class="muted">Thy weapons hang on the rack by the door.</p>
     </div>
     <div class="sheet-section">
       <h2>The Larder</h2>
@@ -707,15 +831,6 @@ function renderChest() {
       </div>
     </div>`;
 
-  for (const btn of chestBody.querySelectorAll('[data-wield]')) {
-    btn.addEventListener('click', () => {
-      if (wieldWeapon(btn.dataset.wield)) {
-        toast(`Thou takest up ${wieldedWeapon().name}.`, '');
-        shopActions.onWield();
-      }
-      renderChest();
-    });
-  }
   bindWareToggles(chestBody, renderChest);
   chestBody.querySelector('[data-eat]').addEventListener('click', () => {
     if (shopActions.isWounded() && eatLoaf()) {
@@ -731,7 +846,8 @@ function renderChest() {
 function close() {
   if (!open) return;
   open = null;
-  statPickFor = null;
+  pickFor = null;
+  picked = [];
   judgeSeq += 1; // a verdict landing after close is discarded, not applied unseen
   judgingFor = null;
   editingEpic = false;
@@ -746,6 +862,7 @@ function close() {
   shopPanel.classList.add('hidden');
   guidePanel.classList.add('hidden');
   chestPanel.classList.add('hidden');
+  rackPanel.classList.add('hidden');
   mapPanel.classList.add('hidden');
   onOpenChange(false);
 }
@@ -768,6 +885,7 @@ export function openPanel(id) {
   shopPanel.classList.toggle('hidden', id !== 'shop');
   guidePanel.classList.toggle('hidden', id !== 'guide');
   chestPanel.classList.toggle('hidden', id !== 'chest');
+  rackPanel.classList.toggle('hidden', id !== 'rack');
   mapPanel.classList.toggle('hidden', id !== 'map');
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
@@ -775,6 +893,7 @@ export function openPanel(id) {
   else if (id === 'shop') renderShop();
   else if (id === 'guide') renderGuide(guideBody);
   else if (id === 'chest') renderChest();
+  else if (id === 'rack') renderRack();
   else if (id === 'map') renderMap(mapBody, shopActions.mapView());
   else renderTome();
   onOpenChange(true);
@@ -795,6 +914,7 @@ export function initPanels(openChangeCallback, shopHooks) {
   shopPanel = document.getElementById('shop-panel');
   guidePanel = document.getElementById('guide-panel');
   chestPanel = document.getElementById('chest-panel');
+  rackPanel = document.getElementById('rack-panel');
   mapPanel = document.getElementById('map-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
@@ -803,6 +923,7 @@ export function initPanels(openChangeCallback, shopHooks) {
   shopBody = document.getElementById('shop-body');
   guideBody = document.getElementById('guide-body');
   chestBody = document.getElementById('chest-body');
+  rackBody = document.getElementById('rack-body');
   mapBody = document.getElementById('map-body');
 
   window.addEventListener('keydown', (e) => {

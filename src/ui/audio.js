@@ -15,12 +15,20 @@ function ensureCtx() {
 
 // browsers only allow audio after a user gesture
 export function initAudio() {
-  const unlock = () => ensureCtx();
+  const unlock = wakeAudio;
   window.addEventListener('pointerdown', unlock, { once: true });
   window.addEventListener('keydown', unlock, { once: true });
 }
 
-function tone({ freq = 440, to = freq, type = 'sine', dur = 0.1, gain = 0.5, when = 0 }) {
+// For a sound that must be heard in the very gesture that allows it (the
+// opening's bells, rung by the key that begins the game).
+export function wakeAudio() {
+  ensureCtx();
+}
+
+// `out` is where the sound is sent: the master volume, unless a sound keeps a
+// bus of its own (the bells, so they can be hushed)
+function tone({ freq = 440, to = freq, type = 'sine', dur = 0.1, gain = 0.5, when = 0, out = master }) {
   if (!ctx) return;
   const t0 = ctx.currentTime + when;
   const osc = ctx.createOscillator();
@@ -30,10 +38,20 @@ function tone({ freq = 440, to = freq, type = 'sine', dur = 0.1, gain = 0.5, whe
   osc.frequency.exponentialRampToValueAtTime(Math.max(to, 1), t0 + dur);
   g.gain.setValueAtTime(gain, t0);
   g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-  osc.connect(g).connect(master);
+  osc.connect(g).connect(out);
   osc.start(t0);
   osc.stop(t0 + dur + 0.02);
 }
+
+// one stroke of a bell: the struck note, the hum an octave under it and two
+// overtones, each dying away at its own pace
+function bell(freq, when, out) {
+  tone({ freq, dur: 2.4, gain: 0.3, when, out });
+  tone({ freq: freq / 2, dur: 3.0, gain: 0.14, when, out });
+  tone({ freq: freq * 2, dur: 1.5, gain: 0.12, when, out });
+  tone({ freq: freq * 2.76, dur: 0.9, gain: 0.07, when, out });
+}
+const PEAL = [523, 440, 392, 330, 392, 440, 523, 659]; // down the bells and up again
 
 function noise({ dur = 0.08, gain = 0.3, freq = 1200, when = 0 }) {
   if (!ctx) return;
@@ -102,4 +120,13 @@ export const sfx = {
   },
   sow: () => noise({ dur: 0.14, gain: 0.07, freq: 3000 + Math.random() * 600 }),
   reap: () => noise({ dur: 0.11, gain: 0.15, freq: 1700 + Math.random() * 300 }),
+  // The bells of a crowning, rung in the opening's dream. They ring on a bus
+  // of their own so the waking can cut them off mid-peal: the hush is returned.
+  bells: () => {
+    if (!ctx) return () => {};
+    const bus = ctx.createGain();
+    bus.connect(master);
+    PEAL.forEach((freq, i) => bell(freq, i * 0.42, bus));
+    return () => bus.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+  },
 };

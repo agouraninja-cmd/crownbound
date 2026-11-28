@@ -87,8 +87,9 @@ export function renderGuide(guideBody) {
         ${
           CONFIG.chest
             ? `<p class="muted">His bread keeps in the larder of the chest by thy cot — up to
-              ${CONFIG.chest.larderCap} loaves — and a loaf eaten there mends every wound. The chest
-              also keeps thy spare weapons: thou carriest one, and choosest which.</p>`
+              ${CONFIG.chest.larderCap} loaves — and a loaf eaten there mends every wound. Thy weapons
+              hang on the peg rack by thy door (E): thou carriest one and choosest which, or hangest
+              them all up to walk about empty-handed.</p>`
             : ''
         }
       </div>`
@@ -101,7 +102,8 @@ export function renderGuide(guideBody) {
         <h2>The Miller&#8217;s Strip</h2>
         <p class="muted">Out past the granary to the north-east, at the end of a cart track and
         behind a rail fence, lies the miller&#8217;s wheat strip, and honest work on it is paid in coin. One job a day, each in
-        its turn — till, sow, weed, reap — and a job is all ${FM.rows} ridges, E at each. The crop
+        its turn — till, sow, weed, reap — and a job is all ${FM.rows} ridges. E at a ridge and he goes to its
+        head and works his way along it to the other end; a step away stops him, and what is done stays done. The crop
         grows only across the days thou turnest up; a day missed costs nothing but the day.</p>
         <div class="kv"><span>a day&#8217;s tilling, sowing or weeding</span><span class="v">${FM.wage} coins</span></div>
         <div class="kv"><span>the wheat brought in</span><span class="v">${FM.harvestPay} coins</span></div>
@@ -122,11 +124,15 @@ export function renderGuide(guideBody) {
       <h2>The Law of the Land</h2>
       <p class="muted">Post a quest at the board in thine own words. Do the real deed under the
       real sky. Return, mark it complete, and name the virtue it trained — the reward lands there.
-      The game never invents tasks for thee.</p>
+      A deed that truly trained more than one virtue may name each: its XP is shared evenly among
+      them, so naming more never pays more. The game never invents tasks for thee.</p>
+      <p class="muted">The board takes up to ${CONFIG.quests.dailyMax} daily deeds in a day, each done
+      and paid on its own. The first one done claims the day — it feeds the fire and refills thy
+      stamina; the rest pay their XP and coins and ask nothing more.</p>
     </div>
     <div class="sheet-section">
       <h2>Rewards of the Realm</h2>
-      <div class="kv"><span>Daily Quest</span><span class="v">+${R.daily.xp} XP · +${R.daily.coins} coins · refills stamina (even abed, spent) · feeds the fire</span></div>
+      <div class="kv"><span>Daily Quest</span><span class="v">+${R.daily.xp} XP · +${R.daily.coins} coins each · the day&#8217;s first refills stamina (even abed, spent) and feeds the fire</span></div>
       <div class="kv"><span>Weekly Bounty</span><span class="v">+${R.weekly.xp} XP · +${R.weekly.coins} coins · resets Monday</span></div>
       <div class="kv"><span>Monthly Campaign</span><span class="v">+${R.monthly.xp} XP · +${R.monthly.coins} coins · resets the 1st</span></div>
       <div class="kv"><span>The Epic Quest</span><span class="v">the year&#8217;s great work, reckoned by thy hand</span></div>
@@ -142,7 +148,8 @@ export function renderGuide(guideBody) {
     </div>
     <div class="sheet-section">
       <h2>The Streak &amp; the Fire</h2>
-      <p class="muted">Completing the daily quest claims the day. Miss a full day and the fire
+      <p class="muted">The first daily deed done claims the day — one is enough, and more
+      add nothing to the streak. Miss a full day and the fire
       dies in the night — the streak returns to nought. Until today&#8217;s deed is done the flame
       gutters low, a living reminder; it swells the moment the deed is logged.
       Stand still beside it ${CONFIG.player.sitDelay} heartbeats and thou sittest down to warm thy
@@ -152,7 +159,7 @@ export function renderGuide(guideBody) {
     <div class="sheet-section">
       <h2>Stamina</h2>
       <p class="muted">A daily pool spent by arms and legs alike — every step wears on it, a sprint
-      the more; only a leap is free. The cap stands at ${ST.baseCap}; complete the daily quest and the
+      the more; only a leap is free. The cap stands at ${ST.baseCap}; complete the day&#8217;s first daily deed and the
       pool refills, the cap rising to ${ST.questCap} till nightfall. Spend it to the last and thy day
       is done: thy legs carry thee home to thy cot, and thou mayst play again on the morrow. From thy
       bed the Quest Board, the Tome and the Exchequer stay open — and if today&#8217;s deed is yet
@@ -187,11 +194,11 @@ export function renderGuide(guideBody) {
       pays no coins. One reward only: a savings goal won earns ${CONFIG.rewards.goalXp} Intelligence XP.</p>
       <p class="muted">At the Exchequer the clerk asks three things to open thy ledger: what thou art
       saving for, what thou hast saved, and a monthly pledge (what thou meanest to set aside). After
-      that, lay in coin there whenever thou movest real money into savings — the coffer fills and the
-      month&#8217;s pledge with it. When each month ends, tell the clerk two figures: what went into
-      savings, and what thy savings now stand at (income and spending as thou wilt). He seals the
-      month — fat if the pledge was kept, held if no ground was lost, bled if it was. A goal is won
-      when a filed reckoning reaches it.</p>
+      that, keep his day book: enter money in, money out and money put into savings on the day it
+      happens — putting money into savings fills the coffer at once. On the 1st of each month the
+      clerk closes the month just ended by himself, from those entries, and seals it — fat if the
+      pledge was kept, held if no ground was lost, bled if it was. A goal is won when a month closes
+      with thy savings at it.</p>
     </div>
     ${farmSection}
     ${marketSection}

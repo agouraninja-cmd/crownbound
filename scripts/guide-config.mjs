@@ -13,5 +13,5 @@ for (let h = 1; h <= 500 && xp > 0; h++) {
   }
 }
 
-const { realm, xpPerLevel, ranks, rewards, stamina, sleep, shop, chest, player, rats, farm, campfireTiers } = CONFIG;
-console.log(JSON.stringify({ realm, xpPerLevel, ranks, rewards, stamina, sleep, shop, chest, player, rats, farm, campfireTiers, dummy }));
+const { realm, xpPerLevel, ranks, rewards, quests, stamina, sleep, shop, chest, player, rats, farm, campfireTiers } = CONFIG;
+console.log(JSON.stringify({ realm, xpPerLevel, ranks, rewards, quests, stamina, sleep, shop, chest, player, rats, farm, campfireTiers, dummy }));

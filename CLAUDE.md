@@ -19,13 +19,15 @@ happens the moment the character reaches King** (70 total virtue levels).
   round dot (sprites.js), the sun's disc and the moon's face (sky.js). Pictures in the UI
   (the Map, the shop's wares) are SVG built in code.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 12`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 14`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
   v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle;
   v8→v9 the chest — weapon in hand + loaf larder; v9→v10 the virtues renamed —
   str→ath, agi→int; v10→v11 Intelligence reset to level 1, rank recounted; v11→v12 the
-  miller's strip — the field begins fallow). The test world (`?test=1`, The Proving Ground)
+  miller's strip — the field begins fallow; v12→v13 the day book — coin laid in by month
+  becomes day-book entries; v13→v14 several deeds a day — the one daily slot becomes the
+  day's list). The test world (`?test=1`, The Proving Ground)
   keeps a save of its own under `crownbound_test_save` and never writes the true one.
 - Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
   one shadow-casting directional light, cheap particles, no post-processing.
@@ -54,14 +56,14 @@ src/scene/particles.js  soft-puff particle pool (one Points draw call per pool):
 src/scene/sprites.js  the canvas-drawn soft dot texture + additive glow billboards
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
-src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, fence + gate + hayrick + scarecrow; draw(looks) rebuilds the crop
+src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, fence + gate + hayrick + plough + harrow + scarecrow; draw(looks) rebuilds the crop; kick() throws earth/seed/chaff as he works
 src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
 src/scene/campfire.js campfire mesh, tongues of flame, sparks, smoke; scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight; update() drives the ambient scenery
 src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements; the hoe and sickle, hidden in the stick hand
 src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
 src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
-src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed)
+src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed); setGaze / glideTo, the opening's two camera moves
 src/player/pathfind.js  the walk home: grid A* around the colliders, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
@@ -71,15 +73,16 @@ src/proving/console.js   the test world's command line (/), the owner's own comm
 src/ai/sage.js        the Sage: Anthropic API names a completed deed's virtue; key kept outside the save
 src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep log, under the sage's key; run once after boot
 src/ui/ui.css         parchment styling
-src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt
+src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt, the waymark (a newcomer shown the way)
 src/ui/toasts.js      flavor message queue
-src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Chest panel UIs; opens/closes every panel
-src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, lay in coin, the monthly reckoning, the seals and the climb chart (all SVG built here)
+src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Weapon Rack, Chest panel UIs; opens/closes every panel
+src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, the day book (money in / out / into savings), the seals and the climb chart (all SVG built here)
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
+src/ui/intro.js       the opening a blank save begins with: the title, the dream of the crown, the waking, the oath; caption() — a line of ink over the scene
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
 src/ui/wares.js       the wares pictured and explained: an ink-and-wash SVG per shop item + the stick, and each one's "read more" (shop + chest)
-src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle)
+src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle, the dream's bells)
 scripts/smoke.mjs     the headless regression suite (see Session notes)
 scripts/build-guide.py  builds CROWNBOUND-Guide.docx (`npm run guide`): the prose, with every number read from config.js via scripts/guide-config.mjs, laid over scripts/guide-template.docx
 scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / python) and runs build-guide.py
@@ -88,7 +91,7 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 12,
+  saveVersion: 14,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
   stats: { ath|int|wis|inf: { level, xp } },     // Athleticism, Intelligence, Wisdom, Influence;
@@ -96,24 +99,27 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   coins,
   treasury: {                                    // real savings, manual, never converts with coins
     name, current, goal,                         // the named cumulative summit (goal 0 = none raised)
-    pledge,                                      // standing monthly laid-in commitment (verdict yardstick)
-    laid: { "YYYY-MM": n },                      // coin laid in between reckonings, by the month it was laid
-                                                 //   in; a month's sum is cleared when that month is filed
-                                                 //   (absent on old saves = {} — no version bump)
-    rolls: [ { month: "YYYY-MM", earned, spent, saved, counted,   // one reckoning per month, append-only;
-               verdict: fat|held|bled|unreckoned } ],             //   earned+spent are optional (a roll filed on
-                                                                  //   two figures has neither); unreckoned rolls
-                                                                  //   carry month+verdict only
+    pledge,                                      // standing monthly savings commitment (verdict yardstick)
+    log: [ { date: "YYYY-MM-DD", kind: in|out|save|fix,   // the day book: entries of months not yet closed;
+             amount, note? } ],                  //   'save' grows `current` when entered, 'fix' is a recount's
+                                                 //   signed delta; a month's entries leave when it is closed
+    rolls: [ { month: "YYYY-MM", earned, spent, saved, counted,   // one closed month each, append-only, closed
+               verdict: fat|held|bled|unreckoned } ],             //   by the clerk on load (closeMonths); earned+spent
+                                                                  //   only when both kinds were entered; unreckoned
+                                                                  //   rolls (nothing entered) carry month+verdict only
     conquered: [ { name, goal, conqueredAt } ]   // summits taken; conquests also land in history as "treasury"
   },
   streak: { current, best },
   quests: {
-    daily:  { text, completed, date },           // resets each local day
+    daily:  { date, deeds: [ { text, completed, virtues? } ] },  // today's deeds (≤ quests.dailyMax),
+                                                 //   each paid on its own; the list empties each local day
     weekly: { text, completed, weekStart },      // resets each Monday (local)
     monthly:{ text, completed, monthStart },     // resets the 1st of each month (local)
     epic:   { text, progressPct }                // no deadline — the crown is earned, not dated
   },
-  history: [ { date, questText, statTrained, type } ],  // append-only; the Chronicler reads this
+  history: [ { date, questText, statTrained, virtues?, type } ],  // append-only; the Chronicler reads this.
+                                                 //   statTrained = the first virtue named; virtues only when
+                                                 //   a deed named more than one (deedVirtues(h) reads both)
   chronicle: [ { week, text, writtenAt } ],      // the Chronicler's weekly entries, append-only, oldest first
   // v1 additions beyond original spec (documented deviations):
   daysPlayed,                                    // incremented on first login of each local day
@@ -125,13 +131,23 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
                                                         //   for the v2 Chronicler; ledger shows last 7)
   shop: { owned: [] },                                  // ids of one-time chapman purchases; purchases
                                                         //   also land in history as type "purchase"
-  chest: { wielded, loaves },                           // weapon in hand ('stick' or an owned hand item;
-                                                        //   the rest lie in the chest) + loaves in the larder
-  farm: { stage, done, workedOn },                      // the miller's strip: the job owed (0 till · 1 sow ·
+  chest: { wielded, loaves, hungUp },                   // weapon in hand ('stick' or an owned hand item; the
+                                                        //   rest hang on the peg rack by the door) + loaves in
+                                                        //   the chest's larder; hungUp: true while the one in
+                                                        //   hand hangs on the rack too (empty hands; absent =
+                                                        //   in hand, no version bump)
+  farm: { stage, done, workedOn, part },                // the miller's strip: the job owed (0 till · 1 sow ·
                                                         //   2 tend · 3 reap), the ridges done of it, the local
                                                         //   day the last job was finished (one job a day);
-                                                        //   a harvest also lands in history as type "harvest"
-  coronationAt                                          // ISO timestamp, set once at rank King (else null)
+                                                        //   part: { [row]: { end: ±1, k } } the ridges begun —
+                                                        //   worked from that end for k (0..1) of the length;
+                                                        //   emptied when the job is done (absent = {}, no
+                                                        //   version bump); a harvest also lands in history
+                                                        //   as type "harvest"
+  coronationAt,                                         // ISO timestamp, set once at rank King (else null)
+  introOwed                                             // true on a save begun from nothing, until the opening has
+                                                        //   been played or skipped; absent = owes nothing (every
+                                                        //   older save — no version bump). Never set in the test world.
 }
 ```
 
@@ -147,8 +163,12 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   (toasts in main.js). Once only — the timestamp guards re-triggering. Board and Tome show the
   road to the crown ("N of 70 virtue levels won"), then the crowning date ever after. The full
   Coronation ceremony (visuals, the event itself) remains v5 scope.
-- Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day
-  (even from bed, spent — it gets him up; see below), feeds streak.
+- Daily quests: up to `CONFIG.quests.dailyMax` (5) a day, each +25 XP and +10 coins in full.
+  Only the FIRST done each day claims it: refills stamina and raises its cap for the day (even
+  from bed, spent — it gets him up; see below) and feeds the streak. Later deeds pay XP and coins
+  only. See "Many Deeds, Many Virtues" under Noted decisions.
+- Any quest may train more than one virtue: its XP is shared evenly among those named
+  (`shareXp`, the odd points to the first named), so naming more never pays more.
 - Weekly bounty: +100 XP to chosen stat, +50 coins. Monthly campaign: +300 XP, +150 coins.
   Epic: manual progress %, logged to history.
 - Streak: daily completion counts the day. Missing a full day resets to 0 → "The fire died in the night."
@@ -173,10 +193,12 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
 - The miller's strip (the farming job): a fenced wheat field of 10 ridges (`CONFIG.farm.rows`),
-  each 12.8 long, out past the granary to the north-east at (27, 33), reached by a cart track
+  each 18.4 long and 1.4 wide, out past the granary to the north-east at (27, 33), reached by a cart track
   from the granary yard. One job per real local day, each in its
-  turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → ~1.5s of work
-  (hoe, sowing hand or sickle in place of the stick) → that ridge changes its look. The last
+  turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → he walks to
+  its head and works his way along it (hoe, sowing hand or sickle in place of the stick), the
+  ridge changing its look only as far as each blow has reached (~12s a ridge at
+  `CONFIG.farm.workPace`). A movement key calls him off; the stretch worked is kept. The last
   ridge finishes the job and the miller pays: +4 coins for a day's tilling, sowing or weeding,
   +20 for the harvest (`wage` / `harvestPay`). The crop grows only across the days worked
   (shoots the night after sowing, ripe wheat the night after weeding). Nothing spoils: a missed
@@ -190,12 +212,22 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   (rug 250c, door paint 300c, glass window 400c, garden 600c — pre-built hidden meshes in the
   hovel, shown when owned), comforts (loaf 10c → the chest's larder; rat trophy 60c;
   lantern 120c). One-time items live in shop.owned; the loaf repeats.
-- The chest by the cot (E inside the hovel → lid up + Chest panel; closing the panel lowers it):
-  the hand holds ONE weapon — the stick, cudgel or quarterstaff — and the chest keeps the rest;
-  "Take up" swaps (`chest.wielded`, applied by main.js `applyPurchases`). A newly bought weapon
-  goes straight to hand. Loaves bought at the cart land in the larder (cap
+- The chest by the cot (E inside the hovel → lid up + Chest panel; closing the panel lowers it)
+  is the larder (since The Full Rack, 2026-11-28, the weapons hang on the rack — next bullet).
+  Loaves bought at the cart land in the larder (cap
   `CONFIG.chest.larderCap` = 6; the cart refuses bread when it's full) and are eaten from the
   chest for a full heal, wounded only. Bread mends HP and nothing else — the sacred rule holds.
+- The peg rack by the door (inside, on the +x wall between the door and the window, `HOVEL.rack`)
+  holds every owned weapon not in hand, each on its own pair of pegs (one slot per tier:
+  stick, cudgel, quarterstaff — `HOVEL.rack.slots`). E opens the Weapon Rack panel (panels.js
+  `renderRack`): "Take up" puts a weapon in hand (`wieldWeapon`, `chest.wielded`) and the one
+  held goes on the pegs; "Hang up" on the one in hand hangs it too — he walks about
+  empty-handed and a swing is refused with a line ("Thy hands are empty…", no stamina spent).
+  `chest.hungUp` (`weaponHungUp` / `hangUpWeapon`, state.js); taking one up or buying one
+  clears it. A newly bought weapon goes straight to hand. Field work still takes up its tools.
+  main.js `applyPurchases` sets `player.setUnarmed` (hides `mesh.slot`, the stick's own Group
+  in the fist) and `world.setRackWeapons(looks)` (looks[tier] from `WEAPON_LOOKS`,
+  playerMesh.js, shared with the hand; null = empty pegs).
 - The hovel is enterable: E opens/closes the hinged door (closed = solid collider), furnished
   one-room peasant interior, indoor camera pulls in close. E on the cot sleeps: fade out, full heal,
   and the bedtime is recorded. On the next load, if ≥7h passed (≤13h, so it was last night) and it is
@@ -321,6 +353,35 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   group and gained a nose (plus cap brim / hood lip) because a bare sphere-and-cylinder head
   turns invisibly. update(dt, playerPos) — main.js passes player.pos. All group rotations on
   existing meshes; gesture sfx deliberately omitted (reusing reward chimes would read as income).
+- The Day Book (2026-11-21), the owner: "it is november and it is talking about income and
+  spending from the last month october… it should just be a daily tracker and then it will
+  keep track for you so you dont have to remember". The Treasury no longer asks for figures
+  at month's end. What a future session must know (it supersedes the reckoning form and
+  "lay in coin" described under The Reckoning and The Coffer below; verdicts, goals, the
+  pledge and the Goal's Prize are unchanged):
+  - The day book is `treasury.log`. The "Today" card has three buttons — Money in, Money
+    out, Into savings — each an amount and an optional note (`logMoney(kind, amount, note)`).
+    Into savings grows `current` at once (the coffer and pledge meter fill). Each entry has
+    a × to strike it out (`unlogMoney(index)`, undoing what it did to the savings). Recount
+    (`recount(n)`) sets the savings and logs the difference as a 'fix' entry, so the month it
+    happened in carries it. `setTreasury` is now only the opening questions' raw setter.
+    `layIn(n)` remains as `logMoney('save', n)`.
+  - The clerk closes months himself: `closeMonths()` runs in `rollover()` on every load and
+    turns each finished month (after the last roll; on a ledger with no rolls, from the first
+    month with an entry) into a roll from its entries — earned/spent only if both kinds were
+    entered (so a month with only spending isn't always "bled"), saved, and counted = today's
+    savings less the save/fix entries of later months. A month with no entries is
+    'unreckoned'. Its entries then leave the log. Goals fall only here (the typo rule
+    stands), at most one per close; the conquest's toasts and the XP come as boot messages.
+    `reckoningDue` and `fileReckoning` are gone; `monthTally(month)`, `monthsToClose`,
+    `loggedToday` are new. The clerk's greeting asks "Any coin come or gone today?" until
+    something is entered that day.
+  - v12→v13 turns each `laid[month]` into one 'save' entry dated that month's 1st (note
+    "laid in") and drops `laid`.
+  - Earlier days of this month are in an "Earlier in <Month>" fold, grouped by day.
+  - Smoke hooks: `data-log-open="in|out|save"`, `data-log-amount`, `data-log-note`,
+    `data-log-set`, `data-unlog`, `data-sums`, plus the old `data-count-*`, `data-s-*`,
+    `data-t-*`, `data-w-*`.
 - The Reckoning (2026-07-03): the Treasury is a monthly statement of the player's real money — a
   virtual summarized spreadsheet that never pays coins and pays XP for ONE thing only: a goal
   won (see The Goal's Prize, Build status); otherwise quests reward the deed of saving and the
@@ -361,8 +422,10 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     everywhere: pledge kept / no ground lost / ground lost. A bled month is answered with a
     next step (cut one cost, post it as a quest), never a scolding.
   - An untouched ledger (no rolls, no conquests, nothing saved, no pledge, no name) opens on
-    three questions, one at a time; sealing them names an unnamed goal "The Hoard", because
-    the name is what marks a ledger as opened.
+    three questions, one at a time. What the goal is for is TYPED by the player and required
+    (2026-11-28, the owner: "have the user type what they are saving for") — the preset chips
+    are gone, and Next / "Raise the goal" refuse a blank name. The name is what marks a ledger
+    as opened.
   - Inputs are never focused when the panel opens (the E that opened it would be typed into
     the box) — only after a click inside it. Esc closes the panel from inside a box.
   - The `data-*` hooks the smoke suite drives (`data-w-*` the questions, `data-lay-*`,
@@ -523,9 +586,9 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   - One interactable, `field.spot`, re-aimed every step by main.js `aimFieldSpot` at the
     nearest ridge that still wants today's job (any ridge once the job is done — E then only
     says what the strip is waiting on). No prompt shows while he is working.
-  - Player mode `work`: rooted and turned to the ridge for `CONFIG.farm.strokes` ×
-    `strokeTime` seconds; `onWorkStroke` (sounds) and `onWorkDone` (main.js works the ridge)
-    fire from player.js. The hoe and sickle are hidden Groups in the stick hand
+  - Player mode `work`: he walks a line along the ridge (see "Worked along the ridge"
+    below); `onWorkStroke` (sounds, the ridge worked up to the blow) and `onWorkDone`
+    (main.js finishes the ridge) fire from player.js. The hoe and sickle are hidden Groups in the stick hand
     (`mesh.tools`); `takeUp()` swaps them for the stick, `stopWork()` puts it back — also on
     death and respawn. Poses are [drawn, struck] pairs in playerAnim.js (`WORK`): a fifth job
     is one more row there, one in `FARM_JOBS`/`FARM_LOOKS`, and a look if it needs one.
@@ -547,10 +610,81 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     layout.js, drawn in terrain.js `groundColor`; flora thins its middle after the draw).
     It is not a dirtPatch, for the same reason the field is not.
   - The bed's edge is ragged on purpose (its outer ring of points is pushed out unevenly and
-    sunk); ripe wheat is sown six lines to a ridge so the ridges close into one crop, in a
-    handful of golds; a stook is four sheaves leaned together. What grows on a ridge under a
-    look is built once and cached, so a redraw is ~4ms after the first (~19ms).
-    About 4 draw calls; ~20k triangles when the whole field stands in wheat.
+    sunk). What grows on a ridge under a look is built once and cached, and so are each
+    ridge's stooks; a redraw costs a few ms after the first.
+  - Twice the size and true to the year (2026-11-28, the owner: "make the farming look more
+    realistic. and make the farm twice as big"). What a future session must know:
+    - The ploughland doubled by making the ridges longer and broader (12.8 × 1.0 → 18.4 ×
+      1.4, `LAYOUT.field`), NOT by adding ridges: a day's job is still ten ridges and the
+      pay is unchanged (Claude's choice; 20 ridges a day was the other way). Same centre,
+      same turn. The nearest tree now stands ~1.3 outside the fence at the far (-u) end.
+      Broad ridges are the real thing: medieval ridge and furrow, the crown 0.26 up and the
+      furrow between nearly at ground level.
+    - Broadcast, not drilled: shoots, leaves and wheat are strewn across a ridge (`strew`,
+      thickest on the crown, shorter toward the furrows), never set in lines. Only the
+      stubble is in rows (the sickle's). Offsets are fractions of half a ridge (`HALF`), so
+      `spacing` can be re-tuned without re-placing anything.
+    - Each look has its realism: fresh furrows are lumpy (`ROUGH` per look, lit/shaded
+      plough slices) and strewn with clods, some turned sod showing grass; sown ridges are
+      harrowed fine, drying pale on the crown, small clods and a little seed; weeds come in
+      three kinds (dock, thistle, charlock); tended shoots have arching leaves (`leaf`); the
+      wheat is bearded and nods, a stretch of some ridges is laid flat by the wind, and
+      poppies and cornflowers stand in it (cupped `bloom`s); stooks are three or four pairs
+      of bound sheaves leaned head to head along the ridge; stubble has straw lying.
+    - Clods, seed and straw lying are in the growth mesh with sway 0. That mesh is lit as if
+      every face lay flat (upNormals), so clods carry their own hand shading against a fixed
+      light (`SHADE_LIGHT`) — keep that if adding solid things to it.
+    - Laid by outside the fence on the gate's other hand: a heavy wheeled plough (beam,
+      coulter, share, mouldboard, handles) and a harrow leaned on the fence, baked into the
+      yard; four more circle colliders (`buildTools`).
+    - Working throws things: `field.kick(kind, x, z, facing)` (a 64-puff pool in field.js,
+      `field.update` from world.update) — earth and dust off the hoe, a fan of seed from the
+      hand, chaff drifting off the sickle. main.js `onWorkStroke` calls it at the stroke's
+      landing spot, a step ahead of him. Looks only.
+    - Worked along the ridge, standing on it (2026-11-28, the owner's three bugs: "you
+      just do it in one spot and the whole row goes down", "the hoe is invisable when you
+      are using it at first", "you litterly just walk through the dirt instead of over it"):
+      - A ridge is worked from one end to the other. E at a ridge: main.js `workTheField`
+        picks the end (the one a begun ridge was begun from, else the nearer), walks him
+        there (`walkRoute(..., { yields: true })` — a movement key calls the walk off) and
+        starts `player.startWork(kind, from, to, facing)`. In work mode player.js walks
+        him along that line at `CONFIG.farm.workPace` (a blow each `strokeTime`, his feet
+        still as it lands and stepping on between), and a movement key, Space, C or a roll
+        stops it (`onWorkStopped`). He walks the furrow side `FURROW_SIDE` (0.5) off the
+        crown, on the side he stood, turned in toward it so the blow (`workReach` ahead)
+        lands on the crown.
+      - Each blow calls `workFarmStretch(row, end, k)` (state.js) with k = how far along
+        the ridge it landed; `farm.part[row] = { end, k }` is saved, never shrinks, and
+        refuses the other end while it stands. k ≥ 1 (onWorkDone) is `workFarmRow` — the
+        ridge done, the job paid when it is the last. `farmRowParts()` gives the drawn
+        stretches; field.js `draw(looks, parts)` shows the worked look up to the blow
+        and the old look past it: each cached growth keeps the u of every triangle
+        (`triU`) and is filtered by it, stooks are cached one by one with their u, and
+        the earth takes a `lookOf(row, u)`. A redraw a blow (~every 0.5s).
+      - He stands on the earth: `player.groundAt` (default terrainHeight) is set by
+        main.js to terrainHeight + `field.riseAt(x, z)` — the crowns and furrows as drawn,
+        ramped where a ridge changes partway and at its ends, the lumps left out. It is
+        used for his feet, landings and the slope probes, so he rises over the ridges
+        and his soles lie to their flanks. The camera's floor still reads terrainHeight.
+      - The hoe was hidden in the old way twice over: he stood ~0.25 sunk in the ridge, so
+        the blade struck out of sight, and from the usual camera behind him his body hid
+        the rest. Now he stands on top, turned three-quarters to the ridge, and as each
+        ridge begins the camera glides round to his side (`orbitCam.glideTo(facing + π −
+        1.0, …, 0.9s)`). Any mouse movement or look key now cancels a glide (camera.js).
+      - The `farm` smoke scenario checks a stretch partway (the crown up where worked,
+        down where not), his feet on the earth, a movement key keeping and saving the
+        stretch, E resuming from the same place, the tilled crown higher underfoot than
+        its furrow, and on a pinned clock a stretch refused from the other end. It
+        works the other nine ridges at `workPace` 9 to keep its time.
+    - The seedlip (same day, the owner: "the stick is still invisable" — seen sowing,
+      when the stick was put away and the hand cast seed from nothing): sowing now takes
+      up `mesh.tools.seedlip`, a wicker seed basket slung at the left hip on a strap
+      over the right shoulder (on the chest, not a fist; `TOOL_FOR.sow`). The stick is
+      still put away for all four jobs and back in hand when he stops.
+    - About 5 draw calls. Triangles for the whole field in one look (yard included):
+      stubble ~25k, furrow ~19k, sown ~17k, weedy ~27k, tended ~38k, ripe ~56k, stook ~51k
+      (was ~20k in wheat). The village view measured ~290k in all with the fallow strip.
+      The first stook draw takes ~90ms in SwiftShader (each ridge's sheaves built once).
 - The Setting (2026-11-15), the owner's choice: Crownbound takes place in **England, around
   1250** — the High Middle Ages. Everything new should fit that year: watermills and windmills,
   smiths, longbows and crossbows, chainmail, timber-and-thatch, silver pennies, hand-copied
@@ -596,15 +730,16 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   you are in so it can have a daylight cycle based on what time it is you are playing").
   Looks only: no rule, reward or save changed. What a future session must know:
   - The clock is the browser's. `new Date()` is already in the player's time zone, so nothing
-    is asked of him and nothing is stored. daylight.js `skyAt(date, latitude)` is the whole
-    reckoning and is pure: the sun from the hour and the day of the year (so days are long in
-    June and dark by five in December), the moon from her true age (a new moon in 2000 counted
-    forward — her phase in the game is tonight's real phase), summer time taken back off
-    (`solarHour`: the clocks go forward, the sun does not). What it cannot know is WHERE the
-    player is: `CONFIG.sky.latitude` (45°N) sets the length of the days, and his place inside
-    his time zone is unknown, so dawn and dusk can run ~20–30 minutes off the window. Asking
-    the browser for his location would fix that and was deliberately not done (a permission
-    prompt for a few minutes of sunset).
+    is asked of him and nothing is stored. daylight.js `skyAt(date, latitude, rise, set)` is
+    the whole reckoning and is pure. The sun keeps a FIXED TIMETABLE by the wall clock
+    (2026-11-20, the owner: "it should start setting at 6pm wherever the user is playing"):
+    it clears the hills at `CONFIG.sky.sunrise` (6) and meets them at `sunset` (18), every
+    day, in every time zone, summer time or not (`clockHour` — no summer-time correction).
+    The season still sets how HIGH it rides (`latitude`, 45°N: high in June, low in December):
+    the day's arc is spread evenly over the twelve hours and the night's beneath
+    (`sunAngle`/`halfDay`). So the golden hour comes before six and dusk after it. Before
+    that change the sun kept true solar time and set ~4:30 in a November at 45°N. The moon
+    is placed from the sun's (warped) hour angle and her true age — tonight's real phase.
   - sky.js paints it. `LOOKS` is the whole palette: six rows keyed by the sun's height
     (night −14°, late dusk −8°, dusk −4°, sunset 0°, golden 6°, day 20°+), every colour and
     light strength blended between rows; dawn wears dusk's rows. The day row IS the old fixed
@@ -665,7 +800,7 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     `commit('coins' | 'stats' | …)`-ed. `game` is the handle main.js gives `initConsole`:
     player, world, rouse, moveTo, applyPurchases, abed, typing, busy.
   - The built-ins: stamina, heal, hp · rank, level, xp · coins, streak · daily, weekly,
-    monthly · nextday, time · tp, market, give, take, farm · reset, copy, leave. "Sage" is
+    monthly · nextday, time · tp, market, give, take, farm · reset, copy, newgame, intro, leave. "Sage" is
     not a rank — `rank sage` answers with the ladder (Peasant … King) and changes nothing.
     Setting levels below King takes the crown back, so the Coronation can be tried again.
   - The owner's own commands: `make fresh = stamina full; heal` then `fresh`; `forget fresh`.
@@ -687,6 +822,92 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     before the reload, so a stray step cannot put the old save back.
   - Not told in the game: the Charter has no section for it (it is a tool, not a rule).
     CROWNBOUND-Guide.docx has one (in scripts/build-guide.py, after Saving).
+
+- The Opening (2026-11-23), asked for by the owner ("Give me some good ideas of introductions
+  when they are first loading into the game", then "build the full chain" of the four he was
+  offered). A blank save no longer drops a newcomer by the fire with two toasts: it plays an
+  opening of about 45 seconds and then shows him the way. No rule, reward or number changed.
+  What a future session must know:
+  - The chain, in src/ui/intro.js (`BEATS`, one function each; `go(beat)` moves on, and each
+    beat's timings are `later(ms, fn)` calls inside it):
+    **title** — black, "Crownbound", the premise in one line, "Press Enter to begin". It waits
+    for the key: a browser plays no sound before a gesture, and that key press is what lets
+    the bells be heard (`wakeAudio()`). The title was not one of the four ideas; it is there
+    for that reason.
+    **dream** — bells (`sfx.bells()`, on a gain bus of their own so they can be hushed), a
+    crown drawn in SVG lowered in gold light, "Thou art King." At 5.6s it is snatched away,
+    bells and all; then "Not yet."
+    **waking** — the dark lifts on him lying on his cot, seen side-on; two lines of ink
+    ("Another morning in Brackenley." — morning / day / night by the hour the sky keeps, the
+    village from `CONFIG.realm` — and "Nothing changes unless thou dost."); then he gets up.
+    **oath** — a parchment, one question at a time: the year's great work (`setEpicText`)
+    and today's deed (`postDaily`). They are the Quest Board's own Epic and Daily, written
+    here so the board is not found empty. Either can be left for "Later". The numbers in it
+    (the daily's XP and coins, the 70 levels) are read from config.js.
+  - Enter, Space or a click hurries a beat on; Esc (or "Skip the opening") ends the whole
+    thing from wherever it stands. However it ends, he is on his feet at the wake spot with
+    his door ahead, and `end()` (main.js) hands over the keys.
+  - `introOwed` (the save): set by `defaultState()`, dropped by `introDone()` when the opening
+    ends. So an opening left unfinished (the tab shut mid-dream) plays again next load, and
+    no older save ever sees it. `?intro=1` plays it over any save, once (main.js takes the
+    word back off the address, or every reload would replay it); it changes nothing unless
+    an oath is rewritten — the questions open on what is already sworn and posted.
+    `?intro=0` never plays it, and switches the cold fire off too: the old first load, which
+    is what the smoke suite's other scenarios stand on. It never plays on a day already
+    spent (he is abed under the rest card).
+  - intro.js owns the screen and the order; the world is main.js's, through the handle it
+    gives `initIntro`: `lieDown`, `rise`, `stand`, `end`, `hour`. While it plays,
+    `introPlaying()` keeps the keys from him (`keysWithheld()` = abed or the opening), the
+    mouse unlocked, and the test world's command line shut. The sim itself runs on — he
+    breathes abed, and gets up in the world, not in a cutscene.
+  - Two things the player's body and the camera learned for it, both small. `player.rise(spot,
+    facing, onUp)` (player.js): the tuck-in played the other way, in plain sight — every
+    other rising (a nap, a death, the daily from bed) still happens behind a fade or snaps.
+    `orbitCam.setGaze(height)` looks at a spot lower than his head (he is lying down), and
+    `orbitCam.glideTo(yaw, pitch, seconds)` swings the eye round behind him as he rises, so
+    the keys are handed over with the door straight ahead and not behind the camera.
+  - The Cold Fire is what follows, and it outlives the opening: `fireCold` (main.js) is true
+    while `noDeedYet()` — no daily deed has ever been logged. A gold **waymark** (hud.js:
+    `showWaymark` / `placeWaymark`; main.js `waymarkPlace`) hangs over the target with the
+    paces to it, or waits at the side of the screen to turn toward when the target is out of
+    view. Straight out of the opening it is on his door; once he is outside the line is said
+    (`caption()`: "The fire is cold. Only a deed done will light it.") and it moves to the
+    Quest Board; opening the board puts it away for the sitting. A newcomer who comes back
+    with still no deed logged gets the line and the board's waymark again at each load. The
+    first daily ever completed ends it for good, with one toast ("The fire catches…") — the
+    fire lighting is the streak's own rule (0 → 1), nothing new.
+  - One exception to "nearest target wins", for one moment: while the waymark is on the door
+    and the door is shut, E is the door from anywhere within its reach (`nearestAction`). At
+    the wake spot the cot is nearer, and a newcomer's first E would have put him back to bed.
+  - The test world owes no opening (`introOwed` is never set there); its `intro` command
+    plays it by reloading with `?intro=1`. `newgame` (also `beginning`, `start`; 2026-11-27,
+    the owner: "a command in the proving ground to start from the beginning of the game")
+    is `reset world` + `intro` in one: wipes the test save, puts back the real clock, and
+    reloads with `?intro=1` — a newcomer's first load, title card first. Own commands kept.
+  - Not in the Charter (it is not a rule). CROWNBOUND-Guide.docx tells it under getting started.
+
+- Many Deeds, Many Virtues (2026-11-27), the owner: multiple daily quests, and "I dont think
+  streaks are healthy and I dont want them to have to be forced to only one type of virtue per
+  goal, cause in the end your charecter will kind of represent who you are as a person". His
+  three answers (do not undo): streaks stay in the game but the extra deeds never touch them;
+  every deed pays the full daily XP (no taper — King comes faster for a full day, accepted);
+  only the day's first deed refills stamina. What a future session must know:
+  - `quests.daily` is `{ date, deeds: [] }`. `postDaily(text)` appends (false at the cap),
+    `removeDaily(i)` takes down an undone deed, `completeDaily(virtues, i)` completes one
+    (`i` defaults to the first waiting; returns `first: true` when it claimed the day).
+    `dailyDeeds()` is today's list; `dailyDoneToday()` = any deed done today.
+  - All three complete functions take a key or a list of keys and return
+    `{ xp, coins, gains: [ { stat, xp, levelUps } ] }` (was `levelUps`). `rewardQuest()` in
+    state.js is the shared payout.
+  - The board: one Daily Quests block, a row per deed (`data-slot="daily:N"`; weekly and
+    monthly are `data-slot="weekly"` / `"monthly"`), a "Take down" button on undone deeds, and
+    one box to post another until the cap. The manual picker is toggles (`data-pick` →
+    `.chosen`) plus `data-pick-done` ("Claim", disabled until one is ticked) with the share
+    shown live (`data-pick-share`).
+  - The Sage replies with one or more keys ("ath inf"); one word off the list and the whole
+    answer is distrusted (picker). The prompt asks for a second virtue only when plain.
+  - The opening's oath posts the first deed; the test world's `daily ath inf` shares XP and
+    posts a fresh deed whenever none is waiting (refused at the cap).
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -1000,10 +1221,14 @@ headlessly; everything else covered by the regression suite below.
 
 - [x] Post-v1 — "The Turning Sky" (2026-11-16): the sky keeps the hour of the player's own
   clock. The sun rises in the east, crosses the south and sets in the west at the real time
-  of day (long days in summer, early dark in winter); dawn and dusk colour the sky, the
+  of day (since 2026-11-20 up at 6 and down at 6 PM by the clock, high in summer, low in winter); dawn and dusk colour the sky, the
   clouds and the light; night brings stars, the moon in her true phase, moonlight, a lit
   window in the hovel and the campfire as the village's light. Birds and butterflies keep
-  the sun's hours. Looks only — no rule or save change. New smoke scenario `sky`. After merging
+  the sun's hours. Looks only — no rule or save change. New smoke scenario `sky`.
+  (2026-11-20: the sun now rises at 6 and sets at 6 PM by the player's clock everywhere —
+  `CONFIG.sky.sunrise`/`sunset`; `sky` passes, cloud container. In this container headless
+  Chromium never reaches `networkidle2` — the Google Fonts connection stays open — so the
+  suite was run from a copy with `load` in its place.) After merging
   The Hearthside, The Honest Grip and To Bed, Spent, all 24 scenarios pass first time (cloud
   container, headless Chromium; `exchequer` and `market` now wait for their prompt instead
   of a blind 400ms — see Session notes). After merging The Chapman's Pictures as well (UI only),
@@ -1111,11 +1336,109 @@ headlessly; everything else covered by the regression suite below.
   2026-11-17 on the owner's machine, The Goal's Prize included (see Session notes).
   Details: "No mouse needed" under Noted decisions.
 
+- [x] Post-v1 — "The Day Book" (2026-11-21): the Treasury becomes a daily tracker. A
+  "Today" card enters money in, money out and money put into savings the day it happens
+  (an optional note each, a × to strike a mistake), with the month's running sums beneath;
+  on the 1st the clerk closes the month just ended by himself from those entries — no
+  more end-of-month form asking for last month's income and spending. Verdicts, goals,
+  the pledge and the 300 Intelligence XP for a goal won are unchanged. saveVersion 13
+  (coin laid in becomes day-book entries). Charter and build-guide.py reworded (the .docx
+  not rebuilt — no python-docx here). `reckoning` and `exchequer` rewritten; they and
+  `''`, `tome`, `crown`, `chronicle`, `guide`, `proving`, `rollover`, `quests` pass
+  (cloud container, headless Chromium, with `networkidle2` swapped for `load` in a local
+  copy — see Session notes). `farm` failed there, on `main` before this change too; fixed
+  2026-11-23 (see Session notes). Details: "The Day Book" under Noted decisions.
+
+- [x] Post-v1 — "The Opening" (2026-11-23): a newcomer's first load is no longer two toasts by
+  the fire. A title card ("Press Enter to begin"), then the chain the owner chose: **the
+  dream** — bells, a crown in gold light, "Thou art King.", snatched away: "Not yet."; **the
+  waking** — the dark lifts on him abed in his hovel, two lines of ink, and he gets up;
+  **the oath** — a parchment that asks the year's great work and today's deed, so the Quest
+  Board is not found empty; **the cold fire** — a gold waymark to his door and on to the
+  Quest Board, the line "The fire is cold. Only a deed done will light it.", and a word when
+  the first deed lights it. Enter hurries, Esc skips. Only a save begun from nothing sees it
+  (`introOwed`; no saveVersion bump); `?intro=1` plays it again, and so does `intro` in the
+  Proving Ground. No rule, reward or number changed. CROWNBOUND-Guide.docx rebuilt with it
+  (python-docx was to hand), so The Day Book's and the six-to-six day's wording is in the
+  .docx now too.
+  New smoke scenario `intro`. After merging The Day Book and the six-to-six day, 24 of the
+  25 scenarios passed first time (cloud container, headless Chromium, `SMOKE_WAIT=load`);
+  `combat` failed twice on its overlapping-hit-flash check — the red was read 600ms after
+  the bites, under two frames there — and passes now that the check waits for the red to
+  go (up to 5s). `intro` and the render pass again on the final build.
+  Seen only in a cloud container's software renderer (~3fps), not yet on the owner's screen:
+  the motion — the crown's descent, the rise off the cot, the camera's swing behind him — was
+  judged from slowed stills, and the bells are untested by ear.
+  Details: "The Opening" under Noted decisions.
+
+- [x] Post-v1 — "The Peg Rack" (2026-11-27), the owner: "add a place in the house to put the
+  stick" (and chose: hang it up, go empty-handed). A peg rack on the wall by the hovel door;
+  E hangs up the weapon in hand and takes it down again; empty hands cannot swing. The Chest
+  panel says where it is; the Charter and build-guide.py mention it (the .docx not rebuilt).
+  No saveVersion bump (absent `hungUp` = in hand). `house` smoke scenario checks it (rack
+  screenshot → scripts/smoke-rack.png); `house`, `market`, `combat`, `body`, `proving` and the
+  render pass (cloud container, headless Chromium, `SMOKE_WAIT=load`). Not yet seen on the
+  owner's screen.
+  Next day — "The Full Rack" (2026-11-28), the owner: "make the rack hold all the weapons,
+  not just one". Every weapon not in hand hangs on the rack, side by side; E at it opens a
+  Weapon Rack panel (Take up / Hang up), and the Chest panel keeps only the larder. The
+  wares' read-mores, the Charter and build-guide.py send the player to the rack. No save
+  change. `house` (three weapons listed, all hung up, the cudgel taken up) and `market` (the
+  stick ⇄ cudgel swap at the rack, the chest's one picture) rewritten; they, `body`,
+  `proving`, `combat` and the render pass (cloud container, `SMOKE_WAIT=load`).
+
+- [x] Post-v1 — "Many Deeds, Many Virtues" (2026-11-27): the Quest Board takes up to five
+  daily deeds a day, each paid in full (+25 XP, +10 coins) — the first one done still claims
+  the day (stamina refill, the fire, the streak), the rest touch neither. Any quest — daily,
+  weekly or monthly — may train more than one virtue: tick each in the picker and the XP is
+  shared evenly (13 + 12, 9 + 8 + 8), shown before "Claim". The Sage may name two. A deed
+  posted in error can be taken down. The Tome's deed list and the Chronicler name every
+  virtue a deed trained. saveVersion 14 (the one daily slot becomes the day's list). Charter,
+  opening oath, test-world `daily` command and CROWNBOUND-Guide.docx (rebuilt) say so.
+  `quests` and `sage` smoke scenarios extended; `proving`'s farm check now expects the five
+  daily deeds' coins. `quests`, `sage`, `rollover`, `fire`, `crown`, `spent`, `intro`,
+  `proving` (on a re-run, after that fix), `chronicle`, `tome`, `guide` and the render pass
+  (cloud container, headless Chromium, `SMOKE_WAIT=load`). Not yet seen on the owner's
+  screen. Details: "Many Deeds, Many Virtues" under Noted decisions.
+
+- [x] Post-v1 — "Ridge and Furrow" (2026-11-28), the owner: "make the farming look more
+  realistic. and make the farm twice as big". The miller's strip is twice the ploughland —
+  the same ten ridges, now long and broad as real medieval ridge and furrow — so a day's job
+  and its pay are unchanged. Fresh ploughing is lumpy and strewn with clods and turned sod;
+  sown ridges are harrowed fine; the corn is broadcast, not in rows, with arching leaves;
+  dock, thistle and charlock among the shoots; bearded wheat that nods, a patch laid flat
+  by the wind, poppies and cornflowers in it; stooks of paired, bound sheaves; straw lying
+  on the stubble. A heavy wheeled plough and a harrow lie by the gate, and earth, seed and
+  chaff fly as he works. Looks only; no rule or save change. `farm`, `spent`, `map` and the
+  render pass (cloud container, headless Chromium, `SMOKE_WAIT=load`). Seen only in the
+  software renderer, not yet on the owner's screen. Details: "Twice the size and true to
+  the year" under "The Miller's Strip" in Noted decisions.
+
+- [x] Fix — "Along the Ridge" (2026-11-28), the owner's three farming bugs. (1) Working one
+  spot changed the whole ridge: now E sends him to the head of the ridge and he works his way
+  along it, blow by blow, the ridge changing only as far as he has got. A movement key calls
+  him off, keeping (and saving) the stretch done, and E later resumes where he left off.
+  `farm.part` holds the begun ridges (no saveVersion bump). (2) The hoe was out of sight: he
+  stood sunk in the ridge and his body hid the tool from behind. Now he walks the furrow side
+  turned in to the crown, and the camera swings round to his side as each ridge begins.
+  (3) He walked through the raised earth: he now walks on the ridges and furrows
+  (`player.groundAt`). A ridge takes ~12s (`CONFIG.farm.workPace`). The day's job is
+  unchanged, and so is the pay. The Charter and CROWNBOUND-Guide.docx (rebuilt) say
+  so. `farm` was rewritten for it; it, `spent`, `body`, `intro`, `keys`, `proving`, `walk`,
+  `hearth`, `guide` and the render pass (cloud container, `SMOKE_WAIT=load`).
+  Not yet seen on the owner's screen. Details: "Worked along the ridge, standing on it"
+  under "The Miller's Strip".
+- [x] Post-v1 — "Thine Own Words" (2026-11-28), the owner: "in the what are you saving for
+  part have the user type what they are saving for". The opening question's three preset
+  buttons (A rainy-day fund / A great purchase / A lord's fortune) are gone; the player
+  writes the goal in a "Saving for" box, and it is required there and when naming the next
+  goal (no more silent "The Hoard"). No save change. `exchequer` and `reckoning` pass
+  (cloud container, headless Chromium, `SMOKE_WAIT=load`).
 - [x] Fix — "The Stick Laid Down" (2026-11-27), the owner: "if the stick is in hand make sure to
   put the stick down rather then the stick disapeering". Sat by the fire, the stick used to be
   hidden; now the weapon mesh itself moves from the fist into a group on the ground at his
   stick-hand side (player.js `layStick`, as he sits half down, placed for facing the flames),
-  so a cudgel or quarterstaff lies there as it is, and goes back to `hold` as he rises. Looks
+  so a cudgel or quarterstaff lies there as it is, and goes back to the fist (`slot`) as he rises; empty-handed (the weapon on the peg rack) there is nothing to lay. Looks
   only; no save change. `hearth` checks it is shown, beside him, on the ground and flat;
   `hearth`, `body`, `combat`, `farm`, `house`, `spent` and the render pass (owner's machine,
   headless Edge).
@@ -1135,8 +1458,12 @@ headlessly; everything else covered by the regression suite below.
   scripts/smoke.png. `?smoke=` URL param exposes window.__game (camera setView etc.) for screenshots.
 - The suite opens every page with `&hour=13` (the sky held at one in the afternoon), so its
   screenshots are daylit whenever it is run. For a look at another hour: `?hour=21`.
+- It also opens every page with `&intro=0` (`DAY` in smoke.mjs): no opening, no cold fire's
+  waymark — a blank save as it was before The Opening. Only the `intro` scenario loads
+  without it. A new scenario that begins on a blank save must keep `${DAY}` on its address,
+  or it will sit on the title card with the keys withheld.
 - Regression scenarios (run all after meaningful changes):
-  `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
+  `''` render · `quests` daily+weekly+monthly complete flow + a second deed of two virtues (XP shared 13 + 12, coins in full, no streak or stamina change, the share shown before Claim) + a deed taken down + the cap of five + three virtues sharing 9 + 8 + 8 + a bare list on the morrow with the streak kept (screenshot → scripts/smoke-quests.png) · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy/rats/miller-tally greeting/death
   (respawn at the cot) ·
   `walk` movement · `keys` no mouse, the camera stepped by hand: F swings (5 stamina), ← held 1s turns 2.2 rad and stops dead on letting go, → turns back, a tap nudges (even one let go before any frame saw it), − known by its character alone, ↑ ↓ to the pitch bounds, − = to the zoom bounds, a touchpad glide zooms by how far and a pinch zooms the eye not the page, W + → walks a curve, a panel opened mid-turn stops the eye and the arrows do nothing under it, the Charter lists F and the arrows · `body` the player's weight and limbs, stepped by hand at a fixed rate:
@@ -1151,15 +1478,15 @@ headlessly; everything else covered by the regression suite below.
   too close he shuffles back, a click (no swing, no stamina) and a bite both get him up
   (screenshot → scripts/smoke-hearth.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
-  `house` door collider open/close + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
+  `house` door collider open/close + the peg rack (E opens its panel, all three weapons listed, Hang up empties the hands — no swing, no stamina, saved — and Take up the cudgel puts it in hand) + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
-  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (chip fills the name, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + coin laid in (savings, the month's tally, pledge kept) + a recount leaves the tally + booth screenshot ·
+  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (no preset chips, a goal with no name refused, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + money put into savings from the Today card (savings, the month's saving, pledge kept, today's entry listed) + a recount leaves the month's saving + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
   (the cudgel's unfolds with its config damage and folds again; the chest's three pictures and
   a chest read-more without the buying talk checked later; shop panel →
   scripts/smoke-shop.png) + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
-  damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
+  damage swapped at the rack, the chest's loaf picture, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
   `crown` v5→current migration (incl. best owned weapon → chest.wielded, str's level
   landing on ath, and int reset to level 1 with the rank recounted)
   + last-level daily completion → King + coronation once-only · `farm` v10→current migration
@@ -1169,8 +1496,7 @@ headlessly; everything else covered by the regression suite below.
   and its history deed, back to stubble) + no XP earned + the Charter's section (screenshot →
   scripts/smoke-farm.png) · `guide` charter prompt + E-open
   + config-drawn numbers (panel screenshot → scripts/smoke-guide.png) + post screenshot ·
-  `reckoning` v6→v7 migration + verdict rules (with and without income/spending) + panel filing (pledge/fat, typed: blank figures refused, savings-now follows, live verdict) + conquest & next
-  summit + double-file guard + the month owed opening already tallied with coin laid in + unreckoned backfill + two-figure months on a pinned clock (held, then bled; laid cleared) + the climb's bars and the seals (months past unfolded → scripts/smoke-reckoning.png) ·
+  `reckoning` v6→current migration (no month closed on an empty ledger) + verdict rules (with and without income/spending) + a day's money through the panel (blank refused, in/out/save with notes, a mistake struck out, the month's sums) + the month closed on a pinned clock (fat from in/out/saved, conquest, 300 Intelligence XP, no coin, log cleared, no second close) & next summit + a v12 save's `laid` migrated and its owed months closed on load (two unreckoned, one held) + a recount and a later month's entry counted apart (bled, then held) + the climb's bars and the seals (months past unfolded → scripts/smoke-reckoning.png) ·
   `alive` villager breathing spread + head-track/greet for all three (off-axis stand, or the
   turn is ~0) + head returns at distance + fidget fires + miller walks his rounds & his prompt
   follows (screenshot → scripts/smoke-alive.png) ·
@@ -1190,9 +1516,9 @@ headlessly; everything else covered by the regression suite below.
   closes, M does nothing under the Charter, the Charter lists the key (screenshots →
   scripts/smoke-map.png, scripts/smoke-map-bounds.png) ·
   `sky` the pinned ?hour=, the sun east in the morning / due south at noon / west in the
-  evening, noon's light and haze, sunset at the right clock time for November, no key light
+  evening, noon's light and haze, sunset at six by the clock (up at 17:45, down at 18:15, June and December alike, a New York July too), no key light
   at dusk, stars + moonlight + dark haze at midnight, the beam never flatter than 18°, June
-  against December, a known full moon and new moon, summer time under an emulated New York
+  against December, a known full moon and new moon, the wall clock read as is under an emulated New York
   clock (screenshots → scripts/smoke-sky-noon.png, -sunset.png, -dusk.png, -night.png) ·
   `proving` the test world: the true world has no command line, the Tome's door leads to
   `?test=1`, a save of its own and the banner, `/` opens the line and typing there moves no
@@ -1203,6 +1529,19 @@ headlessly; everything else covered by the regression suite below.
   `time`, `nextday` (the game's day moves, the streak holds; two missed nights kill it),
   `time real`, `market on`, `copy`, `reset world` — and at the end THE TRUE SAVE UNCHANGED to
   the letter, then `leave` back onto it (screenshot → scripts/smoke-proving.png) ·
+  `intro` the opening on a blank save: the title with him abed and the game's keys dead, an
+  unfinished opening owed again on reload, Enter → the dream (crown, "Thou art King.", snatched
+  away), the waking's two lines (the village named, the hour kept), he rises by himself to the
+  wake spot, the oath (an empty answer refused, the Epic inscribed, the daily's config numbers,
+  the Daily posted), the keys handed over (owed no more, the keys told, no "humble clearing"),
+  his door offered first though the cot is nearer and E opens it, outside the line said and
+  the waymark on the board with its paces — at the screen's side when the board is behind —
+  put away when the board is read, the first deed lighting the fire with its one toast, an
+  ordinary load after, `?intro=1` once (the word taken off the address; Esc skips, nothing
+  lost; played through, the oath shows what is sworn), a newcomer back with no deed shown the
+  way again, skipped at the title, `?intro=0` the old first load, the test world owing none
+  and its `intro` command (screenshots → scripts/smoke-intro-dream.png, -waking.png,
+  -oath.png, -door.png, -fire.png) ·
   `aerial`/`front` screenshots.
 - Two sessions sharing this folder (no worktree) both serve the suite on port 5199 by default,
   and whichever binds second silently tests the other's server — an old build ("getView is
@@ -1215,6 +1554,10 @@ headlessly; everything else covered by the regression suite below.
   On Linux (a cloud session) it runs unchanged with `SMOKE_BROWSER=<path to chromium>` and a
   tiny `taskkill` stand-in script on PATH that kills the given PID's process tree; without the
   stand-in the run ends in an unhandled spawn error and leaves `vite preview` holding port 5199.
+  The stand-in must kill the WHOLE tree of the PID in its second argument
+  (`taskkill /PID <pid> /T /F`): vite preview runs four processes deep under the spawned
+  shell, and while it lives node never exits after "SMOKE OK" (2026-11-27). One that works:
+  `tree() { for c in $(pgrep -P "$1"); do tree "$c"; done; echo "$1"; }; kill -9 $(tree "$2")`.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
@@ -1225,6 +1568,25 @@ headlessly; everything else covered by the regression suite below.
   (2026-11-16: median frame ~400ms there, before The Turning Sky and after it alike.
   `exchequer` and `market` failed the same way — a prompt read 400ms after the player was
   moved — and now wait for the prompt to appear, `promptOffered()` in smoke.mjs.)
+- 2026-11-21, cloud container: `page.goto(..., { waitUntil: 'networkidle2' })` never settled
+  (no request pending — likely a connection the agent proxy holds open), so every scenario
+  died at "Navigation timeout". The game itself loads fine. Running a local copy with
+  `networkidle2` → `load` worked (`sed "s/networkidle2/load/g" scripts/smoke.mjs >
+  scripts/_smoke_local.mjs`, delete it after); the suites already wait 2s after each load.
+  2026-11-23, the same again, and the cause found: no request is pending, but Chrome only
+  counts the network as idle while the page's main thread is idle too, and at ~2.6fps of
+  software rendering it never is. The suite now has a switch, so no local copy is needed:
+  `SMOKE_WAIT=load` waits for the load event instead (the default is unchanged).
+- 2026-11-23: `farm` failed in the cloud container on every run ("tilling with hoe false /
+  stick true", "prompt still showing while he works") — on `main` too. The game was right:
+  the ~1.5s of tilling is only 3–4 frames at ~400ms a frame, so the old wait-for-work, then
+  wait-for-the-prompt-to-go, then read landed after the ridge was done. The check now polls
+  every frame (`polling: 'raf'`) and snapshots the first work frame with the prompt gone;
+  passes twice running there.
+- Looking at motion in a cloud container (2026-11-23, the opening): real time is ~3fps, so
+  the page's own clock was slowed instead — `performance.now` made to run at a tenth before
+  the page loads (`evaluateOnNewDocument`), then a burst of screenshots. The sim moves in
+  slow motion; timers and CSS animations do not.
 - Terrain is colored per-FACE (non-indexed, centroid-sampled) for the faceted low-poly look — keep it that way.
 - `npm run guide` runs scripts/guide.mjs, which finds a real Python 3 (`py -3`, then
   `python3`, then `python` — on the owner's machine `python` is only the Microsoft Store

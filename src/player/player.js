@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../state/config.js';
 import { terrainHeight } from '../scene/terrain.js';
-import { buildPlayerMesh, RIG } from './playerMesh.js';
+import { buildPlayerMesh, RIG, WEAPON_LOOKS } from './playerMesh.js';
 import { createPlayerAnimator } from './playerAnim.js';
 import { flash } from '../scene/meshUtils.js';
 
@@ -29,6 +29,7 @@ export function createPlayer(scene, spawn) {
   // Sat by the fire, the stick is laid on the ground beside him rather than
   // kept in the fist: the weapon mesh itself moves from his hand into this
   // group and back, so the cudgel or quarterstaff lies there as it is.
+  // (Empty-handed — the weapon on the rack at home — there is nothing to lay.)
   const laid = new THREE.Group();
   laid.visible = false;
   scene.add(laid);
@@ -50,7 +51,7 @@ export function createPlayer(scene, spawn) {
       w.rotation.set(Math.PI / 2, 0, 0);
       laid.visible = true;
     } else {
-      m.hold.add(w);
+      m.slot.add(w);
       w.position.set(0, -RIG.stickDrop, 0);
       w.rotation.set(0, 0, 0);
       laid.visible = false;
@@ -83,7 +84,7 @@ export function createPlayer(scene, spawn) {
     vel: new THREE.Vector2(0, 0), // xz
     facing: m.group.rotation.y,
     mode: 'normal', // normal | roll | attack | sleep | work | sit
-    work: null, // while a ridge is being worked: { kind, x, z, strokes }
+    work: null, // while a ridge is being worked: { kind, ax, az, dx, dz, len, facing, strokes }
     modeT: 0,
     invulnerable: false,
     vy: 0,
@@ -94,6 +95,7 @@ export function createPlayer(scene, spawn) {
     crouching: false,
     crouch01: 0, // eased crouch amount, 0 standing → 1 fully crouched
     lie01: 0, // eased lying-down amount on the cot, 0 upright → 1 flat
+    rising: null, // getting up off the cot in plain sight (the opening): { spot, facing, onUp, t, from }
     restY: 0, // where the waist settles on the mattress, above the ground
     hearth: null, // { x, z } of the campfire he sits down by (main.js sets it)
     stillFor: 0, // seconds stood still near the hearth
@@ -112,6 +114,10 @@ export function createPlayer(scene, spawn) {
     onLand: () => {}, // (downward speed) at a touchdown
     onWorkStroke: () => {}, // (kind) each time the hoe bites, the seed flies, the sickle cuts
     onWorkDone: () => {}, // (kind) when the ridge is finished
+    onWorkStopped: () => {}, // (kind) when a movement key calls him off a ridge before its end
+    // the ground underfoot: the land, unless main.js lays something over it
+    // (the miller's strip stands its ridges up off the ground)
+    groundAt: terrainHeight,
     // wired up by later systems (stamina M5, combat M6)
     trySpend: () => true,
     tire: () => {}, // (whole points) the legs' toll on the stamina pool
@@ -125,16 +131,17 @@ export function createPlayer(scene, spawn) {
     attackDamage: CONFIG.player.attackDamage,
     attackReach: CONFIG.player.attackRange,
     setWeaponTier(t) {
-      // 0 the trusty stick · 1 oaken cudgel · 2 ash quarterstaff
-      const tiers = [
-        { scale: [1, 1, 1], color: 0x7a5a35 },
-        { scale: [1.7, 1.08, 1.7], color: 0x5a4028 },
-        { scale: [1.3, 1.55, 1.3], color: 0x9a7a48 },
-      ];
-      const tier = tiers[t] ?? tiers[0];
+      const tier = WEAPON_LOOKS[t] ?? WEAPON_LOOKS[0];
       m.weapon.scale.set(...tier.scale);
       // fresh material — the cached one is shared with other meshes of its color
       m.weapon.material = new THREE.MeshLambertMaterial({ color: tier.color, flatShading: true });
+    },
+    // the weapon hung on the rack at home: empty hands, and no swing
+    unarmed: false,
+    onUnarmed: () => {},
+    setUnarmed(v) {
+      player.unarmed = v;
+      m.slot.visible = !v;
     },
     setEnabled(v) {
       enabled = v;
@@ -166,6 +173,10 @@ export function createPlayer(scene, spawn) {
       return;
     }
     if (player.mode !== 'normal' || player.sit01 > 0) return; // not while still getting up
+    if (player.unarmed) {
+      player.onUnarmed();
+      return;
+    }
     if (!player.trySpend(CONFIG.stamina.attackCost)) {
       player.onActionBlocked();
       return;
@@ -201,6 +212,10 @@ export function createPlayer(scene, spawn) {
   }
 
   function updateSleep(dt) {
+    if (player.rising) {
+      updateRise(dt);
+      return;
+    }
     const b = player.sleepTarget;
 
     // glide onto the cot; the animator is told a walking pace so the last
@@ -221,6 +236,40 @@ export function createPlayer(scene, spawn) {
     player.lie01 = lt * lt * (3 - 2 * lt);
     player.restY = b.y + 0.16 - player.pos.y;
     m.weapon.visible = player.lie01 < 0.5; // the stick rests for the night too
+  }
+
+  // Up off the cot where it can be seen (the opening's waking — every other
+  // rising happens behind a fade): the lying-back played the other way, as
+  // he comes off the cot to stand at `spot` turned to `facing`. onUp is
+  // called once he is on his feet.
+  const RISE_TIME = 1.4;
+  function startRise(spot, facing, onUp) {
+    if (player.mode !== 'sleep' || player.rising) return;
+    player.rising = { spot, facing, onUp, t: 0, from: { x: player.pos.x, z: player.pos.z, facing: player.facing } };
+  }
+
+  function updateRise(dt) {
+    const r = player.rising;
+    r.t += dt;
+    const ease = (k) => k * k * (3 - 2 * k);
+    const up = ease(clamp(r.t / (RISE_TIME * 0.7), 0, 1)); // sitting up...
+    const off = ease(clamp((r.t - RISE_TIME * 0.3) / (RISE_TIME * 0.7), 0, 1)); // ...then off the cot
+    player.lie01 = 1 - up;
+    player.pos.x = r.from.x + (r.spot.x - r.from.x) * off;
+    player.pos.z = r.from.z + (r.spot.z - r.from.z) * off;
+    player.pos.y = terrainHeight(player.pos.x, player.pos.z);
+    player.vel.set(0, 0);
+    player.facing = lerpAngle(r.from.facing, r.facing, off);
+    player.turnRate = 0;
+    m.group.rotation.y = player.facing;
+    m.weapon.visible = player.lie01 < 0.5; // the stick is taken up again
+    if (r.t < RISE_TIME) return;
+    player.rising = null;
+    player.mode = 'normal';
+    player.modeT = 0;
+    player.invulnerable = false;
+    player.lie01 = 0;
+    r.onUp?.();
   }
 
   // Warming by the fire: stood still near it for CONFIG.player.sitDelay, he
@@ -258,22 +307,27 @@ export function createPlayer(scene, spawn) {
     }
   }
 
-  // Field work (the miller's strip): rooted at a ridge for a few strokes —
-  // of the hoe (tilling, weeding), the sowing hand, or the sickle (reaping).
-  // The tool for the job takes the stick's place in the fist until it is done.
-  const TOOL_FOR = { till: 'hoe', tend: 'hoe', reap: 'sickle' }; // seed is cast by hand
+  // Field work (the miller's strip): he works his way along a ridge, a blow
+  // of the hoe (tilling, weeding), a cast of the sowing hand or a cut of the
+  // sickle (reaping), then a step on, and again, to the ridge's end. The tool
+  // for the job takes the stick's place in the fist until it is done.
+  const TOOL_FOR = { till: 'hoe', tend: 'hoe', reap: 'sickle', sow: 'seedlip' }; // seed is cast by hand, from the basket at his hip
   function takeUp(kind) {
     m.weapon.visible = kind === null; // null: the stick again
     for (const [name, tool] of Object.entries(m.tools)) tool.visible = TOOL_FOR[kind] === name;
   }
 
-  // Begin working the ridge at (x, z). False if he is busy or in the air.
-  function startWork(kind, x, z) {
+  // Begin working along a line: from (from.x, from.z) to (to.x, to.z), turned
+  // to `facing` all the while (toward the crown of the ridge he walks beside).
+  // False if he is busy or in the air.
+  function startWork(kind, from, to, facing) {
     if (player.mode !== 'normal' || player.airborne) return false;
+    const len = Math.hypot(to.x - from.x, to.z - from.z);
+    player.route = null;
     player.mode = 'work';
     player.modeT = 0;
     player.jumpIn = 0;
-    player.work = { kind, x, z, strokes: 0 };
+    player.work = { kind, ax: from.x, az: from.z, dx: (to.x - from.x) / (len || 1), dz: (to.z - from.z) / (len || 1), len, facing, strokes: 0 };
     takeUp(kind);
     return true;
   }
@@ -399,7 +453,7 @@ export function createPlayer(scene, spawn) {
   };
 
   player.respawn = function respawn(x, z) {
-    player.pos.set(x, terrainHeight(x, z), z);
+    player.pos.set(x, player.groundAt(x, z), z);
     player.vel.set(0, 0);
     player.vy = 0;
     player.airborne = false;
@@ -408,6 +462,7 @@ export function createPlayer(scene, spawn) {
     player.mode = 'normal';
     player.invulnerable = false;
     player.lie01 = 0;
+    player.rising = null;
     player.sitK = player.sit01 = player.stillFor = 0;
     player.route = null;
     stopWork(); // the stick back in hand — after a nap, or a death in the field
@@ -450,6 +505,8 @@ export function createPlayer(scene, spawn) {
 
     let dirX = fwdX * iz + rightX * ix;
     let dirZ = fwdZ * iz + rightZ * ix;
+    // a walk he was only asked to take (to the head of a ridge) gives way to the keys
+    if (player.route?.yields && Math.hypot(dirX, dirZ) > 0) player.route = null;
     // walking himself somewhere: the route steers in place of the keys
     if (player.route && player.mode === 'normal') {
       const r = player.route;
@@ -531,19 +588,47 @@ export function createPlayer(scene, spawn) {
       player.vel.multiplyScalar(Math.max(0, 1 - dt * 14));
     }
 
+    // at a ridge: a key to move, leap, crouch or roll calls him off it
+    if (player.mode === 'work' && (len > 0 || keys.has('Space') || keys.has('KeyC') || pendingRollKey)) {
+      const kind = player.work.kind;
+      keys.delete('Space');
+      pendingRollKey = null;
+      stopWork();
+      player.onWorkStopped(kind);
+    }
+
     if (player.mode === 'work') {
       const W = CONFIG.farm;
       const job = player.work;
-      // each stroke lands 60% of the way through its beat
-      const landed = Math.min(W.strokes, Math.floor(player.modeT / W.strokeTime + 0.4));
-      while (job.strokes < landed) {
-        job.strokes += 1;
-        player.onWorkStroke(job.kind);
-      }
-      player.vel.multiplyScalar(Math.max(0, 1 - dt * 14)); // feet planted at the ridge
-      if (player.modeT >= W.strokes * W.strokeTime) {
+      // how far along the line he stands, and how far off it
+      const ox = player.pos.x - job.ax;
+      const oz = player.pos.z - job.az;
+      const along = ox * job.dx + oz * job.dz;
+      const offX = ox - along * job.dx;
+      const offZ = oz - along * job.dz;
+      if (along >= job.len - 0.02) {
+        // the ridge's end: the last blow has landed
+        player.vel.set(0, 0);
         stopWork();
         player.onWorkDone(job.kind);
+      } else if (player.modeT > job.len / W.workPace * 1.6 + 4) {
+        // held up somewhere along the line (it should never happen): give it up, keeping what is done
+        stopWork();
+        player.onWorkStopped(job.kind);
+      } else {
+        // each blow lands 60% of the way through its beat...
+        const landed = Math.floor(player.modeT / W.strokeTime + 0.4);
+        while (job.strokes < landed) {
+          job.strokes += 1;
+          player.onWorkStroke(job.kind);
+        }
+        // ...and between blows he steps on: still while the blow lands, his
+        // feet moving most as the tool is drawn back for the next
+        const beat = (player.modeT / W.strokeTime) % 1;
+        const pace = W.workPace * (1 + Math.cos(Math.PI * 2 * (beat - 0.05)));
+        const left = (job.len - along) / Math.max(dt, 1e-4);
+        const step = Math.min(pace, left);
+        player.vel.set(job.dx * step - offX * 6, job.dz * step - offZ * 6); // and kept to his line
       }
     }
 
@@ -588,7 +673,7 @@ export function createPlayer(scene, spawn) {
     resolveCollisions(colliders);
     const px = player.pos.x;
     const pz = player.pos.z;
-    const groundY = terrainHeight(px, pz);
+    const groundY = player.groundAt(px, pz);
     if (player.airborne) {
       player.vy -= P.gravity * dt;
       player.pos.y += player.vy * dt;
@@ -612,11 +697,11 @@ export function createPlayer(scene, spawn) {
     if (player.stillFor >= P.sitDelay) startSit();
     // the stick is laid on the ground beside him while he sits, and taken up
     // again as he rises (the field's tools manage their own)
-    if (player.mode !== 'work') layStick(player.sit01 >= 0.5);
+    if (player.mode !== 'work') layStick(player.sit01 >= 0.5 && !player.unarmed);
 
     // feel the ground's tilt: it slows a climb and lays the soles to the slope
-    player.slope.x = (terrainHeight(px + SLOPE_PROBE, pz) - terrainHeight(px - SLOPE_PROBE, pz)) / (SLOPE_PROBE * 2);
-    player.slope.z = (terrainHeight(px, pz + SLOPE_PROBE) - terrainHeight(px, pz - SLOPE_PROBE)) / (SLOPE_PROBE * 2);
+    player.slope.x = (player.groundAt(px + SLOPE_PROBE, pz) - player.groundAt(px - SLOPE_PROBE, pz)) / (SLOPE_PROBE * 2);
+    player.slope.z = (player.groundAt(px, pz + SLOPE_PROBE) - player.groundAt(px, pz - SLOPE_PROBE)) / (SLOPE_PROBE * 2);
 
     // the body turns toward where it is being steered. A shove steers
     // nothing, so a bitten peasant staggers back still facing his rat.
@@ -630,12 +715,8 @@ export function createPlayer(scene, spawn) {
       const h = player.hearth;
       player.facing = lerpAngle(player.facing, Math.atan2(h.x - px, h.z - pz), 1 - Math.exp(-dt * 5));
     } else if (player.mode === 'work') {
-      // turned to the spot he is working — unless he is standing on it
-      const wx = player.work.x - px;
-      const wz = player.work.z - pz;
-      if (wx * wx + wz * wz > 0.04) {
-        player.facing = lerpAngle(player.facing, Math.atan2(wx, wz), 1 - Math.exp(-dt * P.turnLerp));
-      }
+      // turned to the ridge he works beside, half toward its crown
+      player.facing = lerpAngle(player.facing, player.work.facing, 1 - Math.exp(-dt * P.turnLerp));
     }
     player.turnRate = dt > 1e-4 ? (player.facing - facingWas) / dt : 0;
     m.group.rotation.y = player.facing;
@@ -645,11 +726,14 @@ export function createPlayer(scene, spawn) {
 
   player.attack = startAttack;
   player.startSleep = startSleep;
+  player.rise = startRise;
   player.startWork = startWork;
 
   // walk himself through `points` ({x, z} each) in turn; onArrive at the last
-  player.walkRoute = function walkRoute(points, onArrive) {
-    player.route = points.length ? { points, i: 0, onArrive } : null;
+  // (yields: true lets a movement key call the walk off — a walk he was asked
+  // to take, not one he must)
+  player.walkRoute = function walkRoute(points, onArrive, { yields = false } = {}) {
+    player.route = points.length ? { points, i: 0, onArrive, yields } : null;
     if (!points.length) onArrive();
   };
 

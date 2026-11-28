@@ -23,8 +23,15 @@ if (!executablePath) {
 // must not both bind 5199, or one tests the other's build
 const PORT = Number(process.env.SMOKE_PORT) || 5199;
 // Every load holds the sky at one in the afternoon (main.js ?hour=), so the
-// screenshots look the same whatever hour the suite is run.
-const DAY = '&hour=13';
+// screenshots look the same whatever hour the suite is run — and skips the
+// opening a blank save would otherwise begin with (?intro=0). Only the `intro`
+// scenario loads without the second.
+const NOON = '&hour=13';
+const DAY = `${NOON}&intro=0`;
+// SMOKE_WAIT=load waits for the page's load event instead of a quiet network.
+// Where the software renderer keeps the page busy without a pause (a cloud
+// container at ~3fps), the browser never declares the network idle at all.
+const WAIT = process.env.SMOKE_WAIT || 'networkidle2';
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
   shell: true,
   stdio: 'ignore',
@@ -194,7 +201,7 @@ try {
 
   if (scenario === 'reckoning') {
     // a v6 save with the old flat treasury — migration must grow the
-    // name/pledge/rolls/conquered fields; 800 of 1000 so one filing conquers
+    // name/pledge/log/rolls/conquered fields; 800 of 1000 so one month's saving conquers
     const ledger = {
       saveVersion: 6,
       createdAt: new Date().toISOString(),
@@ -289,6 +296,7 @@ try {
         const deed = String(req.messages?.[0]?.content ?? '');
         let verdict = 'wis';
         if (deed.includes('tennis')) verdict = 'ath';
+        if (deed.includes('client')) verdict = 'ath inf';
         if (deed.includes('garble')) verdict = 'the moon knows no virtue';
         return new Response(
           JSON.stringify({
@@ -386,8 +394,8 @@ try {
     }, old);
   }
 
-  await page.goto(`http://localhost:${PORT}/?smoke=${scenario}${DAY}`, {
-    waitUntil: 'networkidle2',
+  await page.goto(`http://localhost:${PORT}/?smoke=${scenario}${scenario === 'intro' ? NOON : DAY}`, {
+    waitUntil: WAIT,
     timeout: 40000,
   });
   await new Promise((r) => setTimeout(r, 2500));
@@ -396,8 +404,8 @@ try {
     const s1 = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
-        dailyText: st.quests.daily.text,
-        dailyDone: st.quests.daily.completed,
+        dailyText: (st.quests.daily.deeds[0]?.text ?? ''),
+        dailyDone: st.quests.daily.deeds.some((d) => d.completed),
         weeklyText: st.quests.weekly.text,
         monthlyText: st.quests.monthly.text,
         monthlyDone: st.quests.monthly.completed,
@@ -431,11 +439,11 @@ try {
     await page.evaluate(() => window.__game.openPanel('board'));
     await page.type('[data-input]', 'Morning run');
     await page.click('[data-post]');
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const s2 = await page.evaluate(() => {
       const st = window.__game.getState();
-      return { text: st.quests.daily.text, done: st.quests.daily.completed, coins: st.coins };
+      return { text: (st.quests.daily.deeds[0]?.text ?? ''), done: st.quests.daily.deeds.some((d) => d.completed), coins: st.coins };
     });
     console.log('after reload:', JSON.stringify(s2));
     if (s2.text !== 'Morning run') errors.push(`roundtrip: daily text "${s2.text}"`);
@@ -473,13 +481,14 @@ try {
     await page.click('[data-post]');
     await page.click('[data-complete]');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     const s = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
         coins: st.coins,
         athXp: st.stats.ath.xp,
         streak: st.streak.current,
-        done: st.quests.daily.completed,
+        done: st.quests.daily.deeds.some((d) => d.completed),
         stamina: st.stamina.current,
         history: st.history.length,
         gutter: window.__game.campfire.getGutter(),
@@ -496,10 +505,11 @@ try {
     if (s.history !== 1) errors.push(`quests: history ${s.history} != 1`);
 
     // weekly bounty: post, complete, train Wisdom (+100 XP -> level 2 with 0 spare)
-    await page.type('[data-input]', 'Ship the Felmark proposal');
-    await page.click('[data-post]');
-    await page.click('[data-complete]');
+    await page.type('.quest-block[data-kind="weekly"] [data-input]', 'Ship the Felmark proposal');
+    await page.click('.quest-block[data-kind="weekly"] [data-post]');
+    await page.click('.quest-block[data-kind="weekly"] [data-complete]');
     await page.click('[data-pick="wis"]');
+    await page.click('[data-pick-done]');
     const w = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
@@ -518,10 +528,11 @@ try {
     if (w.history !== 2) errors.push(`weekly: history ${w.history} != 2`);
 
     // monthly campaign: post, complete, train Influence (+300 XP -> level 3 with 0 spare)
-    await page.type('[data-input]', 'Land the first paying client');
-    await page.click('[data-post]');
-    await page.click('[data-complete]');
+    await page.type('.quest-block[data-kind="monthly"] [data-input]', 'Land the first paying client');
+    await page.click('.quest-block[data-kind="monthly"] [data-post]');
+    await page.click('.quest-block[data-kind="monthly"] [data-complete]');
     await page.click('[data-pick="inf"]');
+    await page.click('[data-pick-done]');
     const m = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
@@ -539,6 +550,100 @@ try {
     if (!m.done) errors.push('monthly: not completed');
     if (m.history !== 3) errors.push(`monthly: history ${m.history} != 3`);
     if (m.type !== 'monthly') errors.push(`monthly: history type ${m.type} != monthly`);
+
+    // a second deed the same day, of two virtues: the XP is shared (13 + 12), the
+    // coins paid in full, and the day — streak, stamina — is not claimed twice
+    const board = () =>
+      page.evaluate(() => {
+        const st = window.__game.getState();
+        const daily = document.querySelector('.quest-block[data-kind="daily"]');
+        return {
+          deeds: st.quests.daily.deeds,
+          coins: st.coins,
+          ath: st.stats.ath.xp,
+          inf: st.stats.inf.xp,
+          wis: st.stats.wis.xp,
+          streak: st.streak.current,
+          stamina: st.stamina.current,
+          last: st.history.at(-1),
+          history: st.history.length,
+          input: !!daily.querySelector('[data-input]'),
+          claim: daily.querySelector('[data-pick-done]')?.disabled,
+          share: daily.querySelector('[data-pick-share]')?.textContent,
+          text: daily.textContent,
+        };
+      });
+    await page.evaluate(() => window.__game.spendStamina(30)); // 480 -> 450
+    await page.type('.quest-block[data-kind="daily"] [data-input]', 'Tennis with a client');
+    await page.click('.quest-block[data-kind="daily"] [data-post]');
+    await page.click('[data-slot="daily:1"] [data-complete]');
+    let d = await board();
+    if (d.claim !== true) errors.push('deeds: the reward could be claimed with no virtue chosen');
+    await page.click('[data-pick="ath"]');
+    await page.click('[data-pick="inf"]');
+    d = await board();
+    console.log('two virtues chosen:', JSON.stringify({ claim: d.claim, share: d.share }));
+    if (d.claim !== false || d.share !== 'Athleticism +13 · Influence +12') errors.push(`deeds: the share shown is "${d.share}"`);
+    await page.click('[data-pick-done]');
+    d = await board();
+    console.log('second deed:', JSON.stringify({ ...d, text: undefined }));
+    if (d.ath !== 38 || d.inf !== 12) errors.push(`deeds: the XP was not shared 13 + 12 (ath ${d.ath}, inf ${d.inf})`);
+    if (d.coins !== 220) errors.push(`deeds: coins ${d.coins} != 220`);
+    if (d.streak !== 1) errors.push(`deeds: the second deed moved the streak to ${d.streak}`);
+    if (d.stamina !== 450) errors.push(`deeds: the second deed refilled stamina (${d.stamina})`);
+    if (d.last.statTrained !== 'ath' || d.last.virtues?.join() !== 'ath,inf' || d.last.type !== 'daily')
+      errors.push(`deeds: the history deed ${JSON.stringify(d.last)}`);
+    if (d.deeds.length !== 2 || !d.deeds[1].completed || d.deeds[1].virtues?.join() !== 'ath,inf')
+      errors.push(`deeds: today's list ${JSON.stringify(d.deeds)}`);
+    if (!d.text.includes('Done · Athleticism · Influence')) errors.push('deeds: the done deed does not name its virtues');
+
+    // a virtue ticked twice is unticked; a deed posted in error is taken down
+    await page.type('.quest-block[data-kind="daily"] [data-input]', 'A slip of the quill');
+    await page.click('.quest-block[data-kind="daily"] [data-post]');
+    await page.click('[data-slot="daily:2"] [data-complete]');
+    await page.click('[data-pick="wis"]');
+    await page.click('[data-pick="wis"]');
+    d = await board();
+    if (d.claim !== true) errors.push('deeds: a virtue unticked still left the reward to claim');
+    await page.keyboard.press('Escape'); // closing the board forgets the half-made choice
+    await new Promise((r) => setTimeout(r, 200));
+    await page.evaluate(() => window.__game.openPanel('board'));
+    await page.click('[data-slot="daily:2"] [data-strike]');
+    d = await board();
+    if (d.deeds.length !== 2 || d.history !== 4 || d.text.includes('A slip of the quill')) errors.push(`deeds: the deed was not taken down (${JSON.stringify(d.deeds)})`);
+
+    // the board takes five deeds a day and no more; three virtues share 9 + 8 + 8
+    for (const text of ['Read a chapter', 'Call home', 'Plan the week']) {
+      await page.type('.quest-block[data-kind="daily"] [data-input]', text);
+      await page.click('.quest-block[data-kind="daily"] [data-post]');
+    }
+    d = await board();
+    if (d.deeds.length !== 5 || d.input) errors.push(`deeds: the board took ${d.deeds.length} deeds, box ${d.input ? 'still there' : 'gone'}`);
+    await page.click('[data-slot="daily:4"] [data-complete]');
+    for (const k of ['int', 'wis', 'inf']) await page.click(`[data-pick="${k}"]`);
+    await page.click('[data-pick-done]');
+    d = await board();
+    console.log('three virtues:', JSON.stringify({ wis: d.wis, inf: d.inf, coins: d.coins, last: d.last }));
+    if (d.wis !== 8 || d.inf !== 20 || d.coins !== 230) errors.push(`deeds: three virtues did not share 9 + 8 + 8 (wis ${d.wis}, inf ${d.inf}, coins ${d.coins})`);
+    await page.screenshot({ path: 'scripts/smoke-quests.png' });
+
+    // tomorrow the list is bare again, and yesterday's deed keeps the streak
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('crownbound_save'));
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const ymd = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+      s.quests.daily.date = s.lastQuestDate = s.stamina.date = s.counters.date = ymd;
+      localStorage.setItem('crownbound_save', JSON.stringify(s));
+    });
+    await page.reload({ waitUntil: WAIT });
+    await new Promise((r) => setTimeout(r, 2000));
+    const morrow = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return { deeds: st.quests.daily.deeds, streak: st.streak.current, stamina: st.stamina.current };
+    });
+    console.log('the morrow:', JSON.stringify(morrow));
+    if (morrow.deeds.length !== 0 || morrow.streak !== 1 || morrow.stamina !== 240) errors.push(`deeds: the morrow ${JSON.stringify(morrow)}`);
   } else if (scenario === 'tome') {
     // the Scribe: export a copy, doctor it, restore it, expect it back after reload
     const trip = await page.evaluate(() => {
@@ -553,7 +658,7 @@ try {
       ];
       return { bad, ok: g.importSave(JSON.stringify(copy)) };
     });
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const coins = await page.evaluate(() => window.__game.getState().coins);
     console.log(`scribe round-trip: badRefused=${!trip.bad} ok=${trip.ok} coins=${coins}`);
@@ -670,14 +775,20 @@ try {
       g.player.takeDamage(1, -4, 4);
       setTimeout(() => g.player.takeDamage(1, -6, 4), 40);
     });
-    await new Promise((r) => setTimeout(r, 600));
-    const redBits = await page.evaluate(() => {
+    // The second bite and the flash's end are two timers, each of which waits
+    // out a frame on a slow renderer (~400ms a frame in a cloud container), so
+    // a fixed 600ms could read him still red. Wait for the red to go — up to
+    // 5s; a flash that has truly stuck never goes.
+    const countRed = () => {
       let red = 0;
       window.__game.player.mesh.group.traverse((o) => {
         if (o.isMesh && o.material.color && o.material.color.getHex() === 0xff5039) red++;
       });
       return red;
-    });
+    };
+    await new Promise((r) => setTimeout(r, 600));
+    await page.waitForFunction(`(${countRed})() === 0`, { timeout: 5000, polling: 100 }).catch(() => {});
+    const redBits = await page.evaluate(countRed);
     console.log('red meshes after overlapping hits:', redBits);
     if (redBits > 0) errors.push(`combat: player stuck red (${redBits} meshes) after overlapping hits`);
 
@@ -1211,7 +1322,7 @@ try {
         waist: p.mesh.roller.position.y,
         knee: p.mesh.legs[0].shin.rotation.x,
         offFire: h.offFire(), dist: h.fireDist(),
-        stick: p.mesh.weapon.parent === p.mesh.hold, // still in the fist?
+        stick: p.mesh.weapon.parent === p.mesh.slot, // still in the fist?
         laid: (() => {
           // laid down: shown, on the ground at his side, lying flat
           const w = p.mesh.weapon;
@@ -1256,7 +1367,7 @@ try {
       const walking = h.speed();
       h.key('KeyW', false);
       h.run(0.5);
-      return { mode, rising, walking, sit01: p.sit01, stick: p.mesh.weapon.visible && p.mesh.weapon.parent === p.mesh.hold };
+      return { mode, rising, walking, sit01: p.sit01, stick: p.mesh.weapon.visible && p.mesh.weapon.parent === p.mesh.slot };
     });
     console.log('rose:', JSON.stringify(rose));
     if (rose.mode !== 'normal') errors.push(`hearth: W left him ${rose.mode}`);
@@ -1321,7 +1432,79 @@ try {
     if (!open.open) errors.push('house: E near the door did not open it');
     if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
 
-    // 3) sleep: standing beside the cot offers it, E tucks him in (the cot's
+    // 2b) the peg rack by the door holds every weapon not in hand: E opens
+    //     it; with the cudgel and quarterstaff owned, all three are listed;
+    //     "Hang up" empties the hands (no swing, no stamina) and puts the stick
+    //     on its pegs beside the others, saved; "Take up" puts one in hand
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.getState().shop.owned.push('cudgel', 'quarterstaff'); // so the rack has all three to hold
+      g.player.pos.x = -7.95; // local (1.05, 0.3): the floor before the rack
+      g.player.pos.z = 2.3;
+    });
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('weapon rack'), { timeout: 4000 }).catch(() => {});
+    const rackPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
+    console.log(`rack prompt: ${rackPrompt}`);
+    if (!rackPrompt.includes('the weapon rack')) errors.push(`house: the rack was not offered ("${rackPrompt}")`);
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    const rackPanel = await page.evaluate(() => ({
+      open: !document.getElementById('rack-panel').classList.contains('hidden'),
+      rows: document.querySelectorAll('#rack-body .deed').length,
+      takeUp: document.querySelectorAll('#rack-body [data-wield]').length,
+    }));
+    console.log(`rack panel: ${JSON.stringify(rackPanel)}`);
+    if (!rackPanel.open || rackPanel.rows !== 3 || rackPanel.takeUp !== 2) errors.push(`house: the rack panel -> ${JSON.stringify(rackPanel)}`);
+    await page.click('#rack-body [data-hang]');
+    await new Promise((r) => setTimeout(r, 200));
+    const allUp = await page.evaluate(() => document.querySelectorAll('#rack-body [data-wield]').length);
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+    const before = await page.evaluate(() => window.__game.getState().stamina.current);
+    await page.keyboard.press('KeyF');
+    await new Promise((r) => setTimeout(r, 300));
+    const hung = await page.evaluate(() => {
+      const g = window.__game;
+      const saved = JSON.parse(localStorage.getItem('crownbound_save'));
+      return { unarmed: g.player.unarmed, saved: !!saved.chest.hungUp, mode: g.player.mode, stamina: g.getState().stamina.current };
+    });
+    console.log(`hung up: ${JSON.stringify({ allUp, ...hung })}`);
+    if (allUp !== 3) errors.push(`house: with all hung up, ${allUp} of 3 offered to take up`);
+    if (!hung.unarmed || !hung.saved) errors.push(`house: "Hang up" did not empty his hands (${JSON.stringify(hung)})`);
+    if (hung.mode === 'attack' || hung.stamina !== before) errors.push(`house: empty hands still swung (${JSON.stringify(hung)})`);
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -8.4; // stood off to the side, so the rack is in view past him
+      g.player.pos.z = 1.75;
+      g.player.facing = 0.6;
+      g.orbitCam.setView(Math.PI + 0.75, 0.25, 3);
+    });
+    await new Promise((r) => setTimeout(r, 800));
+    await page.screenshot({ path: 'scripts/smoke-rack.png' });
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -7.95;
+      g.player.pos.z = 2.3;
+    });
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('weapon rack'), { timeout: 4000 }).catch(() => {});
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    await page.click('#rack-body [data-wield="cudgel"]');
+    await new Promise((r) => setTimeout(r, 200));
+    const down = await page.evaluate(() => ({
+      unarmed: window.__game.player.unarmed,
+      saved: !!JSON.parse(localStorage.getItem('crownbound_save')).chest.hungUp,
+      wielded: window.__game.getState().chest.wielded,
+      damage: window.__game.player.attackDamage,
+    }));
+    console.log(`taken down: ${JSON.stringify(down)}`);
+    if (down.unarmed || down.saved || down.wielded !== 'cudgel' || down.damage !== 2) errors.push(`house: "Take up" the cudgel -> ${JSON.stringify(down)}`);
+    await page.click('#rack-body [data-wield="stick"]'); // the stick back in hand for what follows
+    await new Promise((r) => setTimeout(r, 200));
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+
     //    middle can't be reached, so this once never offered sleep at all);
     //    tuck-in animation plays, wounds mend, the night is marked, you stand
     //    up by the cot
@@ -1424,7 +1607,7 @@ try {
       return g.importSave(JSON.stringify(copy));
     });
     if (!imported) errors.push('house: ledger save import refused');
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const log = await page.evaluate(() => window.__game.getState().sleep.log);
     console.log('ledger log:', JSON.stringify(log));
@@ -1497,14 +1680,18 @@ try {
       const opened = !document.getElementById('treasury-panel').classList.contains('hidden');
       const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
       // an untouched ledger asks three questions, one at a time
-      const asked = !!q('[data-w-goal]') && !q('[data-w-current]') && !q('[data-r-file]');
+      const asked = !!q('[data-w-goal]') && !q('[data-w-current]') && !q('[data-log-open]');
       let pace = '';
       if (asked) {
-        q('[data-chip]').click(); // a suggested name fills the box
-        const chipped = q('[data-w-name]').value;
+        // no buttons to pick from: what he saves for is typed, and is required
+        const typed = !document.querySelector('#treasury-body [data-chip]') && q('[data-w-name]').type === 'text';
+        q('[data-w-goal]').value = '20000';
+        q('[data-w-next]').click(); // no name: refused, still on the first question
+        const unnamed = !!q('[data-w-goal]');
+        q('[data-w-goal]').value = '';
         q('[data-w-name]').value = 'The War Chest';
         q('[data-w-next]').click(); // no sum yet: refused, still on the first question
-        const held = !!q('[data-w-goal]');
+        const held = unnamed && !!q('[data-w-goal]');
         q('[data-w-name]').value = 'The War Chest';
         q('[data-w-goal]').value = '20000';
         q('[data-w-next]').click();
@@ -1515,25 +1702,29 @@ try {
         pace = q('[data-w-pace]').textContent;
         q('[data-w-next]').click();
         const sealed = { ...window.__game.getState().treasury };
-        // the ledger: the coffer, the figure, the track — and coin laid in
+        // the ledger: the coffer, the figure, the track — and money put into savings today
         const shown = { coffer: !!q('.tr-coffer svg'), amount: q('.tr-amount')?.textContent, track: !!q('.tr-track') };
-        q('[data-lay-open]').click();
-        q('[data-lay-amount]').value = '500';
-        q('[data-lay-set]').click();
+        q('[data-log-open="save"]').click();
+        q('[data-log-amount]').value = '500';
+        q('[data-log-note]').value = 'to the hoard';
+        q('[data-log-set]').click();
         const d = new Date();
         const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const t = window.__game.getState().treasury;
-        const laid = { current: t.current, month: t.laid[month], amount: q('.tr-amount')?.textContent, meter: q('.tr-month')?.textContent ?? '' };
-        // a recount is a correction: it moves the savings, not the month's tally
+        const laid = {
+          current: t.current, month: window.__game.monthTally(month).saved, amount: q('.tr-amount')?.textContent,
+          meter: q('.tr-month')?.textContent ?? '', todayRows: document.querySelectorAll('#treasury-body .tr-day .tr-entry').length,
+        };
+        // a recount is a correction: it moves the savings, not the month's saving
         q('[data-count-open]').click();
         q('[data-count-amount]').value = '3100';
         q('[data-count-set]').click();
         const t2 = window.__game.getState().treasury;
         return {
-          opened, asked, chipped, held, pace, sealed, shown,
+          opened, asked, typed, held, pace, sealed, shown,
           laidCurrent: laid.current, laid: laid.month, amountAfter: laid.amount,
-          monthMeter: laid.meter.replace(/\s+/g, ' ').trim(),
-          recounted: t2.current, laidAfterRecount: t2.laid[month],
+          monthMeter: laid.meter.replace(/\s+/g, ' ').trim(), todayRows: laid.todayRows,
+          recounted: t2.current, laidAfterRecount: window.__game.monthTally(month).saved,
         };
       }
       return { opened, asked };
@@ -1542,8 +1733,8 @@ try {
     if (!bank.opened) errors.push('exchequer: E at the counter did not open the Treasury');
     if (!bank.asked) errors.push('exchequer: an untouched ledger did not open on its first question');
     else {
-      if (!bank.chipped) errors.push('exchequer: a suggested goal name did not fill the box');
-      if (!bank.held) errors.push('exchequer: a goal with no sum was let past the first question');
+      if (!bank.typed) errors.push('exchequer: the goal is not typed into a text box (or preset buttons remain)');
+      if (!bank.held) errors.push('exchequer: a goal with no name or no sum was let past the first question');
       if (!bank.pace.includes('59 months')) errors.push(`exchequer: pace "${bank.pace}" does not reckon 17,500 at 300 a month`);
       const s0 = bank.sealed;
       if (s0.current !== 2500 || s0.goal !== 20000 || s0.pledge !== 300 || s0.name !== 'The War Chest')
@@ -1553,6 +1744,7 @@ try {
       if (bank.laidCurrent !== 3000 || bank.laid !== 500 || bank.amountAfter !== '3,000')
         errors.push(`exchequer: 500 laid in -> savings ${bank.laidCurrent}, month ${bank.laid}, shown ${bank.amountAfter}`);
       if (!bank.monthMeter.includes('kept')) errors.push(`exchequer: 500 laid against 300 pledged, yet the month reads "${bank.monthMeter}"`);
+      if (bank.todayRows !== 1) errors.push(`exchequer: today's day book shows ${bank.todayRows} entries, not the one made`);
       if (bank.recounted !== 3100 || bank.laidAfterRecount !== 500)
         errors.push(`exchequer: recount -> savings ${bank.recounted}, month ${bank.laidAfterRecount} != 3100, 500`);
     }
@@ -1660,13 +1852,7 @@ try {
     };
 
     // the page was opened with ?hour=13: the sky stands at one o'clock
-    // (by the sun that is noon, where summer time is being kept)
-    const pinnedHour = await page.evaluate(() => {
-      const g = window.__game;
-      const d = new Date();
-      d.setHours(13, 0, 0, 0);
-      return { hour: g.sky.state.hour, want: g.solarHour(d) };
-    });
+    const pinnedHour = await page.evaluate(() => ({ hour: window.__game.sky.state.hour, want: 13 }));
     console.log('pinned:', JSON.stringify(pinnedHour));
     if (Math.abs(pinnedHour.hour - pinnedHour.want) > 0.02) errors.push(`sky: ?hour=13 shows hour ${pinnedHour.hour}, want ${pinnedHour.want}`);
 
@@ -1675,9 +1861,9 @@ try {
     const noon = await at(2026, 10, 16, 12);
     await shot('noon', 'sun');
     const evening = await at(2026, 10, 16, 15);
-    const sunset = await at(2026, 10, 16, 16, 35);
+    const sunset = await at(2026, 10, 16, 17, 55);
     await shot('sunset', 'sun');
-    const dusk = await at(2026, 10, 16, 17, 10);
+    const dusk = await at(2026, 10, 16, 18, 35);
     const midnight = await at(2026, 10, 17, 0, 30);
     console.log('morning:', JSON.stringify(morning));
     console.log('noon:', JSON.stringify(noon));
@@ -1691,7 +1877,7 @@ try {
     if (!(noon.sunAlt > 20 && noon.sunAlt > morning.sunAlt && noon.sunAlt > evening.sunAlt)) errors.push('sky: the sun is not highest at noon');
     if (noon.keyPower < 2.5 || noon.night !== 0 || noon.stars) errors.push(`sky: noon is not full day (key ${noon.keyPower}, night ${noon.night}, stars ${noon.stars})`);
     if (noon.fog < 0.5) errors.push(`sky: the noon haze is dark (${noon.fog})`);
-    if (Math.abs(sunset.sunAlt) > 3) errors.push(`sky: 16:35 in November is not sunset (sun at ${sunset.sunAlt})`);
+    if (Math.abs(sunset.sunAlt) > 3) errors.push(`sky: 17:55 is not sunset (sun at ${sunset.sunAlt})`);
     if (!(sunset.keyPower > 0.5 && sunset.keyPower < noon.keyPower)) errors.push(`sky: the setting sun's light (${sunset.keyPower}) is not weaker than noon's`);
     if (sunset.beamUp < Math.sin((17.5 * Math.PI) / 180)) errors.push(`sky: the beam lies flat at sunset (${sunset.beamUp})`);
     if (dusk.keyPower > 0.3) errors.push(`sky: the key light still burns at dusk (${dusk.keyPower})`);
@@ -1701,14 +1887,20 @@ try {
     if (midnight.fog > 0.2) errors.push(`sky: the night haze is bright (${midnight.fog})`);
     if (midnight.beamUp < Math.sin((17.5 * Math.PI) / 180)) errors.push('sky: the beam lies flat at night');
 
-    // the seasons: a high sun and a long evening in June, a low sun and an early dark in December
+    // the seasons: a high sun in June, a low one in December — but the sun is
+    // up at 17:45 and down at 18:15 by the clock in both, summer time or not
     const june = await at(2026, 5, 21, 12);
-    const juneEve = await at(2026, 5, 21, 19);
+    const juneEve = await at(2026, 5, 21, 17, 45);
+    const juneDark = await at(2026, 5, 21, 18, 15);
     const december = await at(2026, 11, 21, 12);
-    const decemberEve = await at(2026, 11, 21, 17);
-    console.log('seasons:', JSON.stringify({ june: june.sunAlt, juneEve: juneEve.sunAlt, december: december.sunAlt, decemberEve: decemberEve.sunAlt }));
+    const decemberEve = await at(2026, 11, 21, 17, 45);
+    const decemberDark = await at(2026, 11, 21, 18, 15);
+    const decemberDawn = await at(2026, 11, 21, 6, 15);
+    console.log('seasons:', JSON.stringify({ june: june.sunAlt, juneEve: juneEve.sunAlt, juneDark: juneDark.sunAlt, december: december.sunAlt, decemberEve: decemberEve.sunAlt, decemberDark: decemberDark.sunAlt, decemberDawn: decemberDawn.sunAlt }));
     if (!(june.sunAlt > december.sunAlt + 40)) errors.push('sky: midsummer noon is no higher than midwinter noon');
-    if (!(juneEve.sunAlt > 0 && decemberEve.sunAlt < 0)) errors.push('sky: the days do not lengthen in summer');
+    if (!(juneEve.sunAlt > 0 && decemberEve.sunAlt > 0)) errors.push('sky: the sun is down before six in the evening');
+    if (!(juneDark.sunAlt < 0 && decemberDark.sunAlt < 0)) errors.push('sky: the sun is still up after six in the evening');
+    if (!(decemberDawn.sunAlt > 0)) errors.push('sky: the sun is not up by a quarter past six in the morning');
 
     // the moon: full and high at a winter midnight, dark when new
     const full = await at(2026, 10, 24, 23, 30);
@@ -1719,18 +1911,24 @@ try {
     if (!(full.keyPower > midnight.keyPower)) errors.push('sky: a full moon lights the night no better than none');
     if (newMoon > 0.05) errors.push(`sky: the new moon of 11 Jan 2024 is lit (${newMoon})`);
 
-    // summer time: the clocks go forward, the sun does not
+    // summer time: the sky keeps the wall clock's hour, so six is sunset in July too
     await page.emulateTimezone('America/New_York');
-    const clocks = await page.evaluate(() => ({
-      july: window.__game.solarHour(new Date(2026, 6, 1, 13, 0)),
-      january: window.__game.solarHour(new Date(2026, 0, 15, 13, 0)),
-    }));
+    const clocks = await page.evaluate(() => {
+      const g = window.__game;
+      const C = g.CONFIG.sky;
+      return {
+        july: g.clockHour(new Date(2026, 6, 1, 13, 0)),
+        january: g.clockHour(new Date(2026, 0, 15, 13, 0)),
+        julySet: g.skyAt(new Date(2026, 6, 1, 18, 0), C.latitude, C.sunrise, C.sunset).sunAlt,
+      };
+    });
     await page.emulateTimezone(null);
     console.log('summer time:', JSON.stringify(clocks));
-    if (clocks.july !== 12 || clocks.january !== 13) errors.push(`sky: summer time misread (${JSON.stringify(clocks)})`);
+    if (clocks.july !== 13 || clocks.january !== 13) errors.push(`sky: the clock misread (${JSON.stringify(clocks)})`);
+    if (Math.abs(clocks.julySet) > 0.5) errors.push(`sky: six in the evening in a New York July is not sunset (${clocks.julySet})`);
 
     // leave the dusk up for the last screenshot
-    await at(2026, 10, 16, 16, 55);
+    await at(2026, 10, 16, 18, 15);
     await shot('dusk', 'sun');
   } else if (scenario === 'map') {
     // the Map of the Kingdom: M unrolls it, the realm and the village plan
@@ -1839,7 +2037,7 @@ try {
         latest: window.__game.CONFIG.saveVersion,
         name: t.name,
         pledge: t.pledge,
-        rolls: Array.isArray(t.rolls) && t.rolls.length === 0,
+        rolls: Array.isArray(t.rolls) && t.rolls.length === 0 && Array.isArray(t.log),
         conquered: Array.isArray(t.conquered) && t.conquered.length === 0,
       };
     });
@@ -1872,152 +2070,157 @@ try {
     if (verdicts.quickFat !== 'fat' || verdicts.quickHeld !== 'held' || verdicts.quickBled !== 'bled' || verdicts.quickFirst !== 'held')
       errors.push(`reckoning: verdicts on savings alone ${JSON.stringify(verdicts)}`);
 
-    const due = await page.evaluate(() => window.__game.reckoningDue());
-    if (due !== mk(-1)) errors.push(`reckoning: due "${due}" != "${mk(-1)}"`);
+    const nothingClosed = await page.evaluate(() => window.__game.getState().treasury.rolls.length === 0);
+    if (!nothingClosed) errors.push('reckoning: a ledger with no entries closed a month on load');
 
-    // 3) file the month through the panel: pledge 200, then the four lines;
-    //    counted 1100 tops the 1000 summit — the conquest must fire
+    // 3) a day's money through the panel: pledge 200, then in / out / into savings;
+    //    a mistaken entry is struck out
     await page.evaluate(() => window.__game.openPanel('treasury'));
-    const filed = await page.evaluate(() => {
+    const book = await page.evaluate(() => {
       const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
       q('[data-t-pledge]').value = '200';
       q('[data-t-set]').click(); // rerenders the panel
-      // typed like a player: each figure fires 'input', which drives the live verdict
-      const r = (sel, v) => {
-        const el = document.querySelector(`#treasury-body ${sel}`);
-        el.value = v;
-        el.dispatchEvent(new Event('input'));
+      const enter = (kind, amount, note = '') => {
+        q(`[data-log-open="${kind}"]`).click();
+        q('[data-log-amount]').value = amount;
+        q('[data-log-note]').value = note;
+        q('[data-log-set]').click();
       };
-      // a blank figure is refused (it used to file as 0 and zero the savings)
-      q('[data-r-file]').click();
-      const blankRefused = window.__game.getState().treasury.rolls.length === 0;
-      r('[data-r-earned]', '5000');
-      r('[data-r-spent]', '3800');
-      r('[data-r-saved]', '300');
-      // "savings now" follows the 800 on hand + 300 put in, untyped
-      const followed = q('[data-r-counted]').value;
-      const preview = q('[data-r-preview]').textContent;
-      document.querySelector('#treasury-body [data-r-file]').click();
-      const st = window.__game.getState();
-      const t = st.treasury;
+      // a blank amount is refused
+      q('[data-log-open="in"]').click();
+      q('[data-log-set]').click();
+      const blankRefused = window.__game.getState().treasury.log.length === 0;
+      q('[data-form-close]').click();
+      enter('in', '5000', 'wages');
+      enter('out', '3800', 'rent and bread');
+      enter('out', '50', 'a mistake');
+      enter('save', '300');
+      const before = window.__game.getState().treasury.log.length;
+      const rows = document.querySelectorAll('#treasury-body .tr-day .tr-entry');
+      rows[2].querySelector('[data-unlog]').click(); // strike out the 50
+      const t = window.__game.getState().treasury;
+      const d = new Date();
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return {
-        blankRefused,
-        followed,
-        previewFat: preview.includes('the hoard grew fat') && preview.includes('1,200'),
-        rolls: t.rolls.length,
-        verdict: t.rolls[0]?.verdict,
-        current: t.current,
-        goal: t.goal,
-        conquered: t.conquered.length,
-        conqueredGoal: t.conquered[0]?.goal,
+        blankRefused, before, after: t.log.length, current: t.current,
+        tally: window.__game.monthTally(month),
+        sums: q('[data-sums]').textContent.replace(/\s+/g, ' ').trim(),
+        note: q('.tr-day .tr-entry .deed-text')?.textContent,
+      };
+    });
+    console.log('book:', JSON.stringify(book));
+    if (!book.blankRefused) errors.push('reckoning: a blank amount was entered');
+    if (book.before !== 4 || book.after !== 3) errors.push(`reckoning: day book ${book.before} -> ${book.after} entries, expected 4 -> 3 after striking one`);
+    if (book.current !== 1100) errors.push(`reckoning: 300 into savings on 800 -> ${book.current}`);
+    if (book.tally.earned !== 5000 || book.tally.spent !== 3800 || book.tally.saved !== 300)
+      errors.push(`reckoning: month tally ${JSON.stringify(book.tally)}`);
+    if (!book.sums.includes('5,000') || !book.sums.includes('3,800') || !book.sums.includes('1,200'))
+      errors.push(`reckoning: the month so far reads "${book.sums}"`);
+    if (book.note !== 'wages') errors.push(`reckoning: the entry's note reads "${book.note}"`);
+
+    // 4) the month closes itself (on a pinned clock, the 5th of next month):
+    //    1100 tops the 1000 summit — the conquest must fire
+    const closed = await page.evaluate(() => {
+      const g = window.__game;
+      const d = new Date();
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 5);
+      const res = g.closeMonths(next);
+      const again = g.closeMonths(next);
+      const st = g.getState();
+      const t = st.treasury;
+      g.openPanel('treasury');
+      return {
+        closed: res.length, again: again.length,
+        roll: t.rolls[0], logLeft: t.log.length, current: t.current, goal: t.goal,
+        conquered: t.conquered.length, conqueredGoal: t.conquered[0]?.goal,
         histType: st.history[st.history.length - 1]?.type,
         histStat: st.history[st.history.length - 1]?.statTrained,
-        intLevel: st.stats.int.level,
-        intXp: st.stats.int.xp,
-        coins: st.coins,
+        intLevel: st.stats.int.level, intXp: st.stats.int.xp, coins: st.coins,
         summitForm: !!document.querySelector('#treasury-body [data-s-name]'),
       };
     });
-    console.log('filed:', JSON.stringify(filed));
-    if (!filed.blankRefused) errors.push('reckoning: a reckoning with blank figures was filed');
-    if (filed.followed !== '1100') errors.push(`reckoning: savings-now ${filed.followed} did not follow 800 + 300`);
-    if (!filed.previewFat) errors.push('reckoning: live preview did not show left-over 1,200 and the fat verdict');
-    if (filed.rolls !== 1) errors.push(`reckoning: ${filed.rolls} rolls != 1`);
-    if (filed.verdict !== 'fat') errors.push(`reckoning: verdict ${filed.verdict} != fat (300 >= 200 pledged)`);
-    if (filed.current !== 1100) errors.push(`reckoning: counted-true ${filed.current} != 1100`);
-    if (filed.goal !== 0) errors.push(`reckoning: goal ${filed.goal} != 0 after conquest`);
-    if (filed.conquered !== 1 || filed.conqueredGoal !== 1000)
-      errors.push('reckoning: the 1000 summit was not conquered');
-    if (filed.histType !== 'treasury') errors.push(`reckoning: history type ${filed.histType} != treasury`);
-    if (!filed.summitForm) errors.push('reckoning: no next-summit form after conquest');
+    console.log('closed:', JSON.stringify(closed));
+    if (closed.closed !== 1 || closed.again !== 0) errors.push(`reckoning: closed ${closed.closed} months, then ${closed.again} more`);
+    const r0 = closed.roll ?? {};
+    if (r0.verdict !== 'fat' || r0.earned !== 5000 || r0.spent !== 3800 || r0.saved !== 300 || r0.counted !== 1100)
+      errors.push(`reckoning: the closed month reads ${JSON.stringify(r0)}`);
+    if (closed.logLeft !== 0) errors.push(`reckoning: ${closed.logLeft} entries left in the day book after its month closed`);
+    if (closed.current !== 1100) errors.push(`reckoning: savings ${closed.current} != 1100 after the close`);
+    if (closed.goal !== 0) errors.push(`reckoning: goal ${closed.goal} != 0 after conquest`);
+    if (closed.conquered !== 1 || closed.conqueredGoal !== 1000) errors.push('reckoning: the 1000 summit was not conquered');
+    if (closed.histType !== 'treasury') errors.push(`reckoning: history type ${closed.histType} != treasury`);
+    if (!closed.summitForm) errors.push('reckoning: no next-summit form after conquest');
     // a goal won pays 300 Intelligence XP (level 1 → 3 exactly) and never a coin
-    if (filed.intLevel !== 3 || filed.intXp !== 0)
-      errors.push(`reckoning: Intelligence at level ${filed.intLevel} / ${filed.intXp} XP, expected 3 / 0 after a goal won`);
-    if (filed.histStat !== 'int') errors.push('reckoning: the goal won is not recorded as an Intelligence deed');
-    if (filed.coins !== 0) errors.push(`reckoning: a goal won paid ${filed.coins} coins — the purses must not mix`);
+    if (closed.intLevel !== 3 || closed.intXp !== 0)
+      errors.push(`reckoning: Intelligence at level ${closed.intLevel} / ${closed.intXp} XP, expected 3 / 0 after a goal won`);
+    if (closed.histStat !== 'int') errors.push('reckoning: the goal won is not recorded as an Intelligence deed');
+    if (closed.coins !== 0) errors.push(`reckoning: a goal won paid ${closed.coins} coins — the purses must not mix`);
 
-    // 4) raise the next summit; the month refuses a second filing
     const raised = await page.evaluate(() => {
       const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
       q('[data-s-name]').value = 'The War Chest';
       q('[data-s-goal]').value = '5000';
       q('[data-s-set]').click();
       const t = window.__game.getState().treasury;
-      return {
-        name: t.name,
-        goal: t.goal,
-        dueAgain: window.__game.reckoningDue(),
-        refiled: window.__game.fileReckoning({ earned: 1, spent: 1, saved: 1, counted: 1 }),
-      };
+      return { name: t.name, goal: t.goal };
     });
-    console.log('raised:', JSON.stringify(raised));
     if (raised.name !== 'The War Chest' || raised.goal !== 5000)
       errors.push(`reckoning: summit "${raised.name}"/${raised.goal} != "The War Chest"/5000`);
-    if (raised.dueAgain !== null) errors.push('reckoning: month still due after filing');
-    if (raised.refiled !== null) errors.push('reckoning: a second filing was accepted');
+    await page.keyboard.press('Escape');
 
-    // 5) skipped months land as unreckoned: seed one roll four months back,
-    //    reload, file — the gap must be marked, not hidden
+    // 5) a v12 save (coin laid in, by month) whose last roll is four months back:
+    //    the load migrates `laid` into the day book and closes the three months
+    //    owed by itself — two empty ones unreckoned, the laid-in one judged
     const seeded = await page.evaluate(([old, owed]) => {
       const g = window.__game;
       const copy = JSON.parse(g.exportSave());
+      copy.saveVersion = 12;
       copy.treasury.rolls = [{ month: old, earned: 1000, spent: 900, saved: 100, counted: 100, verdict: 'held' }];
-      copy.treasury.laid = { [owed]: 120 }; // coin laid in during the month now owed
+      copy.treasury.laid = { [owed]: 120 };
+      copy.treasury.current = 1220;
+      delete copy.treasury.log;
       return g.importSave(JSON.stringify(copy));
     }, [mk(-4), mk(-1)]);
     if (!seeded) errors.push('reckoning: seed save import refused');
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
-    // the reckoning opens already tallied with the coin laid in that month,
-    // and "savings now" does not count it twice
-    await page.evaluate(() => window.__game.openPanel('treasury'));
-    const tallied = await page.evaluate(() => {
-      const q = (sel) => document.querySelector(`#treasury-body ${sel}`);
-      return { saved: q('[data-r-saved]').value, counted: q('[data-r-counted]').value, current: window.__game.getState().treasury.current };
-    });
-    console.log('tallied:', JSON.stringify(tallied));
-    if (tallied.saved !== '120' || Number(tallied.counted) !== tallied.current)
-      errors.push(`reckoning: the month owed opened as ${tallied.saved}/${tallied.counted}, not 120 laid in and savings ${tallied.current}`);
-    await page.keyboard.press('Escape');
     const gap = await page.evaluate(() => {
-      const g = window.__game;
-      g.fileReckoning({ earned: 100, spent: 50, saved: 0, counted: 1200 });
-      return g.getState().treasury.rolls.map((r) => r.verdict);
+      const st = window.__game.getState();
+      return { version: st.saveVersion, laid: 'laid' in st.treasury, log: st.treasury.log.length, rolls: st.treasury.rolls };
     });
-    console.log('gap verdicts:', JSON.stringify(gap));
-    if (gap.length !== 4 || gap[1] !== 'unreckoned' || gap[2] !== 'unreckoned')
-      errors.push(`reckoning: gap months not marked unreckoned (${JSON.stringify(gap)})`);
+    console.log('gap:', JSON.stringify(gap));
+    const gv = gap.rolls.map((r) => r.verdict);
+    if (gap.version !== 13 || gap.laid) errors.push(`reckoning: v12 save migrated to ${gap.version}, laid kept: ${gap.laid}`);
+    if (gv.length !== 4 || gv[1] !== 'unreckoned' || gv[2] !== 'unreckoned' || gv[3] !== 'held')
+      errors.push(`reckoning: the months owed closed as ${JSON.stringify(gv)}`);
+    if (gap.rolls[3]?.saved !== 120 || gap.rolls[3]?.counted !== 1220 || 'earned' in (gap.rolls[3] ?? {}))
+      errors.push(`reckoning: the laid-in month closed as ${JSON.stringify(gap.rolls[3])}`);
+    if (gap.log !== 0) errors.push(`reckoning: ${gap.log} day-book entries left after the close`);
 
-    // 5b) coin laid in, then two months filed on a pinned clock with only the
-    //     two figures: held when the savings lost no ground, bled when they fell
+    // 5b) on a pinned clock: savings put in, a recount down, and an entry in the
+    //     month after — each month's closing savings counted apart; no income or
+    //     spending entered, so judged on the savings alone
     const quick = await page.evaluate(() => {
       const g = window.__game;
       const d = new Date();
       const at = (months) => new Date(d.getFullYear(), d.getMonth() + months, 5);
-      const key = (months) => { const m = at(months); return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`; };
-      const clearedOwed = Object.keys(g.getState().treasury.laid).length === 0;
-      g.layIn(150);
-      const afterLay = { current: g.getState().treasury.current, laid: g.getState().treasury.laid[key(0)] };
       const refused = g.layIn(0);
-      const first = g.fileReckoning({ saved: 150, counted: 1350 }, at(1));
-      const second = g.fileReckoning({ saved: 0, counted: 1000 }, at(2));
+      g.logMoney('save', 150);
+      g.recount(1000); // the account truly shows less
+      g.logMoney('save', 50, '', at(1));
+      const res = g.closeMonths(at(2));
       const t = g.getState().treasury;
-      return {
-        clearedOwed, afterLay, refused,
-        first: first?.roll, second: second?.roll,
-        laidLeft: Object.keys(t.laid).length, current: t.current, pledge: t.pledge,
-      };
+      return { refused, rolls: res.map((r) => r.roll), current: t.current, logLeft: t.log.length };
     });
     console.log('quick:', JSON.stringify(quick));
-    if (!quick.clearedOwed) errors.push('reckoning: the coin laid in for a filed month was not cleared');
-    if (quick.afterLay.current !== 1350 || quick.afterLay.laid !== 150)
-      errors.push(`reckoning: 150 laid in -> savings ${quick.afterLay.current}, month ${quick.afterLay.laid}`);
-    if (quick.refused !== null) errors.push('reckoning: nothing laid in was accepted');
-    if (quick.first?.verdict !== 'held' || 'earned' in (quick.first ?? {}) || quick.first?.saved !== 150)
-      errors.push(`reckoning: two-figure month filed as ${JSON.stringify(quick.first)} (pledge ${quick.pledge})`);
-    if (quick.second?.verdict !== 'bled') errors.push(`reckoning: savings fell 1350 -> 1000 yet ${quick.second?.verdict}`);
-    if (quick.laidLeft !== 0 || quick.current !== 1000)
-      errors.push(`reckoning: after the two months, laid ${quick.laidLeft} / savings ${quick.current}`);
+    if (quick.refused !== null) errors.push('reckoning: nothing put into savings was accepted');
+    const [m0, m1] = quick.rolls;
+    if (quick.rolls.length !== 2 || m0?.saved !== 150 || m0?.counted !== 1000 || m0?.verdict !== 'bled')
+      errors.push(`reckoning: savings fell 1220 -> 1000, closed as ${JSON.stringify(m0)}`);
+    if (m1?.saved !== 50 || m1?.counted !== 1050 || m1?.verdict !== 'held')
+      errors.push(`reckoning: the month after closed as ${JSON.stringify(m1)}`);
+    if (quick.current !== 1050 || quick.logLeft !== 0)
+      errors.push(`reckoning: after the two months, savings ${quick.current} / ${quick.logLeft} entries left`);
 
     // 6) the panel shows the rolls; screenshot for eyeballing
     await page.evaluate(() => window.__game.openPanel('treasury'));
@@ -2030,7 +2233,7 @@ try {
     console.log('panel:', JSON.stringify(panel));
     if (panel.rows < 5) errors.push(`reckoning: panel shows ${panel.rows} rows, expected rolls + conquest`);
     if (!panel.conqueredHeader) errors.push('reckoning: conquered summit not shown');
-    if (panel.chart < 4) errors.push(`reckoning: the climb draws ${panel.chart} bars, expected the four reckoned months`);
+    if (panel.chart < 4) errors.push(`reckoning: the climb draws ${panel.chart} bars, expected the four counted months`);
     if (panel.seals < 6) errors.push(`reckoning: ${panel.seals} seals drawn, expected one a month`);
     // unfold the months past for the picture
     await page.evaluate(() => {
@@ -2043,7 +2246,7 @@ try {
   } else if (scenario === 'alive') {
     // the villagers breathe, watch, nod, and fidget — force a market day so
     // the chapman is present too
-    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1${DAY}`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=alive&market=1${DAY}`, { waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
 
     // 1) breathing is visible: the clerk's sway lean actually moves
@@ -2157,7 +2360,7 @@ try {
       daily = await page.evaluate(() => {
         const st = window.__game.getState();
         return {
-          done: st.quests.daily.completed,
+          done: st.quests.daily.deeds.some((d) => d.completed),
           athXp: st.stats.ath.xp,
           picker: !!document.querySelector('[data-pick]'),
           toast: document.getElementById('toasts').textContent,
@@ -2170,10 +2373,33 @@ try {
     if (daily.picker) errors.push('sage: picker shown despite a verdict');
     if (!daily.toast.includes('sage')) errors.push(`sage: no verdict toast ("${daily.toast}")`);
 
+    // 1b) a deed of two virtues: he names both, and the XP is shared between them
+    await page.type('.quest-block[data-kind="daily"] [data-input]', 'A hard set with a client');
+    await page.click('.quest-block[data-kind="daily"] [data-post]');
+    await page.click('[data-slot="daily:1"] [data-complete]');
+    let two = null;
+    for (let i = 0; i < 20 && !two?.done; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      two = await page.evaluate(() => {
+        const st = window.__game.getState();
+        return {
+          done: !!st.quests.daily.deeds[1]?.completed,
+          ath: st.stats.ath.xp,
+          inf: st.stats.inf.xp,
+          virtues: st.history.at(-1).virtues,
+          toast: document.getElementById('toasts').textContent,
+        };
+      });
+    }
+    console.log('sage, two virtues:', JSON.stringify(two));
+    if (!two.done || two.ath !== 38 || two.inf !== 12 || two.virtues?.join() !== 'ath,inf')
+      errors.push(`sage: two virtues not shared 13 + 12 (${JSON.stringify(two)})`);
+    if (!two.toast.includes('Athleticism and Influence')) errors.push('sage: the verdict toast does not name both virtues');
+
     // 2) an off-list answer falls back to the manual picker
-    await page.type('[data-input]', 'A deed of pure garble');
-    await page.click('[data-post]');
-    await page.click('[data-complete]');
+    await page.type('.quest-block[data-kind="weekly"] [data-input]', 'A deed of pure garble');
+    await page.click('.quest-block[data-kind="weekly"] [data-post]');
+    await page.click('.quest-block[data-kind="weekly"] [data-complete]');
     let fallback = null;
     for (let i = 0; i < 20 && !fallback?.picker; i++) {
       await new Promise((r) => setTimeout(r, 200));
@@ -2185,6 +2411,7 @@ try {
     console.log('sage fallback:', JSON.stringify(fallback));
     if (!fallback.picker) errors.push('sage: no picker after a nonsense verdict');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     const weeklyDone = await page.evaluate(() => window.__game.getState().quests.weekly.completed);
     if (!weeklyDone) errors.push('sage: manual fallback did not complete the weekly');
     await page.screenshot({ path: 'scripts/smoke-sage.png' });
@@ -2219,7 +2446,7 @@ try {
         };
       });
     const reload = async () => {
-      await page.reload({ waitUntil: 'networkidle2' });
+      await page.reload({ waitUntil: WAIT });
       await new Promise((r) => setTimeout(r, 2000));
     };
 
@@ -2275,7 +2502,7 @@ try {
     await page.screenshot({ path: 'scripts/smoke-chronicle.png' });
   } else if (scenario === 'market') {
     // 1) force a market day (any real weekday) and seed a fat purse
-    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1${DAY}`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=1${DAY}`, { waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     if (!(await page.evaluate(() => !!window.__game.cart)))
       errors.push('market: cart absent though market=1');
@@ -2285,7 +2512,7 @@ try {
       copy.coins = 2000;
       return g.importSave(JSON.stringify(copy));
     });
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
 
     // 2) the prompt offers the cart; E opens the shop
@@ -2399,36 +2626,35 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
-    // 6b) the chest at home: E lifts the lid and opens the panel; the stick
-    //     and the cudgel trade places in hand; a loaf mends the wounded
+    // 6b) home: at the rack by the door the stick and the cudgel trade places
+    //     in hand (each pictured, each with its read-more, without the cart's
+    //     talk of buying); then the chest: E lifts the lid, the panel holds
+    //     the larder, and a loaf mends the wounded
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.2; // inside the hovel, at the chest's corner against the -z wall
-      g.player.pos.z = 1.05;
-      g.player.takeDamage(6, 0, 0);
+      g.door.isOpen || g.door.toggle(); // the rack is reached from inside
+      g.player.pos.x = -7.95; // inside the hovel, before the rack
+      g.player.pos.z = 2.3;
     });
-    await new Promise((r) => setTimeout(r, 400));
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('weapon rack'), { timeout: 4000 }).catch(() => {});
     await page.keyboard.press('KeyE');
     await new Promise((r) => setTimeout(r, 400));
-    const chestOpen = await page.evaluate(() => ({
-      panel: !document.getElementById('chest-panel').classList.contains('hidden'),
-      lid: window.__game.chest.isOpen,
-      hand: document.getElementById('chest-body').textContent.includes('oaken cudgel'),
-      // the stick, the cudgel and the larder's loaf, each with its picture
-      pictures: [...document.querySelectorAll('#chest-body .ware-pic svg')].filter(
+    const rackOpen = await page.evaluate(() => ({
+      panel: !document.getElementById('rack-panel').classList.contains('hidden'),
+      hand: document.getElementById('rack-body').textContent.includes('oaken cudgel'),
+      pictures: [...document.querySelectorAll('#rack-body .ware-pic svg')].filter(
         (svg) => svg.querySelectorAll('path, rect, circle, ellipse').length >= 5
       ).length,
     }));
-    console.log('chest:', JSON.stringify(chestOpen));
-    if (!chestOpen.panel || !chestOpen.lid) errors.push('market: E at the chest did not open lid + panel');
-    if (chestOpen.pictures !== 3) errors.push(`market: chest shows ${chestOpen.pictures} pictures, not 3 (stick, cudgel, loaf)`);
-    // the chest's wares read more too, without the cart's talk of buying
-    await page.click('#chest-body .ware-pic[data-more="cudgel"]');
+    console.log('rack:', JSON.stringify(rackOpen));
+    if (!rackOpen.panel) errors.push('market: E at the rack did not open its panel');
+    if (rackOpen.pictures !== 2) errors.push(`market: rack shows ${rackOpen.pictures} pictures, not 2 (stick, cudgel)`);
+    await page.click('#rack-body .ware-pic[data-more="cudgel"]');
     await new Promise((r) => setTimeout(r, 150));
-    const chestLore = await page.evaluate(() => document.querySelector('#chest-body .ware-more')?.textContent ?? '');
-    if (!chestLore.includes('How to use it')) errors.push('market: the chest\'s cudgel did not unfold its read-more');
-    if (chestLore.includes('Once bought')) errors.push('market: the chest\'s read-more still talks of buying');
-    await page.click('#chest-body .ware-more-link[data-more="cudgel"]');
+    const rackLore = await page.evaluate(() => document.querySelector('#rack-body .ware-more')?.textContent ?? '');
+    if (!rackLore.includes('How to use it')) errors.push('market: the rack\'s cudgel did not unfold its read-more');
+    if (rackLore.includes('Once bought')) errors.push('market: the rack\'s read-more still talks of buying');
+    await page.click('#rack-body .ware-more-link[data-more="cudgel"]');
     await new Promise((r) => setTimeout(r, 150));
     await page.click('[data-wield="stick"]');
     await new Promise((r) => setTimeout(r, 150));
@@ -2442,6 +2668,29 @@ try {
     console.log('swap:', JSON.stringify({ stickDamage, ...swapped }));
     if (stickDamage !== 1) errors.push(`market: stick in hand but attackDamage ${stickDamage} != 1`);
     if (swapped.damage !== 2 || swapped.wielded !== 'cudgel') errors.push(`market: cudgel back in hand -> ${JSON.stringify(swapped)}`);
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -9.2; // inside the hovel, at the chest's corner against the -z wall
+      g.player.pos.z = 1.05;
+      g.player.takeDamage(6, 0, 0);
+    });
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('open the chest'), { timeout: 4000 }).catch(() => {});
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 400));
+    const chestOpen = await page.evaluate(() => ({
+      panel: !document.getElementById('chest-panel').classList.contains('hidden'),
+      lid: window.__game.chest.isOpen,
+      // the larder's loaf, with its picture
+      pictures: [...document.querySelectorAll('#chest-body .ware-pic svg')].filter(
+        (svg) => svg.querySelectorAll('path, rect, circle, ellipse').length >= 5
+      ).length,
+    }));
+    console.log('chest:', JSON.stringify(chestOpen));
+    if (!chestOpen.panel || !chestOpen.lid) errors.push('market: E at the chest did not open lid + panel');
+    if (chestOpen.pictures !== 1) errors.push(`market: chest shows ${chestOpen.pictures} pictures, not 1 (the loaf)`);
     await page.click('[data-eat]');
     await new Promise((r) => setTimeout(r, 150));
     const fed = await page.evaluate(() => ({
@@ -2467,7 +2716,7 @@ try {
     await page.evaluate(() => window.__game.orbitCam.setView(-1.1, 0.3, 5.5));
     await new Promise((r) => setTimeout(r, 600));
     await page.screenshot({ path: 'scripts/smoke-market.png' });
-    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0${DAY}`, { waitUntil: 'networkidle2' });
+    await page.goto(`http://localhost:${PORT}/?smoke=market&market=0${DAY}`, { waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const offDay = await page.evaluate(() => {
       const g = window.__game;
@@ -2531,26 +2780,105 @@ try {
     if (!all(fallow.looks, 'stubble')) errors.push(`farm: fallow strip drawn as ${fallow.looks}`);
     if (fallow.job !== 'till') errors.push(`farm: first job ${fallow.job} != till`);
 
-    // 2) at a ridge the prompt offers the day's job; E takes up the hoe
+    // 2) at a ridge the prompt offers the day's job; E sends him to the head
+    // of the ridge and he takes up the hoe there
     await standAt(2);
     if (!(await until(() => document.getElementById('interact-prompt').textContent.includes('till this ridge'))))
       errors.push(`farm: prompt "${(await read()).prompt}" does not offer the tilling`);
     await page.keyboard.press('KeyE');
-    if (!(await until(() => window.__game.player.mode === 'work'))) errors.push('farm: E at the ridge did not start the work');
-    // the prompt goes with the next frame, not the keypress — give it one
-    await until(() => document.getElementById('interact-prompt').classList.contains('hidden'), undefined, 1000);
-    const working = await read();
-    console.log('working:', JSON.stringify({ mode: working.mode, hoe: working.hoe, stick: working.stick, prompt: working.prompt }));
-    if (!working.hoe || working.stick) errors.push(`farm: tilling with hoe ${working.hoe} / stick ${working.stick} — the hoe should be in hand`);
-    if (working.prompt) errors.push(`farm: prompt "${working.prompt}" still showing while he works`);
+    const walking = await page.evaluate(() => ({ route: !!window.__game.player.route, mode: window.__game.player.mode }));
+    if (!walking.route && walking.mode !== 'work') errors.push('farm: E at the ridge sent him nowhere');
+    // Looked at every frame: a frame at work with the prompt gone (it goes with
+    // the next frame, not the keypress) is the snapshot.
+    const midWork = await page
+      .waitForFunction(
+        () => {
+          const g = window.__game;
+          const prompt = document.getElementById('interact-prompt');
+          if (g.player.mode !== 'work') return false;
+          window.__farmSeen = { mode: 'work', hoe: g.player.mesh.tools.hoe.visible, stick: g.player.mesh.weapon.visible, prompt: prompt.classList.contains('hidden') ? '' : prompt.textContent };
+          return window.__farmSeen.prompt === '' && window.__farmSeen;
+        },
+        { polling: 'raf', timeout: 15000 }
+      )
+      .then((h) => h.jsonValue(), () => null);
+    // never caught mid-work with the prompt gone: report the last work frame seen, if any
+    const working = midWork ?? (await page.evaluate(() => window.__farmSeen ?? null));
+    console.log('working:', JSON.stringify(working));
+    if (!working) errors.push('farm: E at the ridge did not start the work');
+    else {
+      if (!working.hoe || working.stick) errors.push(`farm: tilling with hoe ${working.hoe} / stick ${working.stick} — the hoe should be in hand`);
+      if (working.prompt) errors.push(`farm: prompt "${working.prompt}" still showing while he works`);
+    }
+
+    // 2b) the ridge changes only as far as the hoe has gone: partway along,
+    // a stretch is furrow from the end he began at and the rest still stubble
+    if (!(await until(() => (window.__game.getState().farm.part[2]?.k ?? 0) >= 0.3, undefined, 20000)))
+      errors.push(`farm: no stretch of ridge 2 worked (${JSON.stringify((await read()).farm)})`);
+    const partway = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.getState().farm.part[2];
+      const HL = g.field.halfLength;
+      const at = (u) => { const w = g.field.ridgePoint(2, u); return g.field.riseAt(w.x, w.z); };
+      const doneU = p.end * (HL - 1); // a step in from the end he began at
+      const leftU = -p.end * (HL - 1); // ...and a step in from the other
+      return { part: p, parts: g.farmRowParts(), done: g.getState().farm.done, crownWorked: at(doneU), crownLeft: at(leftU), mode: g.player.mode,
+        // he stands on the earth, not in it
+        feet: g.player.pos.y, ground: g.player.groundAt(g.player.pos.x, g.player.pos.z), rise: g.field.riseAt(g.player.pos.x, g.player.pos.z) };
+    });
+    console.log('partway:', JSON.stringify(partway));
+    if (partway.done.length) errors.push(`farm: ridge done ${partway.done} partway along it`);
+    if (partway.parts[2]?.look !== 'furrow') errors.push(`farm: the worked stretch wears ${partway.parts[2]?.look}, not furrow`);
+    if (!(partway.crownWorked > 0.2 && partway.crownLeft < 0.12))
+      errors.push(`farm: the crown stands ${partway.crownWorked} where worked and ${partway.crownLeft} where not — the whole ridge changed at once`);
+    if (Math.abs(partway.feet - partway.ground) > 0.02 || !(partway.rise > 0.03))
+      errors.push(`farm: his feet at ${partway.feet} and the earth at ${partway.ground} (rise ${partway.rise}) — he is not walking on it`);
+
+    // 2c) a movement key calls him off; what is worked stays worked, and is saved
+    await page.keyboard.down('KeyS');
+    await new Promise((r) => setTimeout(r, 450));
+    await page.keyboard.up('KeyS');
+    await new Promise((r) => setTimeout(r, 900));
+    const left = await page.evaluate(() => ({
+      mode: window.__game.player.mode,
+      stick: window.__game.player.mesh.weapon.visible,
+      part: window.__game.getState().farm.part[2],
+      saved: JSON.parse(localStorage.getItem('crownbound_save')).farm.part[2],
+    }));
+    console.log('called off:', JSON.stringify(left));
+    if (left.mode !== 'normal' || !left.stick) errors.push(`farm: a movement key left him at ${left.mode} (stick ${left.stick})`);
+    if (!left.part || left.part.k < partway.part.k) errors.push(`farm: the stretch worked was lost on leaving the ridge (${JSON.stringify(left.part)})`);
+    if (!left.saved || left.saved.k !== left.part?.k) errors.push(`farm: the stretch worked was not saved (${JSON.stringify(left.saved)})`);
+
+    // 2d) E again takes up where he left off, from the same end
+    await standAt(2);
+    await until(() => window.__game.field.spot.row === 2, undefined, 5000);
+    await page.keyboard.press('KeyE');
+    // where he stands the first frame he is back at work (read in that frame: they are slow here)
+    const resumed = await page
+      .waitForFunction(
+        () => {
+          const g = window.__game;
+          if (g.player.mode !== 'work') return false;
+          const HL = g.field.halfLength;
+          const u = g.field.toField(g.player.pos.x, g.player.pos.z).u;
+          return { k: (HL - g.getState().farm.part[2].end * u) / (HL * 2) };
+        },
+        { polling: 'raf', timeout: 15000 }
+      )
+      .then((h) => h.jsonValue(), () => null);
+    console.log('resumed:', JSON.stringify(resumed));
+    if (!resumed) errors.push('farm: E did not take him back to the ridge');
+    else if (Math.abs(resumed.k - left.part.k) > 0.12) errors.push(`farm: resumed at ${resumed.k.toFixed(2)} of the ridge, not where he left off (${left.part.k})`);
 
     // 3) the ridge is done: redrawn as a furrow, the stick back, no pay yet,
     // and the prompt has moved on to a ridge that still wants the hoe
-    if (!(await until(() => window.__game.getState().farm.done.length === 1))) errors.push('farm: the ridge was never finished');
+    if (!(await until(() => window.__game.getState().farm.done.length === 1, undefined, 30000))) errors.push('farm: the ridge was never finished');
     await new Promise((r) => setTimeout(r, 300));
     const one = await read();
     console.log('one ridge:', JSON.stringify({ farm: one.farm, looks: one.looks, coins: one.coins, prompt: one.prompt, promptRow: one.promptRow }));
     if (one.farm.done[0] !== 2) errors.push(`farm: worked ridge ${one.farm.done[0]} != 2, the one he stood at`);
+    if (Object.keys(one.farm.part).length) errors.push(`farm: a finished ridge still counted as begun (${JSON.stringify(one.farm.part)})`);
     if (one.looks[2] !== 'furrow' || one.looks.filter((l) => l === 'stubble').length !== rows - 1)
       errors.push(`farm: after one ridge the strip is drawn ${one.looks}`);
     if (one.mode !== 'normal' || !one.stick || one.hoe) errors.push(`farm: after the ridge mode ${one.mode}, stick ${one.stick}, hoe ${one.hoe}`);
@@ -2558,7 +2886,21 @@ try {
     if (!one.prompt.includes('till this ridge') || one.promptRow === 2)
       errors.push(`farm: prompt "${one.prompt}" on ridge ${one.promptRow} — should offer a ridge still untilled`);
 
-    // 4) the other ridges: the last one finishes the job and the miller pays, once
+    // the tilled ridge stands up off the ground: on its crown he is higher than in the furrow beside it
+    const heights = await page.evaluate(() => {
+      const g = window.__game;
+      const at = (side) => {
+        const w = g.field.ridgePoint(2, 0, side);
+        return g.player.groundAt(w.x, w.z);
+      };
+      return { crown: at(0), furrow: at(g.field.ridgeHalf) };
+    });
+    if (!(heights.crown - heights.furrow > 0.15)) errors.push(`farm: the tilled crown ${heights.crown} is not above its furrow ${heights.furrow} underfoot`);
+
+    // 4) the other ridges (worked briskly — the pace is a tuning number): the
+    // last one finishes the job and the miller pays, once
+    const pace = await page.evaluate(() => window.__game.CONFIG.farm.workPace);
+    await page.evaluate(() => { window.__game.CONFIG.farm.workPace = 9; });
     for (const row of Array.from({ length: rows }, (_, r) => r).filter((r) => r !== 2)) {
       await standAt(row);
       await until((r) => window.__game.field.spot.row === r, row, 5000);
@@ -2566,9 +2908,10 @@ try {
       const worked = await until((r) => {
         const f = window.__game.getState().farm;
         return f.done.includes(r) || f.stage === 1;
-      }, row);
+      }, row, 30000);
       if (!worked) errors.push(`farm: ridge ${row} was never finished`);
     }
+    await page.evaluate((p) => { window.__game.CONFIG.farm.workPace = p; }, pace);
     await new Promise((r) => setTimeout(r, 300));
     const tilled = await read();
     console.log('tilled:', JSON.stringify({ farm: tilled.farm, looks: tilled.looks, coins: tilled.coins, job: tilled.job, prompt: tilled.prompt, toasts: tilled.toasts }));
@@ -2595,7 +2938,7 @@ try {
     if (!idle.toasts.includes('on the morrow')) errors.push(`farm: no word on what the strip waits for ("${idle.toasts}")`);
 
     // 6) the save carries the field across a reload
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const kept = await read();
     console.log('after reload:', JSON.stringify({ farm: kept.farm, looks: kept.looks, coins: kept.coins, job: kept.job }));
@@ -2622,7 +2965,16 @@ try {
       out.firstSown = g.workFarmRow(3, day(1));
       out.twice = g.workFarmRow(3, day(1)); // the same ridge again
       out.partSown = g.farmRowLooks(day(1));
+      // a stretch of ridge 5 sown from its +u end: begun, not done, and not
+      // to be begun again from the other end
+      out.stretch = g.workFarmStretch(5, 1, 0.4, day(1));
+      out.shorter = g.workFarmStretch(5, 1, 0.2, day(1)); // no ground lost
+      out.otherEnd = g.workFarmStretch(5, -1, 0.5, day(1));
+      out.parts = g.farmRowParts(day(1));
+      out.stretchLooks = g.farmRowLooks(day(1));
       out.sowing = workAll(day(1)); // ridge 3 refuses, the rest finish it
+      out.partsAfter = g.farmRowParts(day(1));
+      out.partLeft = g.getState().farm.part;
       out.sown = g.farmRowLooks(day(1));
       out.sameDay = g.farmJob(day(1));
       out.coinsSown = g.getState().coins;
@@ -2655,6 +3007,13 @@ try {
     if (crop.twice !== null) errors.push('farm: the same ridge was sown twice');
     if (crop.partSown[3] !== 'sown' || crop.partSown.filter((l) => l === 'furrow').length !== rows - 1)
       errors.push(`farm: half-sown strip drawn ${crop.partSown}`);
+    if (crop.stretch?.done !== false || crop.shorter?.done !== false || crop.otherEnd !== null)
+      errors.push(`farm: stretches of ridge 5 returned ${JSON.stringify([crop.stretch, crop.shorter, crop.otherEnd])}`);
+    if (JSON.stringify(crop.parts) !== JSON.stringify({ 5: { end: 1, k: 0.4, look: 'sown' } }))
+      errors.push(`farm: ridge 5 half sown is ${JSON.stringify(crop.parts)}`);
+    if (crop.stretchLooks[5] !== 'furrow') errors.push(`farm: a ridge half sown counted as sown (${crop.stretchLooks[5]})`);
+    if (Object.keys(crop.partsAfter).length || Object.keys(crop.partLeft).length)
+      errors.push(`farm: begun ridges ${JSON.stringify(crop.partLeft)} outlived the finished job`);
     const last = crop.sowing.at(-1);
     if (!last?.done || last.coins !== wage) errors.push(`farm: the last sown ridge returned ${JSON.stringify(last)}`);
     if (!all(crop.sown, 'sown') || crop.sameDay !== null) errors.push(`farm: sown strip drawn ${crop.sown}, job ${crop.sameDay}`);
@@ -2684,16 +3043,22 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
-    // for the eye: a strip part brought in, the sickle mid-cut, seen from the gate side
+    // for the eye: a strip part brought in, the sickle mid-cut on a ridge half
+    // reaped, seen from the gate side
     await page.evaluate(() => {
       const g = window.__game;
-      g.field.draw(g.field.looks().map((_, r) => (r < 3 ? 'stook' : 'ripe')));
-      const p = g.field.nearestOnRow(3, g.field.at.x - 2, g.field.at.z);
-      g.player.pos.x = p.x - 0.4; // in the stubble, facing the standing wheat
-      g.player.pos.z = p.z - 0.58;
+      const HL = g.field.halfLength;
+      g.field.draw(g.field.looks().map((_, r) => (r < 3 ? 'stook' : 'ripe')), { 3: { end: -1, k: 0.45, look: 'stook' } });
+      const u = -HL + 0.45 * HL * 2 + 0.6; // just short of the standing wheat
+      const from = g.field.ridgePoint(3, u, -0.5);
+      const to = g.field.ridgePoint(3, HL - 0.6, -0.5);
+      const ahead = g.field.ridgePoint(3, u + 0.6, 0);
+      g.player.pos.x = from.x;
+      g.player.pos.z = from.z;
       g.orbitCam.setView(-2.75, 0.36, 6.5);
       g.CONFIG.farm.strokeTime = 4; // hold the pose for the camera
-      g.player.startWork('reap', p.x, p.z);
+      g.CONFIG.farm.workPace = 0.01; // ...and the man
+      g.player.startWork('reap', from, to, Math.atan2(ahead.x - from.x, ahead.z - from.z));
     });
     await new Promise((r) => setTimeout(r, 2600));
     await page.screenshot({ path: 'scripts/smoke-farm.png' });
@@ -2726,6 +3091,7 @@ try {
     await page.click('[data-post]');
     await page.click('[data-complete]');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     await new Promise((r) => setTimeout(r, 400));
     const crowned = await page.evaluate(() => {
       const st = window.__game.getState();
@@ -2756,6 +3122,7 @@ try {
     await page.click('.quest-block[data-kind="weekly"] [data-post]');
     await page.click('.quest-block[data-kind="weekly"] [data-complete]');
     await page.click('.quest-block[data-kind="weekly"] [data-pick="wis"]');
+    await page.click('[data-pick-done]');
     await new Promise((r) => setTimeout(r, 300));
     const still = await page.evaluate(() => ({
       at: window.__game.getState().coronationAt,
@@ -2822,12 +3189,13 @@ try {
     await page.click('[data-post]');
     await page.click('[data-complete]');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     await page.keyboard.press('Escape');
     await wait(600);
     const deed = await page.evaluate(() => {
       const g = window.__game;
       const st = g.getState();
-      return { done: st.quests.daily.completed, streak: st.streak.current, xp: st.stats.ath.xp, stamina: st.stamina.current, flag: !!st.stamina.spent, ...g.spent(), mode: g.player.mode, enabled: g.player.isEnabled(), abedClass: document.body.classList.contains('abed') };
+      return { done: st.quests.daily.deeds.some((d) => d.completed), streak: st.streak.current, xp: st.stats.ath.xp, stamina: st.stamina.current, flag: !!st.stamina.spent, ...g.spent(), mode: g.player.mode, enabled: g.player.isEnabled(), abedClass: document.body.classList.contains('abed') };
     });
     const card2 = await restCard();
     console.log('deed from bed:', JSON.stringify(deed));
@@ -2849,7 +3217,7 @@ try {
     if (!(retired >= 0 && retired < 60000)) errors.push(`spent: retiring did not mark the bedtime (${retired}ms ago)`);
 
     // 6) opened again the same day: found abed at once
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await until(() => window.__game && window.__game.spent);
     await wait(1500);
     const reload = await page.evaluate(() => ({ ...window.__game.spent(), mode: window.__game.player.mode, enabled: window.__game.player.isEnabled() }));
@@ -2863,7 +3231,7 @@ try {
       s.stamina.date = '2000-01-01';
       localStorage.setItem('crownbound_save', JSON.stringify(s));
     });
-    await page.reload({ waitUntil: 'networkidle2' });
+    await page.reload({ waitUntil: WAIT });
     await until(() => window.__game && window.__game.spent);
     await wait(1000);
     const morning = await page.evaluate(() => ({ ...window.__game.spent(), enabled: window.__game.player.isEnabled(), stamina: window.__game.getState().stamina }));
@@ -2887,6 +3255,302 @@ try {
     if (!hurried || h.last !== 'hurried' || h.mode !== 'sleep') errors.push(`spent: E did not hurry him home (${JSON.stringify(h)})`);
   }
 
+  if (scenario === 'intro') {
+    // The opening: a blank save begins on the title, the dream, the waking and
+    // the oath; then the cold fire's waymark leads to the door and the board.
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const until = (fn, arg, ms = 20000) => page.waitForFunction(fn, { timeout: ms, polling: 100 }, arg).then(() => true, () => false);
+    const want = (ok, what) => {
+      if (!ok) errors.push(`intro: ${what}`);
+    };
+    const BASE = `http://localhost:${PORT}/?smoke=intro${NOON}`;
+    const booted = async () => {
+      await until(() => window.__game);
+      await wait(1500);
+    };
+    const load = async (extra = '') => {
+      await page.goto(BASE + extra, { waitUntil: WAIT, timeout: 40000 });
+      await booted();
+    };
+    // what the opening and the game around it are doing
+    const look = () =>
+      page.evaluate(() => {
+        const g = window.__game;
+        const p = g.player;
+        const s = g.getState();
+        const wm = document.getElementById('waymark');
+        const cap = document.getElementById('caption');
+        return {
+          beat: g.intro.beat(),
+          shown: !document.getElementById('intro').classList.contains('hidden'),
+          hudHidden: document.body.classList.contains('opening'),
+          owed: s.introOwed === true,
+          enabled: p.isEnabled(),
+          mode: p.mode,
+          lie: p.lie01,
+          x: p.pos.x,
+          z: p.pos.z,
+          panel: g.openPanelId(),
+          waymark: g.intro.waymark(),
+          mark: wm.classList.contains('hidden') ? '' : wm.textContent,
+          edge: wm.dataset.edge,
+          caption: cap.classList.contains('hidden') ? '' : cap.textContent,
+          toasts: document.getElementById('toasts').textContent,
+          epic: s.quests.epic.text,
+          daily: (s.quests.daily.deeds[0]?.text ?? ''),
+          dailyDone: s.quests.daily.deeds.some((d) => d.completed),
+          coins: s.coins,
+          fireCold: g.intro.fireCold(),
+          url: location.href,
+        };
+      });
+    const inHovel = (v) => v.x > -10.6 && v.x < -7.4 && v.z > 0.6 && v.z < 3.4;
+
+    // 1) a blank save: the title, him abed in his hovel, nothing else on
+    let v = await look();
+    console.log('title:', JSON.stringify(v));
+    want(v.beat === 'title' && v.shown && v.hudHidden, `a blank save did not open on the title (${v.beat})`);
+    want(v.owed, 'a blank save does not owe the opening');
+    want(!v.enabled && v.mode === 'sleep' && v.lie > 0.9 && inHovel(v), `he is not abed in his hovel (${v.mode}, lie ${v.lie})`);
+    want(v.toasts === '' && v.mark === '', 'toasts or a waymark showed under the title');
+    const title = await page.evaluate(() => document.querySelector('.intro-title')?.textContent ?? '');
+    want(title.includes('Crownbound') && title.includes('Enter'), `the title reads "${title}"`);
+    // the game's own keys do nothing under it
+    await page.keyboard.press('KeyE');
+    await page.keyboard.press('KeyM');
+    await page.keyboard.down('KeyW');
+    await wait(600);
+    await page.keyboard.up('KeyW');
+    const still = await look();
+    want(still.panel === null && still.mode === 'sleep' && still.beat === 'title', `a game key reached the game under the title (${JSON.stringify({ panel: still.panel, mode: still.mode })})`);
+
+    // 2) left unfinished, it is owed again on the next load
+    await page.reload({ waitUntil: WAIT });
+    await booted();
+    v = await look();
+    want(v.beat === 'title' && v.owed, 'an unfinished opening was not played again on the next load');
+
+    // 3) Enter begins: the dream — a crown, and the line
+    await page.keyboard.press('Enter');
+    v = await look();
+    want(v.beat === 'dream', `Enter did not begin the dream (${v.beat})`);
+    const dream = await page.evaluate(() => ({ crown: !!document.querySelector('.dream-crown svg path'), line: document.querySelector('.dream-line')?.textContent }));
+    want(dream.crown && dream.line === 'Thou art King.', `the dream shows ${JSON.stringify(dream)}`);
+    await wait(4300);
+    await page.screenshot({ path: 'scripts/smoke-intro-dream.png' });
+    // ...snatched away, and "Not yet."
+    const snatched = await until(() => document.querySelector('.intro-dream.not'), null, 8000);
+    want(snatched, 'the dream was never snatched away');
+
+    // 4) the waking: the dark lifts on him abed; the village is named, the hour kept
+    await until(() => window.__game.intro.beat() === 'waking', null, 8000);
+    await until(() => document.querySelectorAll('.intro-caption p.on').length === 2, null, 10000);
+    const lines = await page.evaluate(() => [...document.querySelectorAll('.intro-caption p')].map((p) => p.textContent));
+    console.log('waking:', JSON.stringify(lines));
+    want(lines[0] === 'Another day in Brackenley.' && lines[1] === 'Nothing changes unless thou dost.', `the waking's lines read ${JSON.stringify(lines)}`);
+    await wait(1400);
+    await page.screenshot({ path: 'scripts/smoke-intro-waking.png' });
+
+    // 5) he gets up by himself, and the oath is laid before him
+    const sworn = await until(() => window.__game.intro.beat() === 'oath', null, 20000);
+    v = await look();
+    console.log('oath:', JSON.stringify({ beat: v.beat, mode: v.mode, lie: v.lie, x: v.x, z: v.z, enabled: v.enabled }));
+    want(sworn, 'the oath never came');
+    want(v.mode === 'normal' && v.lie === 0 && !v.enabled && inHovel(v), `he is not on his feet by the cot (${v.mode}, lie ${v.lie})`);
+    const wake = await page.evaluate(() => window.__game.wakeSpot);
+    want(Math.hypot(v.x - wake.x, v.z - wake.z) < 0.1, `he rose to (${v.x.toFixed(2)}, ${v.z.toFixed(2)}), not the wake spot`);
+    await wait(700); // the quill is put in his hand
+    const oath1 = await page.evaluate(() => ({ step: document.querySelector('.intro-oath').dataset.oath, text: document.querySelector('.intro-oath').textContent, focused: document.activeElement?.matches('[data-oath-input]') }));
+    want(oath1.step === 'epic' && oath1.text.includes('What great work wilt thou do this year?') && oath1.text.includes('70 levels of virtue'), `the first question reads "${oath1.text.slice(0, 160)}"`);
+    want(oath1.focused, 'the oath did not put the quill in his hand');
+    await page.screenshot({ path: 'scripts/smoke-intro-oath.png' });
+    // nothing written: the question stands
+    await page.keyboard.press('Enter');
+    want((await page.evaluate(() => document.querySelector('.intro-oath').dataset.oath)) === 'epic' && (await look()).epic === '', 'an empty oath was sworn');
+    // typing in it moves no one and opens nothing
+    await page.type('[data-oath-input]', 'Earn the degree, mew');
+    await page.keyboard.press('Enter');
+    v = await look();
+    want(v.epic === 'Earn the degree, mew' && v.panel === null, `the great work was not inscribed ("${v.epic}", panel ${v.panel})`);
+    await wait(600);
+    const oath2 = await page.evaluate(() => ({ step: document.querySelector('.intro-oath').dataset.oath, text: document.querySelector('.intro-oath').textContent }));
+    want(oath2.step === 'daily' && oath2.text.includes('what wilt thou do this day?') && oath2.text.includes('+25 XP, +10 coins'), `the second question reads "${oath2.text.slice(0, 200)}"`);
+    await page.type('[data-oath-input]', 'Lift for forty minutes');
+    await page.click('[data-oath-swear]');
+
+    // 6) the keys are his: the opening is over and owed no more, the keys told, the way out shown
+    await wait(1200);
+    v = await look();
+    console.log('handed over:', JSON.stringify(v));
+    want(v.beat === null && !v.shown && !v.hudHidden, 'the opening did not end with the oath');
+    want(v.daily === 'Lift for forty minutes' && !v.dailyDone, `today's deed was not posted ("${v.daily}")`);
+    want(!v.owed, 'the opening is still owed after it was played');
+    want(v.enabled && v.mode === 'normal', 'the keys were not handed over');
+    want(v.toasts.includes('WASD walk') && !v.toasts.includes('humble clearing'), `the first words were "${v.toasts}"`);
+    want(v.waymark === 'door' && v.fireCold, `the waymark is on ${v.waymark}`);
+    // his door is the first E, though the cot is nearer
+    const first = await promptOffered();
+    want(first.includes('open the door'), `the first prompt offers "${first}"`);
+    want((await look()).mark === '', 'the waymark hangs over the door while its own prompt is there');
+    await page.screenshot({ path: 'scripts/smoke-intro-door.png' });
+    await page.keyboard.press('KeyE');
+    await wait(600);
+    want(await page.evaluate(() => window.__game.door.isOpen), 'E did not open his door');
+
+    // 7) out under the sky: the line is said, and the waymark moves to the Quest Board
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.respawn(-6.3, 1.6);
+      g.orbitCam.setView(-2.2, 0.3, 7); // the board ahead
+    });
+    await until(() => window.__game.intro.waymark() === 'board', null, 6000);
+    await until(() => !document.getElementById('waymark').classList.contains('hidden') && document.getElementById('waymark').dataset.edge === '', null, 6000);
+    v = await look();
+    console.log('outside:', JSON.stringify({ waymark: v.waymark, mark: v.mark, edge: v.edge, caption: v.caption }));
+    want(v.waymark === 'board' && v.mark.includes('The Quest Board') && v.mark.includes('paces') && v.edge === '', `outside, the waymark reads "${v.mark}" (edge "${v.edge}")`);
+    want(v.caption === 'The fire is cold. Only a deed done will light it.', `the line said was "${v.caption}"`);
+    await wait(1200);
+    await page.screenshot({ path: 'scripts/smoke-intro-fire.png' });
+    // the board behind him: the waymark waits at the side to turn toward
+    await page.evaluate(() => window.__game.orbitCam.setView(-2.2 + Math.PI, 0.3, 7));
+    await until(() => ['left', 'right'].includes(document.getElementById('waymark').dataset.edge), null, 6000);
+    want(['left', 'right'].includes((await look()).edge), 'with the board behind him the waymark is not at the side of the screen');
+
+    // 8) the board, read: the waymark is put away, and the oath's words are on it
+    await page.evaluate(() => window.__game.openPanel('board'));
+    await wait(700);
+    v = await look();
+    const board = await page.evaluate(() => document.getElementById('quest-body').textContent);
+    want(v.waymark === null && v.mark === '', `the waymark stayed up over the board (${v.waymark})`);
+    want(board.includes('Lift for forty minutes') && board.includes('Earn the degree, mew'), 'the board does not hold what was sworn');
+
+    // 9) the first deed lights the fire
+    await page.click('[data-complete]');
+    await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
+    await until(() => document.getElementById('toasts').textContent.includes('The fire catches'), null, 5000);
+    v = await look();
+    const lit = await page.evaluate(() => ({ gutter: window.__game.campfire.getGutter(), streak: window.__game.getState().streak.current }));
+    console.log('first deed:', JSON.stringify(lit), JSON.stringify(v.toasts));
+    want(v.dailyDone && lit.streak === 1 && lit.gutter === 1, `the first deed did not light the fire (${JSON.stringify(lit)})`);
+    want(v.toasts.includes('The fire catches') && !v.fireCold, `no word that the fire caught ("${v.toasts}")`);
+
+    // 10) the next load: no opening, no waymark — an ordinary morning by the fire
+    await load();
+    v = await look();
+    want(v.beat === null && !v.shown && v.enabled && !inHovel(v) && v.waymark === null && !v.toasts.includes('WASD'), `the load after is not an ordinary one (${JSON.stringify({ beat: v.beat, waymark: v.waymark, toasts: v.toasts })})`);
+
+    // 11) ?intro=1 plays it again over that save, once; Esc skips it and nothing is lost
+    await load('&intro=1');
+    v = await look();
+    want(v.beat === 'title' && !v.url.includes('intro='), `?intro=1 did not play the opening once (${v.beat}, ${v.url})`);
+    await page.keyboard.press('Escape');
+    await wait(900);
+    v = await look();
+    console.log('skipped:', JSON.stringify({ beat: v.beat, enabled: v.enabled, mode: v.mode, epic: v.epic, waymark: v.waymark }));
+    want(v.beat === null && !v.shown && v.enabled && v.mode === 'normal' && inHovel(v), 'Esc did not skip the opening onto his feet by the cot');
+    want(v.epic === 'Earn the degree, mew' && v.dailyDone && v.waymark === null, 'the opening played again changed the save, or brought the waymark back');
+    // ...and played through again, the oath shows what is already sworn and posted
+    await load('&intro=1');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter'); // title → dream → waking → the oath, hurried
+    await wait(800);
+    v = await look();
+    const again = await page.evaluate(() => ({ epic: document.querySelector('[data-oath-input]')?.value, mode: window.__game.player.mode }));
+    want(v.beat === 'oath' && again.epic === 'Earn the degree, mew' && again.mode === 'normal', `hurried to the oath: ${v.beat}, "${again.epic}", ${again.mode}`);
+    await page.click('[data-oath-later]');
+    await wait(500);
+    const posted = await page.evaluate(() => document.querySelector('.intro-oath').textContent);
+    want(posted.includes('Lift for forty minutes') && posted.includes('done already'), `the second question does not show today's deed ("${posted.slice(0, 200)}")`);
+    await page.click('[data-oath-later]');
+    await wait(600);
+    v = await look();
+    want(v.beat === null && v.enabled && v.epic === 'Earn the degree, mew' && v.daily === 'Lift for forty minutes', 'leaving both questions for later changed something');
+
+    // 12) a newcomer back again with no deed yet: no opening, but the fire is still cold
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('crownbound_save'));
+      s.history = [];
+      s.streak = { current: 0, best: 0 };
+      s.quests.daily.deeds.forEach((d) => (d.completed = false));
+      s.lastQuestDate = null;
+      localStorage.setItem('crownbound_save', JSON.stringify(s));
+    });
+    await load();
+    await until(() => !document.getElementById('caption').classList.contains('hidden'), null, 6000);
+    v = await look();
+    console.log('back again:', JSON.stringify({ beat: v.beat, waymark: v.waymark, caption: v.caption, enabled: v.enabled }));
+    want(v.beat === null && v.enabled && !inHovel(v), 'a returning newcomer was shown the opening again');
+    want(v.waymark === 'board' && v.caption.includes('The fire is cold'), `a returning newcomer is not shown the way (${v.waymark}, "${v.caption}")`);
+
+    // 13) skipped at the title on a blank save: on his feet, owed no more, the door shown
+    await page.evaluate(() => localStorage.clear());
+    await load();
+    want((await look()).beat === 'title', 'a blank save did not open on the title the second time');
+    await page.click('[data-intro-skip]');
+    await wait(900);
+    v = await look();
+    want(v.beat === null && v.enabled && inHovel(v) && !v.owed && v.waymark === 'door' && v.toasts.includes('WASD walk'), `skipped at the title: ${JSON.stringify({ beat: v.beat, enabled: v.enabled, owed: v.owed, waymark: v.waymark })}`);
+    want(v.epic === '' && v.daily === '', 'a skipped opening wrote a quest');
+
+    // 14) ?intro=0 (every other scenario): a blank save as it ever was — by the fire, both greetings, no waymark
+    await page.evaluate(() => localStorage.clear());
+    await load('&intro=0');
+    v = await look();
+    console.log('intro=0:', JSON.stringify({ beat: v.beat, owed: v.owed, waymark: v.waymark, toasts: v.toasts.slice(0, 60) }));
+    want(v.beat === null && !v.shown && v.enabled && !inHovel(v) && !v.owed, '?intro=0 still played the opening, or left it owed');
+    want(v.waymark === null && v.caption === '' && v.toasts.includes('humble clearing') && v.toasts.includes('WASD walk'), `?intro=0 is not the old first load (${v.waymark}, "${v.toasts}")`);
+
+    // 15) the test world owes no opening; its `intro` command plays it once
+    await load('&test=1');
+    v = await look();
+    want(v.beat === null && v.enabled && !v.owed, 'a blank test world opened on the opening');
+    await page.keyboard.press('/');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }),
+      page.evaluate(() => {
+        const input = document.querySelector('#proving-console input');
+        input.value = 'intro';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      }),
+    ]);
+    await booted();
+    v = await look();
+    want(v.beat === 'title' && v.url.includes('test=1') && !v.url.includes('intro='), `the intro command: ${v.beat}, ${v.url}`);
+    await page.keyboard.press('/'); // no command line over the opening
+    want(await page.evaluate(() => document.getElementById('proving-console').classList.contains('hidden')), 'the command line opened over the opening');
+    await page.keyboard.press('Escape');
+    await wait(700);
+    want((await look()).beat === null, 'Esc did not skip the opening in the test world');
+
+    // 16) `newgame` starts the test world over from nothing, opening and all
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('crownbound_test_save');
+      const s = JSON.parse(raw);
+      s.coins = 777;
+      localStorage.setItem('crownbound_test_save', JSON.stringify(s));
+    });
+    await load('&test=1');
+    await page.keyboard.press('/');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }),
+      page.evaluate(() => {
+        const input = document.querySelector('#proving-console input');
+        input.value = 'newgame';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      }),
+    ]);
+    await booted();
+    v = await look();
+    const coins = await page.evaluate(() => JSON.parse(localStorage.getItem('crownbound_test_save') || '{}').coins);
+    want(v.beat === 'title' && v.url.includes('test=1') && !v.url.includes('intro='), `the newgame command: ${v.beat}, ${v.url}`);
+    want(coins !== 777, `newgame kept the old test save (coins ${coins})`);
+    await page.keyboard.press('Escape');
+    await wait(700);
+    await page.evaluate(() => window.__game.orbitCam.setView(Math.PI * 0.75, 0.2, 5));
+  }
+
   if (scenario === 'proving') {
     // The Proving Ground: a test world on its own save, with a command line.
     // The one thing that matters most: the true save is never written there.
@@ -2908,7 +3572,7 @@ try {
       }, line);
     // ...and one that reloads the page
     const cmdReload = async (line) => {
-      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), cmd(line).catch(() => {})]);
+      await Promise.all([page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }), cmd(line).catch(() => {})]);
       await booted();
     };
     const st = () => page.evaluate(() => window.__game.getState());
@@ -2926,7 +3590,7 @@ try {
 
     // 2) the Tome's door leads to the test world, keeping the rest of the address
     await page.evaluate(() => window.__game.openPanel('tome'));
-    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), page.click('[data-world="test"]')]);
+    await Promise.all([page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }), page.click('[data-world="test"]')]);
     await booted();
     const url = page.url();
     want(url.includes('test=1') && url.includes('smoke=proving') && url.includes('hour=13'), `the Tome's door led to ${url}`);
@@ -3012,11 +3676,16 @@ try {
     const daily = await cmd('daily wis');
     s = await st();
     console.log('daily:', JSON.stringify(daily));
-    want(s.quests.daily.completed && s.stats.wis.xp === 25 && s.streak.current === 9 && s.stamina.current === 480, `daily wis: ${JSON.stringify({ q: s.quests.daily, wis: s.stats.wis, streak: s.streak, st: s.stamina })}`);
-    want((await cmd('daily')).bad, 'a second daily was not refused');
+    want(s.quests.daily.deeds.some((d) => d.completed) && s.stats.wis.xp === 25 && s.streak.current === 9 && s.stamina.current === 480, `daily wis: ${JSON.stringify({ q: s.quests.daily, wis: s.stats.wis, streak: s.streak, st: s.stamina })}`);
+    // a second deed the same day: two virtues share the XP, and the day is not claimed twice
+    await cmd('daily ath inf');
+    s = await st();
+    want(s.quests.daily.deeds.length === 2 && s.stats.ath.xp === 13 && s.stats.inf.xp === 12 && s.streak.current === 9, `daily ath inf: ${JSON.stringify({ q: s.quests.daily, ath: s.stats.ath, inf: s.stats.inf, streak: s.streak })}`);
+    for (let i = 0; i < 3; i++) await cmd('daily');
+    want((await cmd('daily')).bad, 'a sixth daily deed was not refused');
     await cmd('reset daily');
     s = await st();
-    want(!s.quests.daily.completed && s.quests.daily.text === '' && s.stamina.current === 240, 'reset daily did not empty the slot');
+    want(s.quests.daily.deeds.length === 0 && s.stamina.current === 240, 'reset daily did not clear the board');
 
     // 8) wares
     await cmd('give cudgel');
@@ -3030,7 +3699,7 @@ try {
     // 9) the strip
     await cmd('farm finish');
     s = await st();
-    want(s.farm.stage === 1 && s.coins === 14, `farm finish: stage ${s.farm.stage}, coins ${s.coins}`); // 10 from the daily + the wage
+    want(s.farm.stage === 1 && s.coins === 54, `farm finish: stage ${s.farm.stage}, coins ${s.coins}`); // 50 from the five daily deeds + the wage
     want((await cmd('farm finish')).bad, 'a second job in one day was not refused');
     await cmd('farm grow');
     want((await page.evaluate(() => window.__game.farmJob())) === 'sow', 'farm grow did not bring the next job');
@@ -3106,7 +3775,7 @@ try {
     const night = await page.evaluate(() => ({ h: new Date().getHours(), log: document.querySelector('#proving-console .pc-log').textContent }));
     console.log('next day:', JSON.stringify({ date: s.counters.date, days: s.daysPlayed, streak: s.streak, daily: s.quests.daily, stamina: s.stamina, h: night.h }));
     want(s.counters.date === dstr(1), `nextday: the game's day is ${s.counters.date}, not ${dstr(1)}`);
-    want(!s.quests.daily.completed && s.streak.current === 5 && s.stamina.current === 240, 'nextday: no new day (daily, streak or stamina)');
+    want(!s.quests.daily.deeds.some((d) => d.completed) && s.streak.current === 5 && s.stamina.current === 240, 'nextday: no new day (daily, streak or stamina)');
     want(night.h === 21 && night.log.includes('A night passes'), 'nextday: the hour moved, or nothing was said');
     await cmd('fresh');
     want((await st()).coins === 1000, 'an own command did not outlast a reload');
@@ -3140,7 +3809,7 @@ try {
     want(after === TRUE, 'THE TRUE SAVE CHANGED in the test world');
 
     // 18) and back: the true world, on the true save
-    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }), cmd('leave').catch(() => {})]);
+    await Promise.all([page.waitForNavigation({ waitUntil: WAIT, timeout: 40000 }), cmd('leave').catch(() => {})]);
     await until(() => window.__game);
     const home = await page.evaluate(() => ({ coins: window.__game.getState().coins, banner: !!document.getElementById('proving-banner'), url: location.href }));
     console.log('back:', JSON.stringify(home));

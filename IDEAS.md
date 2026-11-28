@@ -15,6 +15,14 @@ Each entry has a name, the idea as the owner gave it, then the questions it leav
 | **The Four Realms** | Each kingdom has its own map — and its own kind, era or species |
 | **The Trials** | Challenges set by the Crownbound devs, with groups anyone can join |
 | **The Schoolhouse** | Tutoring centres and schools where players work on schoolwork, taught by AI now, real people later |
+| **The Witnesses** | Other people verify that you really did your goals — and competitions run on it |
+| **The Sage Walks With Thee** | Claude woven further into the game and the real life behind it |
+| **The Pocket Realm** | Wearable — a piece of your world that moves with you |
+| **The Other Roads** | Research: games and apps already like Crownbound |
+| **The Wider World** | Real-world services plugged into the game |
+| **The Craft** | The game teaches real-world experience, not only schoolwork |
+| **The Market Square** | Players trade micro-transactions with one another |
+| **The Heralds** | In-game marketing |
 
 The Homelands and The Four Crowns are two different answers to the same question — what a
 kingdom *is*. They are alternatives; the owner has not picked one.
@@ -171,3 +179,148 @@ Open questions:
   checked. The sacred rule still applies: coins buy comfort, never virtue.
 - Everything technical: a teacher AI is another use of the Anthropic API (the browser-direct
   plumbing the Sage already uses), but real teachers would need a server and accounts.
+
+---
+
+## The Witnesses — other people verify the deed
+
+*Noted 2026-11-18. Comes with competitions.*
+
+- **Competitions** between players, where **other people verify** whether a player really did
+  his goals.
+- Today deeds are on the honor system; here, witnesses stand in for honor.
+
+Open questions:
+- Who the witness is: a friend, a rival, a random player, a coach — and can he be bribed or
+  can friends simply vouch for each other?
+- What a witness sees: a photo or video, a screenshot of a fitness app, or only a yes/no.
+- Does verification gate XP, or only the competition's prize? The solo game stays honor-system
+  either way — only a contest would need proof.
+- What a false claim costs, and what a wrongly rejected one is owed (an appeal).
+- Privacy: a witness seeing a player's photos, location or money.
+- Everything technical: accounts, a server, and storage for proof. Today the game is
+  browser-only with the save on the player's own device.
+- Ties to The Trials (challenges set by the devs) and Kingdoms (rivals, the yearly war).
+
+---
+
+## The Sage Walks With Thee — Claude woven into Crownbound
+
+*Noted 2026-11-18.*
+
+- **Get Claude integrated with Crownbound** — further than today. Claude already does two
+  jobs (the Sage names a deed's virtue; the Chronicler writes the week).
+
+Open questions (the owner left the shape open; these are guesses at what it could mean):
+- Villagers who talk, as v2 already plans (the clerk, the miller, the chapman on the same API
+  plumbing).
+- A coach that reads the history and suggests the next quest, or notices a slipping streak.
+- Claude as the teacher in The Schoolhouse, or as a witness in The Witnesses.
+- Claude *using* Crownbound from outside: reading and logging quests from a Claude chat (an
+  MCP server over the save). Which of these did the owner mean?
+- Cost and keys: every use spends the player's own API key today.
+
+---
+
+## The Pocket Realm — a wearable piece of your world
+
+*Noted 2026-11-18.*
+
+- A **wearable** — a piece of your world that **moves with you**, on the body.
+
+Open questions (the idea was one line; these are guesses):
+- A real watch or band that shows the campfire and the daily quest, and logs workouts so the
+  deed arrives on its own (and is harder to fake)?
+- Or merchandise — a ring, a pendant, a banner — that you wear to show your rank?
+- If a watch: which platform, and does its health data replace the honor system for athletic
+  deeds? Sensors would feed The Witnesses too.
+- What moves with you: the fire, the streak, the Sage's voice, the stamina bar?
+- Technical: a native or companion app, beyond the browser-only game.
+
+---
+
+## The Other Roads — games and apps like Crownbound
+
+*Noted 2026-11-18. A research task. The list below is from memory, not a live search — check
+before relying on any of it.*
+
+The owner asked whether ideas like Crownbound already exist. Close relatives I know of:
+- **Habitica** — habits and to-dos as an RPG with party quests; the nearest cousin.
+- **Beeminder / StickK** — money on the line for your goals; StickK also uses a referee, which
+  is The Witnesses' shape.
+- **Zombies, Run!** and **Ring Fit Adventure** — real exercise as the game's engine.
+- **Finch** (a pet that grows as you do self-care), **Forest** (a tree grown by not touching
+  the phone), **SuperBetter** (recovery as a quest).
+- **Strava** challenges and clubs — competition with other people's logged workouts.
+
+Open questions:
+- What none of them do that Crownbound could: a 3D world you walk, a real-savings ledger that
+  never mixes with game coins, a hand-made look.
+- To do properly: a real web search and a short write-up of each — price, players, what
+  worked, what died.
+
+---
+
+## The Wider World — real-world services plugged in
+
+*Noted 2026-11-18.*
+
+- **Integrate real-world services** into the game.
+
+Open questions (guesses, since the owner named none):
+- Fitness: Strava, Apple Health, Google Fit — deeds logged by the data.
+- Money: a bank or savings link for the Treasury, instead of typing figures in.
+- Calendar, school (course sites), or a business tool for the Influence deeds.
+- Each is an account, a permission and a risk to the player's data — which are worth it?
+- Does a service ever pay in coins or XP? The sacred rule says coins buy comfort and deeds
+  earn virtue; the two purses (game coins, real money) never mix.
+
+---
+
+## The Craft — teaching real-world experience
+
+*Noted 2026-11-18. Sits beside The Schoolhouse.*
+
+- The game **teaches real-world experience** — practical know-how, not only schoolwork.
+
+Open questions:
+- Which experience: running a business (the owner's own path), money, trades, job skills,
+  tennis technique?
+- Taught by the AI, as in The Schoolhouse, or through in-game work that mirrors real work
+  (the miller's strip is a small seed of this)?
+- How it is told apart from The Schoolhouse, and which virtue it trains (Influence for
+  business, Intelligence for money).
+
+---
+
+## The Market Square — micro-transactions between players
+
+*Noted 2026-11-18.*
+
+- Players make **micro-transactions with each other**.
+
+Open questions:
+- Is the money game coins, real money, or both? **The sacred rule and the two-purses rule
+  both bear on this:** game coins never convert to real money, and coins buy comfort, never
+  virtue. Real money between players is a different, much heavier thing (payments, law, fraud).
+- What is traded: wares, home goods, services, tutoring from The Schoolhouse?
+- Can a trade be used to buy virtue in disguise (paying a friend to "do" a deed)? Needs The
+  Witnesses, or limits on what can be sold.
+- Technical: accounts and a server; today there is no player-to-player anything.
+
+---
+
+## The Heralds — marketing inside the game
+
+*Noted 2026-11-18.*
+
+- **In-game marketing.**
+
+Open questions (it could mean either of two things):
+- Crownbound's own marketing done in-world (a herald crying the news, banners for The
+  Trials), or players' businesses advertised in-game — fitting the owner's Influence and
+  business path, perhaps a stall in The Market Square.
+- Or third-party ads for money. That would sit badly with a personal, calm, no-dark-patterns
+  goal tracker; worth deciding early.
+- If players advertise: honesty rules, and keeping adverts to the setting (heralds, signboards,
+  hand-bills — no logos in a medieval village).

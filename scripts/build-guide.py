@@ -89,7 +89,7 @@ set_text(P[3], f"Crownbound is a third-person, low-poly medieval life RPG that d
 set_text(P[5], f"**The crown is earned, not scheduled.** There is no date and no countdown: the Coronation happens the moment your four virtues total {KING} levels and your rank reaches King. The Quest Board and the Tome show the road — “N of {KING} virtue levels won” — and, ever after, the day you were crowned.")
 
 # ---- getting started ----
-set_text(P[7], "Open **https://agouraninja-cmd.github.io/crownbound/** in a browser — or, in the project folder, start the dev server (**npm run dev**) and open **http://localhost:5173**. Press any movement key or click the scene to take control of the camera; **Esc** releases it. Where a browser will not lock the mouse, hold the left button and drag to look around. **No mouse?** A laptop plays on the keys alone: the arrow keys turn and tilt the camera and **F** swings. Your progress saves automatically in the browser after every action — but each address keeps its **own** save, so carry your chronicle between them with the Scribe (see Saving Your Chronicle).")
+set_text(P[7], "Open **https://agouraninja-cmd.github.io/crownbound/** in a browser — or, in the project folder, start the dev server (**npm run dev**) and open **http://localhost:5173**. **The very first time**, the game begins with a short opening: a dream of the crown, your peasant waking on his cot, and an oath — a parchment that asks the year’s great work (your Epic Quest) and one real deed for today (your Daily Quest), so the Quest Board is not found empty. Enter hurries it along, Esc skips it, and either question can be left for later. Then a gold waymark shows the way — to your door, and on to the Quest Board — until your first deed is logged and the cold fire is lit. Press any movement key or click the scene to take control of the camera; **Esc** releases it. Where a browser will not lock the mouse, hold the left button and drag to look around. **No mouse?** A laptop plays on the keys alone: the arrow keys turn and tilt the camera and **F** swings. Your progress saves automatically in the browser after every action — but each address keeps its **own** save, so carry your chronicle between them with the Scribe (see Saving Your Chronicle).")
 fill(controls, [
     ["Input", "Action"],
     ["W A S D", f"Move — walking costs a little stamina ({plain(ST['walkDrain'])} a second)"],
@@ -122,10 +122,10 @@ fill(tour, [
 ])
 
 # ---- quests ----
-set_text(P[11], "Quests are written in your own words — the game never invents tasks for you. Post a quest, do the real thing, then return and mark it complete. On completion you choose which virtue the deed trained, and the reward lands there — or, if you have appointed the Sage (see The Sage & the Chronicler), he names the virtue for you.")
+set_text(P[11], f"Quests are written in your own words — the game never invents tasks for you. Post a quest, do the real thing, then return and mark it complete. On completion you choose which virtue the deed trained, and the reward lands there — or, if you have appointed the Sage (see The Sage & the Chronicler), he names the virtue for you. A deed that truly trained more than one virtue (a tennis match with a client) may name each: the XP is **shared evenly** among them, so naming more never pays more. The board takes **up to {C['quests']['dailyMax']} daily deeds a day**, each paid in full. Only the **first** one done claims the day — it refills stamina and feeds the streak; the rest pay their XP and coins and nothing more. A deed posted by mistake can be taken down before it is done.")
 fill(quests, [
     ["Quest", "Reward", "Resets"],
-    ["Daily Quest", f"+{R['daily']['xp']} XP, +{R['daily']['coins']} coins, refills stamina and raises its cap for the day, feeds the streak", "Every day (local midnight, on next load)"],
+    ["Daily Quests", f"+{R['daily']['xp']} XP, +{R['daily']['coins']} coins each (up to {C['quests']['dailyMax']} a day); the day’s first refills stamina, raises its cap for the day and feeds the streak", "Every day (local midnight, on next load)"],
     ["Weekly Bounty", f"+{R['weekly']['xp']} XP, +{R['weekly']['coins']} coins", "Every Monday"],
     ["Monthly Campaign", f"+{R['monthly']['xp']} XP, +{R['monthly']['coins']} coins", "The 1st of each month"],
     ["The Epic Quest", "Progress is a percentage you update by hand; every update is written into the Chronicle", "Never — it has no deadline"],
@@ -156,10 +156,10 @@ for i, t in enumerate(tiers):
 fill(fire, fire_rows)
 
 # ---- stamina ----
-set_text(P[19], f"Stamina is a daily pool. Fighting draws on it — **{ST['attackCost']} per attack, {ST['dodgeCost']} per dodge-roll** — and so do the legs: **{plain(ST['walkDrain'])} a second walking** (crouched included) and **{plain(ST['sprintDrain'])} a second sprinting**. Jumping and standing still are free. The base cap is **{ST['baseCap']}**; completing the daily quest refills the pool and raises the cap to **{ST['questCap']}** for the rest of the day. Rising well-rested (see Sleep) adds another +{SL['staminaBonus']}. With too little left for a swing or a roll, combat is refused — “Your arms are spent. Earn your strength — the board awaits.”")
+set_text(P[19], f"Stamina is a daily pool. Fighting draws on it — **{ST['attackCost']} per attack, {ST['dodgeCost']} per dodge-roll** — and so do the legs: **{plain(ST['walkDrain'])} a second walking** (crouched included) and **{plain(ST['sprintDrain'])} a second sprinting**. Jumping and standing still are free. The base cap is **{ST['baseCap']}**; completing the day’s first daily deed refills the pool and raises the cap to **{ST['questCap']}** for the rest of the day. Rising well-rested (see Sleep) adds another +{SL['staminaBonus']}. With too little left for a swing or a roll, combat is refused — “Your arms are spent. Earn your strength — the board awaits.”")
 h = para_after(P[19], H3, "Spent for the day")
 s1 = para_after(h, BODY, "The moment stamina reaches zero, the day’s play is over. He lets go of the keys and walks himself home — round every obstacle, through the door, onto the cot — and a card tells you play resumes tomorrow, with a line he says to himself. Press E to hurry the walk.")
-s2 = para_after(s1, BODY, "From bed you can still open the Quest Board, the Tome and the Exchequer. If today’s daily is not yet done, completing it from bed **refills the pool and gets him up**. Once the daily is done, a second emptying is final until tomorrow. “Retire for the night” on the card marks your real bedtime; the walk home does not.")
+s2 = para_after(s1, BODY, "From bed you can still open the Quest Board, the Tome and the Exchequer. If no daily deed is done yet today, completing one from bed **refills the pool and gets him up**. Once a daily deed is done, a second emptying is final until tomorrow. “Retire for the night” on the card marks your real bedtime; the walk home does not.")
 
 # ---- combat ----
 c0 = para_after(P[20], BODY, f"Left click swings what is in your hand. Three blows chain when you swing in quick succession — a chop, a backhand, a sweep — and all three cost, reach and hit the same. You begin with a stick (damage {PL['attackDamage']}); the chapman sells a cudgel (damage {ITEM['cudgel']['damage']}) and, to a {ITEM['quarterstaff']['minRank']}, a quarterstaff (damage {ITEM['quarterstaff']['damage']} and a longer reach).")
@@ -171,7 +171,7 @@ set_text(P[24], f"{WORDS[C['rats']['count']].capitalize()} rats haunt the granar
 
 # ---- the miller's strip (after Death) ----
 fh = para_after(P[26], H2, "The Miller’s Strip")
-f1 = para_after(fh, BODY, f"The farming job. The strip is a fenced field of **{FM['rows']} ridges**, entered by its gate. There is **one job per real day**, each in its turn: **till, sow, weed, reap**. A job is every ridge — press E at a ridge and he works it for a second or two with the hoe, the sowing hand or the sickle. Finish the last ridge and the miller pays: **+{FM['wage']} coins** for a day’s tilling, sowing or weeding, **+{FM['harvestPay']} coins** for the harvest.")
+f1 = para_after(fh, BODY, f"The farming job. The strip is a fenced field of **{FM['rows']} ridges**, entered by its gate. There is **one job per real day**, each in its turn: **till, sow, weed, reap**. A job is every ridge — press E at a ridge and he goes to its head and works his way along it to the other end with the hoe, the sowing hand or the sickle, the ridge changing as he goes. Step away and he stops; the stretch done stays done, and E takes him back to it. Finish the last ridge and the miller pays: **+{FM['wage']} coins** for a day’s tilling, sowing or weeding, **+{FM['harvestPay']} coins** for the harvest.")
 f2 = para_after(f1, BODY, "The crop grows only across the days you turn up: shoots the night after sowing, ripe wheat the night after weeding. Nothing spoils — a missed day costs only the day, and a half-done job keeps its ridges. Field work pays **coins only**: no XP, no stamina cost, no streak. Virtue is still earned only by real deeds.")
 
 # ---- wealth ----
@@ -184,10 +184,10 @@ set_text(P[29], "The Treasury is real money, on your honor. A coffer fills with 
 w = P[29]
 for kind, line in [
     (BULLET, "**Opening the ledger.** The first time, the clerk asks three questions, one at a time: what you are saving for and how much it needs, what you have saved already, and what you will set aside each month (your pledge)."),
-    (BULLET, "**Lay in coin.** Whenever you move real money into savings, tell the clerk. The coffer and this month’s pledge meter fill at once. “Recount” corrects the figure to what your account truly shows."),
-    (BULLET, "**The monthly reckoning.** When a month ends the clerk asks two figures: what you put into savings that month (already tallied from the coin you laid in) and what your savings stand at now. Income and spending are optional. One reckoning per month, and it cannot be undone."),
-    (BULLET, "**The verdict.** Each month is sealed in wax: **fat** (pledge kept), **held** (no ground lost) or **bled** (ground lost). A skipped month is marked unreckoned."),
-    (BULLET, "**Goals.** A goal is won when a filed reckoning finds your savings at it; then you name the next. Months past, goals won and the plan are folded away at the bottom of the panel."),
+    (BULLET, "**The day book.** Enter money the day it moves: **Money in**, **Money out** or **Into savings**, each with an optional note. Money put into savings fills the coffer and this month’s pledge meter at once. A mistaken entry is struck out with its ×; “Recount” corrects your savings to what your account truly shows."),
+    (BULLET, "**The month closes itself.** On the 1st, the clerk adds up the month just ended from your entries and enters it on the rolls — there is nothing to remember and nothing to file. With both money in and money out entered he judges by them; otherwise by whether your savings grew."),
+    (BULLET, "**The verdict.** Each month is sealed in wax: **fat** (pledge kept), **held** (no ground lost) or **bled** (ground lost). A month with nothing entered is marked unreckoned."),
+    (BULLET, "**Goals.** A goal is won when a month closes with your savings at it; then you name the next. Months past, goals won and the plan are folded away at the bottom of the panel."),
 ]:
     w = para_after(w, kind, line)
 
@@ -207,7 +207,7 @@ wares = table_after(c1, quests, [
     ["A candle lantern", coins(ITEM['lantern']['price']), "A light for the doorpost"],
 ])
 c2h = para_after(wares, H3, "The chest")
-c2 = para_after(c2h, BODY, f"The chest beside your cot (E, inside the hovel) keeps what the hand does not. You hold **one weapon** — the stick, the cudgel or the quarterstaff — and “Take up” swaps it; a newly bought weapon goes straight to your hand. Loaves wait in the larder (**{C['chest']['larderCap']} at most**) and are eaten there, when wounded, for a full heal. Bread mends HP and nothing else.")
+c2 = para_after(c2h, BODY, f"Your weapons hang on the peg rack by the hovel door (E, inside). You hold **one weapon** — the stick, the cudgel or the quarterstaff — and “Take up” swaps it; “Hang up” puts it on the rack too, so you walk about empty-handed (no swinging). A newly bought weapon goes straight to your hand. The chest beside your cot (E) is the larder: loaves wait there (**{C['chest']['larderCap']} at most**) and are eaten, when wounded, for a full heal. Bread mends HP and nothing else.")
 
 # ---- sleep ----
 set_text(P[32], f"You earn the **Well-Rested boon** (+{SL['wisXp']} Wisdom XP, +{SL['coins']} coins, +{SL['staminaBonus']} stamina cap for the day, once per day) when:")
@@ -217,11 +217,11 @@ set_text(P[34], f"you open the game by **{SL['wakeByHour']}:00 AM** local time."
 # ---- new sections before Saving ----
 sh = para_after(P[37], H2, "The Sage & the Chronicler")
 g1 = para_after(sh, BODY, "Two helpers run on the Anthropic API and need an API key, which you grant in the Tome. The key is kept in this browser, outside your save, so a Scribe copy never carries it. Without a key the game plays exactly as before.")
-g2 = para_after(g1, BULLET, "**The Sage** names the virtue of each completed deed, in place of the four-button pick. His verdict is final. If he cannot be reached, is slow, or answers nonsense, the manual pick appears instead; “Choose thyself” cancels him.")
+g2 = para_after(g1, BULLET, "**The Sage** names the virtue of each completed deed — or two, when a deed plainly trained both — in place of the manual pick. His verdict is final. If he cannot be reached, is slow, or answers nonsense, the manual pick appears instead; “Choose thyself” cancels him.")
 g3 = para_after(g2, BULLET, "**The Chronicler** writes one short entry of medieval prose for each finished week, from your deeds and your sleep. He writes at most one entry each time you open the game, and they are read in the Tome under Weekly Chronicle.")
 mh = para_after(g3, H2, "The Map & the Sky")
 m1 = para_after(mh, BODY, f"**M** unrolls the Map of the Kingdom of {C['realm']['kingdom']} — coast, mountains, {C['realm']['lake']}, roads and towns, each named when you hover — with {C['realm']['village']} ringed in wax. Beside it is a plan of the village drawn from the game itself: the buildings, the trees, today’s crop on the strip, and an arrow for where you stand. Only the village can be walked; the kingdom is a picture.")
-m2 = para_after(m1, BODY, "The sky keeps the hour of your own clock. The sun rises, crosses and sets at the real time of day, with long days in summer and early dark in winter; night brings stars, the moon in her true phase, a lit window in the hovel and the campfire as the village’s light.")
+m2 = para_after(m1, BODY, "The sky keeps the hour of your own clock. The sun rises at six in the morning and sets at six in the evening by your clock, wherever you play, riding high in summer and low in winter; night brings stars, the moon in her true phase, a lit window in the hovel and the campfire as the village’s light.")
 
 # ---- saving ----
 set_text(P[39], "Your save lives only in this browser, and separately for each address the game is opened at — the hosted game and the dev server do not share one. The **Scribe**, at the bottom of the Tome, guards against misfortune and carries your progress between them: **Download a copy** writes your whole chronicle to a JSON file; **Restore from a copy** validates the file, keeps your replaced save as a fallback, and reloads the realm from the copy. Take a copy now and then — a browser cleanup would otherwise take the year with it.")
@@ -229,7 +229,7 @@ set_text(P[39], "Your save lives only in this browser, and separately for each a
 # ---- the proving ground (after Saving) ----
 ph = para_after(P[39], H2, "The Proving Ground (the Test World)")
 t1 = para_after(ph, BODY, "A second world for trying things out, kept wholly apart from your real one. Open it from **The Proving Ground** at the bottom of the Tome, or add **?test=1** to the game’s address (**https://agouraninja-cmd.github.io/crownbound/?test=1**). It has a save of its own: nothing done there changes your real chronicle, and a dark banner across the top of the screen always says which world you are in. **Leave** on the banner takes you back.")
-t2 = para_after(t1, BODY, f"Press **/** to open the command line, type a command and press Enter; Esc closes it. **help** lists every command. A few of them: **stamina full**, **rank {C['ranks'][-1]['title'].lower()}**, **level wis 10**, **coins 500**, **streak 30**, **daily**, **tp field**, **market on**, **give cudgel**, **time 7:30** and **nextday** — a night passes, which is how streaks, the growing crop, market days and the dawn can all be tried in one sitting. **copy** brings in a copy of your real save to experiment on (the real one is not touched), and **reset world** begins the test world again.")
+t2 = para_after(t1, BODY, f"Press **/** to open the command line, type a command and press Enter; Esc closes it. **help** lists every command. A few of them: **stamina full**, **rank {C['ranks'][-1]['title'].lower()}**, **level wis 10**, **coins 500**, **streak 30**, **daily**, **tp field**, **market on**, **give cudgel**, **time 7:30** and **nextday** — a night passes, which is how streaks, the growing crop, market days and the dawn can all be tried in one sitting. **copy** brings in a copy of your real save to experiment on (the real one is not touched), **reset world** begins the test world again, **newgame** starts it from nothing as a newcomer would — opening and all — and **intro** plays the game’s opening once more.")
 t3 = para_after(t2, BODY, "You can make commands of your own. Type **make fresh = stamina full; heal; coins 1000** and from then on **fresh** runs all three; **forget fresh** unmakes it. Your own commands stay in the browser even when the test world is begun again.")
 
 # ---- the road ahead ----

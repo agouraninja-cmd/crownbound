@@ -237,6 +237,18 @@ export function buildWorld(scene, marketToday = false, skyClock) {
     },
   };
 
+  // the peg rack by the door: looks[tier] is the look of the weapon hanging
+  // on that tier's pegs, or null for empty pegs. main.js keeps it in step.
+  function setRackWeapons(looks) {
+    hovel.rack.forEach((slot, tier) => {
+      const look = looks[tier];
+      slot.group.visible = !!look;
+      if (!look) return;
+      slot.hang.scale.set(...look.scale);
+      slot.shaft.material = new THREE.MeshLambertMaterial({ color: look.color, flatShading: true });
+    });
+  }
+
   // the indoor camera zone + where you stand up from the cot
   const hovelInterior = {
     minX: hx - inX,
@@ -263,6 +275,7 @@ export function buildWorld(scene, marketToday = false, skyClock) {
     // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bedReach.x, z: hz + H.bedReach.z, radius: H.bedReach.radius, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },
+    { id: 'rack', label: 'the weapon rack', x: hx + 1.25, z: hz + H.rack.z, radius: 0.85, insideOnly: true },
     {
       id: 'chest',
       label: 'open the chest',
@@ -327,10 +340,11 @@ export function buildWorld(scene, marketToday = false, skyClock) {
     windTime.value += dt;
     sky.update(dt, playerPos, camera);
     ambient.update(dt, camera);
+    field.update(dt); // what flies up from the work
   }
 
   // the village plan on the map draws the real trees and boulders
   const mapMarks = { trees: scatter.trees, rocks: scatter.rocks };
 
-  return { colliders, interactables, sky, campfire, dummy, door, chest, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
+  return { colliders, interactables, sky, campfire, dummy, door, chest, setRackWeapons, exchequer, cart, miller, field, homeUpgrades, applyHomeUpgrades, hovelInterior, wakeSpot, bedRest, mapMarks, update };
 }

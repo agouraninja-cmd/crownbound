@@ -8,7 +8,7 @@ export const CONFIG = {
     village: 'Brackenley', // the Chronicler is told to name it in every entry
     lake: 'Lake Laney', // the great lake at the kingdom's heart
   },
-  saveVersion: 12, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip
+  saveVersion: 14, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip; v13 the daily money book; v14 several deeds a day
 
   xpPerLevel: 100, // next level costs 100 × current level
 
@@ -25,13 +25,17 @@ export const CONFIG = {
     weekly: { xp: 100, coins: 50 },
     monthly: { xp: 300, coins: 150 },
     ratCoins: 2,
-    // a savings goal won at a reckoning: Intelligence XP only — never coins (the two purses never mix)
+    // a savings goal won when a month closes: Intelligence XP only — never coins (the two purses never mix)
     goalXp: 300,
+  },
+
+  quests: {
+    dailyMax: 5, // deeds the board will take in one day; each pays the daily reward in full
   },
 
   stamina: {
     baseCap: 240,
-    questCap: 480, // cap for the rest of the day once the daily quest is done
+    questCap: 480, // cap for the rest of the day once the day's first deed is done
     attackCost: 5,
     dodgeCost: 8,
     // the legs draw on the pool too, per second of moving on the ground
@@ -81,7 +85,7 @@ export const CONFIG = {
     ],
   },
 
-  // The chest by the cot: the hand holds one weapon, the chest keeps the rest;
+  // The chest by the cot keeps the larder; the hand holds one weapon and the peg rack by the door the rest;
   // loaves bought from the chapman wait in its larder until eaten (a full
   // heal, wounded only). Still the sacred rule — bread mends HP, nothing more.
   chest: {
@@ -193,15 +197,17 @@ export const CONFIG = {
     rows: 10, // ridges in the strip; a day's job is every one of them
     wage: 4, // coins for a finished day of tilling, sowing or weeding
     harvestPay: 20, // coins when the wheat is brought in
-    strokes: 3, // blows of the hoe (casts of seed, cuts of the sickle) to work one ridge
-    strokeTime: 0.5, // seconds each takes
+    strokeTime: 0.5, // seconds each blow of the hoe (cast of seed, cut of the sickle) takes
+    workPace: 1.6, // how fast he works his way along a ridge, a step between blows (units a second; a ridge is ~18)
+    workReach: 0.75, // how far ahead of him each blow lands
   },
 
-  // The sky keeps the hour of the player's own clock: sun, moon and stars
-  // stand where they would for someone at this latitude, today.
+  // The sky keeps the hour of the player's own clock: the sun rises and sets
+  // at fixed clock hours wherever he plays; the season sets only how high it rides.
   sky: {
-    latitude: 45, // degrees north of the equator: how long the days run, season by season.
-    //               Set it to where the game is played for truer dawns and dusks.
+    sunrise: 6, // the clock hour the sun clears the eastern hills (dawn's colours come before it)
+    sunset: 18, // the clock hour the sun meets the western hills (the golden hour comes before it)
+    latitude: 45, // degrees north of the equator: how high the sun rides, season by season
     refresh: 5, // seconds between repaints of the sky and its light (the sun moves a hair in that time)
   },
 
