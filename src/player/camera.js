@@ -117,6 +117,7 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
     const move = lookFor(e);
     if (move && !isUiOpen()) {
       taken = true;
+      glide = null; // ...and so do the look keys
       const h = held.get(keyId(e));
       if (h) h.up = false;
       else held.set(keyId(e), { move, seen: false, up: false });
@@ -137,6 +138,7 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       dragDist += Math.abs(e.movementX) + Math.abs(e.movementY);
     }
     taken = true;
+    glide = null; // the hand on the mouse outranks a move the eye was making by itself
     const sens = mouseSens(); // live — a Tome change takes hold mid-stride
     yaw -= e.movementX * sens;
     pitch += e.movementY * sens;
@@ -266,8 +268,9 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
       taken = true; // stop the showcase orbit
     },
     // Swing the eye round to a new yaw and pitch over `seconds`, the short
-    // way about — the opening's one camera move, made while the mouse and the
-    // keys are not yet his.
+    // way about — the opening's camera move, made while the mouse and the
+    // keys are not yet his, and the turn to watch him at a ridge. The mouse
+    // or a look key calls it off.
     glideTo(newYaw, newPitch, seconds) {
       const turn = Math.atan2(Math.sin(newYaw - yaw), Math.cos(newYaw - yaw));
       const tilt = Math.min(PITCH_MAX, Math.max(PITCH_MIN, newPitch)) - pitch;

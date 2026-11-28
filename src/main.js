@@ -9,7 +9,7 @@ import { WEAPON_LOOKS } from './player/playerMesh.js';
 import { createOrbitCamera } from './player/camera.js';
 import { initHud, showPrompt, placePrompt, showWaymark, placeWaymark, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
-import { loadState, getState, onChange, introOwed, introDone, noDeedYet, KEYS_LINE, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, wieldedWeapon, ownedWeapons, weaponHungUp, FARM_JOBS, farmJob, farmRowLooks, workFarmRow } from './state/state.js';
+import { loadState, getState, onChange, introOwed, introDone, noDeedYet, KEYS_LINE, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, wieldedWeapon, ownedWeapons, weaponHungUp, FARM_JOBS, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch } from './state/state.js';
 import { initPanels, openPanel, closePanel, openPanelId, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
@@ -615,13 +615,16 @@ function millerGreeting() {
 }
 
 // ---------- the miller's strip ----------
-// E at a ridge works it: a few strokes of the tool for the day's job, and the
-// ridge changes. When every ridge has had it, the miller pays. One job a day.
+// E at a ridge works it: he goes to its head and works his way along it with
+// the tool for the day's job, the ridge changing under each blow. When every
+// ridge has had it, the miller pays. One job a day.
 const field = world.field;
-field.draw(farmRowLooks());
+field.draw(farmRowLooks(), farmRowParts());
 onChange((reason) => {
-  if (reason === 'farm') field.draw(farmRowLooks());
+  if (reason === 'farm') field.draw(farmRowLooks(), farmRowParts());
 });
+// he walks on the strip's ridges and furrows, not on the ground under them
+player.groundAt = (x, z) => terrainHeight(x, z) + field.riseAt(x, z);
 
 const FIELD_PROMPTS = { till: 'till this ridge', sow: 'sow this ridge', tend: 'weed this ridge', reap: 'reap this ridge' };
 const FIELD_PAID = {
@@ -663,25 +666,73 @@ function aimFieldSpot() {
   spot.label = job ? FIELD_PROMPTS[job] : 'look over the strip';
 }
 
-let workingRow = -1; // the ridge under the hoe
+// The ridge under the hoe, and the end of it the work began from (-1 or +1
+// along the ridge): each blow works it from there to where the blow lands.
+let workingRow = -1;
+let workingEnd = 1;
+const FURROW_SIDE = 0.5; // he walks this far off the crown, in the furrow beside it
+
+// E at a ridge: he goes to its head — the end the work on it began from, or
+// the nearer end of a ridge not yet begun — and works his way along it to the
+// other end. He walks the furrow on the side he stood, turned in toward the
+// crown, so each blow lands on it a little ahead (and the tool shows).
 function workTheField() {
   const job = farmJob();
   if (!job) {
     toast(FIELD_WAITS[FARM_JOBS[getState().farm.stage]], '');
     return;
   }
-  if (player.startWork(job, field.spot.x, field.spot.z)) workingRow = field.spot.row;
+  if (player.mode !== 'normal') return;
+  const row = field.spot.row;
+  const HL = field.halfLength;
+  const R = CONFIG.farm.workReach;
+  const me = field.toField(player.pos.x, player.pos.z);
+  const cp = field.ridgePoint(row, 0);
+  const crown = field.toField(cp.x, cp.z);
+  const part = getState().farm.part[row];
+  const end = part ? part.end : me.u >= 0 ? 1 : -1;
+  const side = me.v >= crown.v ? 1 : -1;
+  const turn = Math.asin(Math.min(1, FURROW_SIDE / R)); // turned in just enough that the blow finds the crown
+  const ahead = R * Math.cos(turn);
+  const worked = part ? part.k * HL * 2 : 0;
+  const from = field.ridgePoint(row, end * (HL - worked + ahead), side * FURROW_SIDE);
+  const to = field.ridgePoint(row, -end * (HL - ahead), side * FURROW_SIDE);
+  // the way along the ridge, and across it toward the crown, in the world
+  const o = field.ridgePoint(row, 0, 0);
+  const a = field.ridgePoint(row, -end, 0);
+  const c = field.ridgePoint(row, 0, -side);
+  const fx = (a.x - o.x) * Math.cos(turn) + (c.x - o.x) * Math.sin(turn);
+  const fz = (a.z - o.z) * Math.cos(turn) + (c.z - o.z) * Math.sin(turn);
+  const facing = Math.atan2(fx, fz);
+  const begin = () => {
+    if (farmJob() !== job || !player.startWork(job, from, to, facing)) return;
+    workingRow = row;
+    workingEnd = end;
+    // the eye swings round to his side: from straight behind, his body hides
+    // the tool. A touch of the mouse or a look key calls the swing off.
+    orbitCam.glideTo(facing + Math.PI - 1.0, Math.max(orbitCam.getView().pitch, 0.32), 0.9);
+  };
+  if (Math.hypot(from.x - player.pos.x, from.z - player.pos.z) < 0.3) begin();
+  else player.walkRoute([from], begin, { yields: true }); // a movement key calls the walk off
 }
+// where a blow lands: a little ahead of him, the way he faces
+const blowAt = () => {
+  const R = CONFIG.farm.workReach;
+  return { x: player.pos.x + Math.sin(player.facing) * R, z: player.pos.z + Math.cos(player.facing) * R };
+};
 player.onWorkStroke = (kind) => {
   if (kind === 'sow') sfx.sow();
   else if (kind === 'reap') sfx.reap();
   else sfx.dig();
-  // where the stroke lands, a little ahead of him: earth, seed or chaff flies
-  const reach = kind === 'sow' ? 1.0 : 0.75;
-  field.kick(kind, player.pos.x + Math.sin(player.facing) * reach, player.pos.z + Math.cos(player.facing) * reach, player.facing);
+  // earth, seed or chaff flies where it lands — and the ridge is worked up to there
+  const at = blowAt();
+  field.kick(kind, at.x, at.z, player.facing);
+  const HL = field.halfLength;
+  const k = (HL - workingEnd * field.toField(at.x, at.z).u) / (HL * 2);
+  workFarmStretch(workingRow, workingEnd, Math.min(0.999, Math.max(0, k))); // the strip redraws itself on the change
 };
 player.onWorkDone = () => {
-  const worked = workFarmRow(workingRow); // the strip redraws itself on the change
+  const worked = workFarmStretch(workingRow, workingEnd, 1); // the whole length: the ridge is done
   if (worked?.done) {
     toast(FIELD_PAID[worked.job](worked.coins), 'gold');
     sfx.coin();
@@ -744,7 +795,7 @@ if (PROVING) {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, workFarmRow, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {

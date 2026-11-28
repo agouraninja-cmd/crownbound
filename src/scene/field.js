@@ -97,20 +97,38 @@ const SHADE_LIGHT = new THREE.Vector3(0.45, 0.8, 0.4).normalize();
 // which ridge a spot across the strip falls in
 const rowAt = (v) => Math.min(FIELD.rows - 1, Math.max(0, Math.floor((v + HW) / SPACING)));
 
-// How high the worked earth stands above the ground at (u, v), by the look of
-// the ridge it falls in. Ridges die away into the headland at both ends.
-function earthRise(looks, u, v) {
+// How high the worked earth stands above the ground at (u, v), by the look
+// the ridge it falls in wears there (lookOf(row, u) — a ridge half worked
+// wears two). Ridges die away into the headland at both ends.
+function earthRise(lookOf, u, v) {
   if (Math.abs(u) > HL + 1e-3 || Math.abs(v) > HW + 1e-3) return SUNK;
   if (Math.abs(u) > HL - 1e-3) return TROUGH;
   const row = rowAt(v);
-  const t = Math.min(1, Math.abs(v - FIELD.rowV(row)) / HALF); // 0 on the crown … 1 in the furrow
-  return RIDGED.has(looks[row]) ? TROUGH + (CREST - TROUGH) * (1 - t * t) : FLAT - (FLAT - TROUGH) * t * t;
+  return riseOf(lookOf(row, u), v, row);
 }
+
+// ...across one ridge wearing `look`: up on its crown, down in the furrows
+function riseOf(look, v, row = rowAt(v)) {
+  const t = Math.min(1, Math.abs(v - FIELD.rowV(row)) / HALF); // 0 on the crown … 1 in the furrow
+  return RIDGED.has(look) ? TROUGH + (CREST - TROUGH) * (1 - t * t) : FLAT - (FLAT - TROUGH) * t * t;
+}
+
+// A lookOf for a strip drawn as `looks`, with the ridges in `parts` worked
+// part of their length: { [row]: { end, k, look } } — worked from the end at
+// `end` (-1 or +1 along u) for k of the length, wearing `look` there.
+function lookOfStrip(looks, parts) {
+  return (row, u) => {
+    const p = parts[row];
+    return p && workedAt(p, u) ? p.look : looks[row];
+  };
+}
+// is `u` within the stretch of a ridge worked so far?
+const workedAt = (p, u) => (p.end > 0 ? u >= HL - p.k * HL * 2 : u <= -HL + p.k * HL * 2);
 
 // The bed as a faceted heightfield laid over the ground, one colour a facet.
 // Its outermost ring of points is pushed out by uneven amounts and sunk into
 // the ground, so the ploughland ends in a ragged edge, not a ruled line.
-function earthGeometry(looks) {
+function earthGeometry(lookOf) {
   const us = [-HL - LIP];
   for (let u = -HL; u < HL + 1e-3; u += 0.35) us.push(u);
   us.push(HL + LIP);
@@ -129,8 +147,8 @@ function earthGeometry(looks) {
       const pv = j === 0 ? v - ragged : j === lastJ ? v + ragged : v;
       const w = fieldToWorld(pu, pv);
       const edge = Math.abs(u) > HL - 0.2 ? 0.5 : 1; // the plough turned at the headland: less lumpy there
-      const rough = onBed ? (hash2(i * 7 + 3, j * 11 + 5) - 0.5) * ROUGH[looks[rowAt(v)]] * edge : 0; // worked by hand, not by rule
-      return [w.x, terrainHeight(w.x, w.z) + earthRise(looks, u, v) + rough, w.z];
+      const rough = onBed ? (hash2(i * 7 + 3, j * 11 + 5) - 0.5) * ROUGH[lookOf(rowAt(v), u)] * edge : 0; // worked by hand, not by rule
+      return [w.x, terrainHeight(w.x, w.z) + earthRise(lookOf, u, v) + rough, w.z];
     })
   );
 
@@ -144,7 +162,7 @@ function earthGeometry(looks) {
       c.set(HEADLAND);
     } else {
       const row = rowAt(vc);
-      const look = looks[row];
+      const look = lookOf(row, uc);
       const t = Math.abs(vc - FIELD.rowV(row)) / HALF;
       c.set(EARTH[look]);
       if (RIDGED.has(look)) c.multiplyScalar(t > 0.66 ? 0.74 : t > 0.33 ? 0.92 : 1.1); // dark in the furrow, lit on the crown
@@ -364,46 +382,46 @@ function makeGrowth() {
 // strewn across it within `reach` of its crown — thicker toward the crown when
 // `crown` is above 1, as broadcast seed settles and grows. t is 0 on the crown
 // … 1 at `reach`.
-function strew(rng, looks, row, perUnit, reach, crown, plant) {
+function strew(rng, lookOf, row, perUnit, reach, crown, plant) {
   const count = Math.round(perUnit * HL * 2);
   for (let n = 0; n < count; n++) {
     const uu = (rng() * 2 - 1) * (HL - 0.25);
     const t = Math.pow(rng(), crown);
     const vv = FIELD.rowV(row) + (rng() < 0.5 ? -1 : 1) * t * reach;
     const w = fieldToWorld(uu, vv);
-    plant(w.x, terrainHeight(w.x, w.z) + earthRise(looks, uu, vv) - 0.015, w.z, t, uu);
+    plant(w.x, terrainHeight(w.x, w.z) + earthRise(lookOf, uu, vv) - 0.015, w.z, t, uu);
   }
 }
 
 // Calls plant(x, y, z) at spots strung along a ridge: on lines `offsets` off
 // its crown (as a fraction of half its width), every `step`, each jostled a
 // little out of true — the way the sickle leaves stubble, row on row.
-function alongRidge(rng, looks, row, offsets, step, jostle, plant) {
+function alongRidge(rng, lookOf, row, offsets, step, jostle, plant) {
   for (const dv of offsets) {
     for (let u = -HL + 0.3; u < HL - 0.3; u += step) {
       const uu = u + (rng() - 0.5) * jostle * 2;
       const vv = FIELD.rowV(row) + dv * HALF + (rng() - 0.5) * jostle;
       const w = fieldToWorld(uu, vv);
-      plant(w.x, terrainHeight(w.x, w.z) + earthRise(looks, uu, vv) - 0.015, w.z);
+      plant(w.x, terrainHeight(w.x, w.z) + earthRise(lookOf, uu, vv) - 0.015, w.z);
     }
   }
 }
 
 const STUBBLE_LINES = [-0.8, -0.56, -0.32, -0.08, 0.16, 0.4, 0.64, 0.86];
-const stubble = (g, rng, looks, row) => {
-  alongRidge(rng, looks, row, STUBBLE_LINES, 0.11, 0.05, (x, y, z) => {
+const stubble = (g, rng, lookOf, row) => {
+  alongRidge(rng, lookOf, row, STUBBLE_LINES, 0.11, 0.05, (x, y, z) => {
     g.blade(x, y, z, rng() * TAU, 0.016, 0.06 + rng() * 0.07, (rng() - 0.5) * 0.05, STRAW_ROOT, STRAW_TIP, 0.12);
   });
   // straw the binders dropped, lying every which way
-  strew(rng, looks, row, 9, HALF * 0.95, 1, (x, y, z) => {
+  strew(rng, lookOf, row, 9, HALF * 0.95, 1, (x, y, z) => {
     const k = 0.85 + rng() * 0.3;
     g.lying(x, y + 0.012, z, rng() * TAU, 0.16 + rng() * 0.2, 0.011, [STRAW_LYING[0] * k, STRAW_LYING[1] * k, STRAW_LYING[2] * k]);
   });
 };
 
 // young wheat: a tuft of fine straight blades
-const shoots = (g, rng, looks, row, perUnit, height, blades) =>
-  strew(rng, looks, row, perUnit, HALF * 0.82, 1.4, (x, y, z, t) => {
+const shoots = (g, rng, lookOf, row, perUnit, height, blades) =>
+  strew(rng, lookOf, row, perUnit, HALF * 0.82, 1.4, (x, y, z, t) => {
     const turn = rng() * TAU;
     const h = height * (1 - t * 0.35);
     for (let b = 0; b < blades; b++) {
@@ -413,40 +431,40 @@ const shoots = (g, rng, looks, row, perUnit, height, blades) =>
 
 // what each look grows (or leaves lying) on its ridge
 const GROWS = {
-  stubble(g, rng, looks, row) {
-    stubble(g, rng, looks, row);
+  stubble(g, rng, lookOf, row) {
+    stubble(g, rng, lookOf, row);
     // a fallow strip does not stay clean
-    strew(rng, looks, row, 1.1, HALF * 0.9, 1, (x, y, z) => {
+    strew(rng, lookOf, row, 1.1, HALF * 0.9, 1, (x, y, z) => {
       const turn = rng() * TAU;
       for (let b = 0; b < 4; b++) g.blade(x, y, z, turn + b * 0.9, 0.03, 0.1 + rng() * 0.1, (rng() - 0.5) * 0.16, WEED_ROOT, WEED_TIP, 0.5);
     });
   },
-  furrow(g, rng, looks, row) {
+  furrow(g, rng, lookOf, row) {
     // the plough turns the earth up in clods, and the old turf with it
     const dark = EARTH.furrow;
-    strew(rng, looks, row, 10, HALF * 0.85, 1, (x, y, z) => {
+    strew(rng, lookOf, row, 10, HALF * 0.85, 1, (x, y, z) => {
       const k = 0.95 + rng() * 0.55;
       const col = rgb(dark, k);
       const sod = rng() < 0.12;
       g.clod(x, y - 0.01, z, 0.06 + rng() * 0.08, 0.05 + rng() * 0.05, col, rng, sod ? [SOD[0] * k, SOD[1] * k, SOD[2] * k] : col);
     });
   },
-  sown(g, rng, looks, row) {
+  sown(g, rng, lookOf, row) {
     // the harrow has broken the clods small
-    strew(rng, looks, row, 6, HALF * 0.85, 1, (x, y, z) => {
+    strew(rng, lookOf, row, 6, HALF * 0.85, 1, (x, y, z) => {
       const col = rgb(EARTH.sown, 0.8 + rng() * 0.5);
       g.clod(x, y - 0.01, z, 0.035 + rng() * 0.035, 0.025 + rng() * 0.025, col, rng);
     });
     // seed lying where it fell, the most of it buried by the harrow
-    strew(rng, looks, row, 7, HALF * 0.85, 1.2, (x, y, z) => {
+    strew(rng, lookOf, row, 7, HALF * 0.85, 1.2, (x, y, z) => {
       const k = 0.85 + rng() * 0.3;
       g.lying(x, y + 0.02, z, rng() * TAU, 0.035, 0.012, [SEED[0] * k, SEED[1] * k, SEED[2] * k]);
     });
   },
-  weedy(g, rng, looks, row) {
-    shoots(g, rng, looks, row, 36, 0.17, 2);
+  weedy(g, rng, lookOf, row) {
+    shoots(g, rng, lookOf, row, 36, 0.17, 2);
     // and the weeds that come up with them, of several kinds
-    strew(rng, looks, row, 2.4, HALF * 0.95, 1, (x, y, z) => {
+    strew(rng, lookOf, row, 2.4, HALF * 0.95, 1, (x, y, z) => {
       const turn = rng() * TAU;
       const kind = rng();
       if (kind < 0.35) {
@@ -465,9 +483,9 @@ const GROWS = {
       }
     });
   },
-  tended(g, rng, looks, row) {
+  tended(g, rng, lookOf, row) {
     // the corn alone now, a hand high, its leaves beginning to arch over
-    strew(rng, looks, row, 28, HALF * 0.82, 1.4, (x, y, z, t) => {
+    strew(rng, lookOf, row, 28, HALF * 0.82, 1.4, (x, y, z, t) => {
       const turn = rng() * TAU;
       const h = 0.3 * (1 - t * 0.3) * (0.8 + rng() * 0.4);
       g.blade(x, y, z, turn, 0.018, h, (rng() - 0.5) * 0.06, SHOOT_ROOT, SHOOT_TIP, 0.55);
@@ -475,13 +493,13 @@ const GROWS = {
       if (rng() < 0.5) g.leaf(x, y, z, turn - 1.6 - rng() * 0.8, 0.02, h * 0.8, 0.08 + rng() * 0.08, LEAF_ROOT, LEAF_TIP, 0.5);
     });
   },
-  ripe(g, rng, looks, row) {
+  ripe(g, rng, lookOf, row) {
     // bearded wheat, sown thick enough that the ridges close over into one
     // standing crop; shorter where it thins into the furrows
     const lodged = new Set(); // stretches the wind has laid flat
     if (rng() < 0.35) lodged.add(Math.floor(rng() * 4));
     const layAng = LAYOUT.field.rotY + 0.8; // the way the last storm blew
-    strew(rng, looks, row, 56, HALF * 1.0, 1.15, (x, y, z, t, u) => {
+    strew(rng, lookOf, row, 56, HALF * 1.0, 1.15, (x, y, z, t, u) => {
       const [root, tip, ear, earTip] = WHEAT[Math.floor(rng() * WHEAT.length)];
       const flat = lodged.has(Math.floor(((u + HL) / (HL * 2)) * 4)) && t < 0.8 && Math.abs(((u + HL) % (HL / 2)) - HL / 4) < HL / 9;
       const ang = flat ? layAng + (rng() - 0.5) * 0.5 : rng() * TAU;
@@ -495,15 +513,15 @@ const GROWS = {
       if (rng() < 0.15) g.leaf(x, y + h * 0.3, z, ang + 1.4, 0.016, h * 0.3, 0.12, root, tip, 0.6); // a dry leaf off the stalk
     });
     // the weeds of the corn: a poppy here, a cornflower there
-    strew(rng, looks, row, 0.55, HALF * 0.9, 1, (x, y, z) => {
+    strew(rng, lookOf, row, 0.55, HALF * 0.9, 1, (x, y, z) => {
       const ang = rng() * TAU;
       const poppy = rng() < 0.6;
       const stem = g.blade(x, y, z, ang, 0.01, 0.72 + rng() * 0.25, (rng() - 0.5) * 0.12, WEED_ROOT, WEED_TIP, 0.8);
       g.bloom(stem, poppy ? 0.075 : 0.055, poppy ? POPPY : CORNFLOWER, poppy ? POPPY_DARK : CORNFLOWER_DARK, 0.85);
     });
   },
-  stook(g, rng, looks, row) {
-    stubble(g, rng, looks, row);
+  stook(g, rng, lookOf, row) {
+    stubble(g, rng, lookOf, row);
   },
 };
 const LOOKS = Object.keys(GROWS);
@@ -761,23 +779,33 @@ export function buildField() {
     const key = row * LOOKS.length + LOOKS.indexOf(look);
     if (!grown.has(key)) {
       const g = makeGrowth();
-      const one = Array.from({ length: FIELD.rows }, () => look); // only this ridge's own look matters to it
+      const one = () => look; // only this ridge's own look matters to it
       GROWS[look](g, makeRng(4100 + row * 97 + LOOKS.indexOf(look) * 13), one, row);
-      grown.set(key, { position: new Float32Array(g.position), color: new Float32Array(g.color), sway: new Float32Array(g.sway) });
+      // where along the ridge each triangle stands (its first corner's u), so
+      // a ridge half worked can show one look up to the stroke and one past it
+      const tris = g.sway.length / 3;
+      const triU = new Float32Array(tris);
+      for (let i = 0; i < tris; i++) triU[i] = worldToField(g.position[i * 9], g.position[i * 9 + 2]).u;
+      grown.set(key, { position: new Float32Array(g.position), color: new Float32Array(g.color), sway: new Float32Array(g.sway), triU });
     }
     return grown.get(key);
   }
 
-  // the stooks stood on ridge `row`, as one geometry: built once, then kept
+  // the stooks stood on ridge `row`, each its own geometry with where along
+  // the ridge it stands: built once, then kept
   const stooks = new Map();
   function stooksOf(row) {
     if (!stooks.has(row)) {
       const rng = makeRng(5200 + row * 31);
-      const batch = makeBatch();
-      for (let u = -HL + 1.4 + rng() * 0.8; u < HL - 0.9; u += 3.2 + rng() * 0.9) addStook(batch, rng, u, FIELD.rowV(row) + (rng() - 0.5) * 0.25);
-      const geo = batch.build(null).geometry;
-      geo.deleteAttribute('normal'); // merged with the earth, which carries none
-      stooks.set(row, geo);
+      const list = [];
+      for (let u = -HL + 1.4 + rng() * 0.8; u < HL - 0.9; u += 3.2 + rng() * 0.9) {
+        const batch = makeBatch();
+        addStook(batch, rng, u, FIELD.rowV(row) + (rng() - 0.5) * 0.25);
+        const geo = batch.build(null).geometry;
+        geo.deleteAttribute('normal'); // merged with the earth, which carries none
+        list.push({ u, geo });
+      }
+      stooks.set(row, list);
     }
     return stooks.get(row);
   }
@@ -789,6 +817,8 @@ export function buildField() {
   const CHAFF_PALE = new THREE.Color(0xf0e2b0);
 
   let drawn = [];
+  let drawnParts = {};
+  let lookOf = () => 'stubble';
 
   return {
     group,
@@ -796,14 +826,26 @@ export function buildField() {
     at: { x: LAYOUT.field.x, z: LAYOUT.field.z }, // the strip's middle
     colliders,
 
-    // Redraw the strip: one look name per ridge, first to last.
-    draw(looks) {
+    // Redraw the strip: one look name per ridge, first to last — and the
+    // ridges begun but not finished, { [row]: { end, k, look } }: worked from
+    // the end at `end` (-1 or +1 along the ridge) for k of its length, wearing
+    // `look` there and their own look past it.
+    draw(looks, parts = {}) {
       drawn = [...looks];
+      drawnParts = parts;
+      lookOf = lookOfStrip(drawn, parts);
 
       const solid = makeBatch();
-      solid.add(earthGeometry(looks));
+      solid.add(earthGeometry(lookOf));
       looks.forEach((look, row) => {
-        if (look === 'stook') solid.add(stooksOf(row).clone());
+        const p = parts[row];
+        for (const st of [look, p?.look]) {
+          if (st !== 'stook') continue;
+          for (const { u, geo } of stooksOf(row)) {
+            const worked = p ? workedAt(p, u) : false;
+            if ((st === p?.look) === worked) solid.add(geo.clone());
+          }
+        }
       });
       if (earth) {
         group.remove(earth);
@@ -812,18 +854,43 @@ export function buildField() {
       earth = solid.build(earthMat);
       group.add(earth);
 
-      // the ridges' growth, laid end to end in one geometry
-      const parts = looks.map((look, row) => growthOf(look, row));
-      const total = parts.reduce((n, p) => n + p.sway.length, 0);
+      // the ridges' growth, laid end to end in one geometry; a ridge begun
+      // takes the worked look's triangles up to the stroke, its own past it
+      const pieces = [];
+      looks.forEach((look, row) => {
+        const p = parts[row];
+        if (!p) {
+          pieces.push({ g: growthOf(look, row), keep: null });
+          return;
+        }
+        pieces.push({ g: growthOf(p.look, row), keep: (u) => workedAt(p, u) });
+        pieces.push({ g: growthOf(look, row), keep: (u) => !workedAt(p, u) });
+      });
+      let total = 0;
+      for (const piece of pieces) {
+        const { triU } = piece.g;
+        piece.take = piece.keep ? triU.map((u) => (piece.keep(u) ? 1 : 0)) : null;
+        total += piece.take ? piece.take.reduce((n, t) => n + t, 0) * 3 : piece.g.sway.length;
+      }
       const position = new Float32Array(total * 3);
       const color = new Float32Array(total * 3);
       const sway = new Float32Array(total);
       let o = 0;
-      for (const p of parts) {
-        position.set(p.position, o * 3);
-        color.set(p.color, o * 3);
-        sway.set(p.sway, o);
-        o += p.sway.length;
+      for (const { g, take } of pieces) {
+        if (!take) {
+          position.set(g.position, o * 3);
+          color.set(g.color, o * 3);
+          sway.set(g.sway, o);
+          o += g.sway.length;
+          continue;
+        }
+        for (let i = 0; i < take.length; i++) {
+          if (!take[i]) continue;
+          position.set(g.position.subarray(i * 9, i * 9 + 9), o * 3);
+          color.set(g.color.subarray(i * 9, i * 9 + 9), o * 3);
+          sway.set(g.sway.subarray(i * 3, i * 3 + 3), o);
+          o += 3;
+        }
       }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(position, 3));
@@ -834,13 +901,52 @@ export function buildField() {
       growth.visible = total > 0;
     },
 
+    // How far the worked earth stands above the ground at (x, z), 0 off the
+    // strip — what the player walks on (main.js adds it to terrainHeight).
+    // The crowns and furrows as drawn; where a ridge's look changes partway,
+    // and where the ridges run out into the headland, it ramps over a step
+    // as the drawn earth does. The lumps of the earth are left out.
+    riseAt(x, z) {
+      const { u, v } = worldToField(x, z);
+      const cu = Math.min(HL, Math.max(-HL, u));
+      const cv = Math.min(HW, Math.max(-HW, v));
+      const off = Math.hypot(u - cu, v - cv);
+      const EDGE = 0.3; // the bed's edge slopes away into the ground over this
+      if (off >= EDGE) return 0;
+      const row = rowAt(cv);
+      const RAMP = 0.35; // one step of the drawn earth along the ridge
+      const p = drawnParts[row];
+      let rise = riseOf(drawn[row] ?? 'stubble', cv, row);
+      if (p) {
+        // a ridge half worked: the stroke's edge, ramped like the drawn earth
+        const edgeU = p.end > 0 ? HL - p.k * HL * 2 : -HL + p.k * HL * 2;
+        const into = (cu - edgeU) * p.end; // > 0 inside the worked stretch
+        const w = Math.min(1, Math.max(0, into / RAMP + 0.5));
+        rise += (riseOf(p.look, cv, row) - rise) * w;
+      }
+      const toEnd = HL - Math.abs(cu); // ...and the ridges run out at both ends
+      if (toEnd < RAMP) rise = TROUGH + (rise - TROUGH) * (toEnd / RAMP);
+      return Math.max(0, rise * (1 - off / EDGE));
+    },
+
+    // The point `side` off the crown of ridge `row` (across it, toward +v),
+    // `u` along it, in the world.
+    ridgePoint(row, u, side = 0) {
+      return fieldToWorld(u, FIELD.rowV(row) + side);
+    },
+
+    // Where a spot in the world lies on the strip: u along the ridges, v across.
+    toField: (x, z) => worldToField(x, z),
+    halfLength: HL,
+    ridgeHalf: HALF,
+
     // One stroke of the work, struck at (x, z) by a man facing `facing`:
     // the hoe throws earth up and a little dust off it, the seed flies out in
     // a fan from the hand, the sickle sends chaff drifting off on the air.
     kick(kind, x, z, facing) {
       const fx = Math.sin(facing);
       const fz = Math.cos(facing);
-      const y = terrainHeight(x, z) + 0.15;
+      const y = terrainHeight(x, z) + this.riseAt(x, z) + 0.12;
       const r = Math.random;
       if (kind === 'sow') {
         for (let k = 0; k < 9; k++) {

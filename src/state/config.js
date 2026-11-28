@@ -197,8 +197,9 @@ export const CONFIG = {
     rows: 10, // ridges in the strip; a day's job is every one of them
     wage: 4, // coins for a finished day of tilling, sowing or weeding
     harvestPay: 20, // coins when the wheat is brought in
-    strokes: 3, // blows of the hoe (casts of seed, cuts of the sickle) to work one ridge
-    strokeTime: 0.5, // seconds each takes
+    strokeTime: 0.5, // seconds each blow of the hoe (cast of seed, cut of the sickle) takes
+    workPace: 1.6, // how fast he works his way along a ridge, a step between blows (units a second; a ridge is ~18)
+    workReach: 0.75, // how far ahead of him each blow lands
   },
 
   // The sky keeps the hour of the player's own clock: the sun rises and sets

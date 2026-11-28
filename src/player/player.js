@@ -52,7 +52,7 @@ export function createPlayer(scene, spawn) {
     vel: new THREE.Vector2(0, 0), // xz
     facing: m.group.rotation.y,
     mode: 'normal', // normal | roll | attack | sleep | work | sit
-    work: null, // while a ridge is being worked: { kind, x, z, strokes }
+    work: null, // while a ridge is being worked: { kind, ax, az, dx, dz, len, facing, strokes }
     modeT: 0,
     invulnerable: false,
     vy: 0,
@@ -82,6 +82,10 @@ export function createPlayer(scene, spawn) {
     onLand: () => {}, // (downward speed) at a touchdown
     onWorkStroke: () => {}, // (kind) each time the hoe bites, the seed flies, the sickle cuts
     onWorkDone: () => {}, // (kind) when the ridge is finished
+    onWorkStopped: () => {}, // (kind) when a movement key calls him off a ridge before its end
+    // the ground underfoot: the land, unless main.js lays something over it
+    // (the miller's strip stands its ridges up off the ground)
+    groundAt: terrainHeight,
     // wired up by later systems (stamina M5, combat M6)
     trySpend: () => true,
     tire: () => {}, // (whole points) the legs' toll on the stamina pool
@@ -271,22 +275,27 @@ export function createPlayer(scene, spawn) {
     }
   }
 
-  // Field work (the miller's strip): rooted at a ridge for a few strokes —
-  // of the hoe (tilling, weeding), the sowing hand, or the sickle (reaping).
-  // The tool for the job takes the stick's place in the fist until it is done.
+  // Field work (the miller's strip): he works his way along a ridge, a blow
+  // of the hoe (tilling, weeding), a cast of the sowing hand or a cut of the
+  // sickle (reaping), then a step on, and again, to the ridge's end. The tool
+  // for the job takes the stick's place in the fist until it is done.
   const TOOL_FOR = { till: 'hoe', tend: 'hoe', reap: 'sickle' }; // seed is cast by hand
   function takeUp(kind) {
     m.weapon.visible = kind === null; // null: the stick again
     for (const [name, tool] of Object.entries(m.tools)) tool.visible = TOOL_FOR[kind] === name;
   }
 
-  // Begin working the ridge at (x, z). False if he is busy or in the air.
-  function startWork(kind, x, z) {
+  // Begin working along a line: from (from.x, from.z) to (to.x, to.z), turned
+  // to `facing` all the while (toward the crown of the ridge he walks beside).
+  // False if he is busy or in the air.
+  function startWork(kind, from, to, facing) {
     if (player.mode !== 'normal' || player.airborne) return false;
+    const len = Math.hypot(to.x - from.x, to.z - from.z);
+    player.route = null;
     player.mode = 'work';
     player.modeT = 0;
     player.jumpIn = 0;
-    player.work = { kind, x, z, strokes: 0 };
+    player.work = { kind, ax: from.x, az: from.z, dx: (to.x - from.x) / (len || 1), dz: (to.z - from.z) / (len || 1), len, facing, strokes: 0 };
     takeUp(kind);
     return true;
   }
@@ -412,7 +421,7 @@ export function createPlayer(scene, spawn) {
   };
 
   player.respawn = function respawn(x, z) {
-    player.pos.set(x, terrainHeight(x, z), z);
+    player.pos.set(x, player.groundAt(x, z), z);
     player.vel.set(0, 0);
     player.vy = 0;
     player.airborne = false;
@@ -464,6 +473,8 @@ export function createPlayer(scene, spawn) {
 
     let dirX = fwdX * iz + rightX * ix;
     let dirZ = fwdZ * iz + rightZ * ix;
+    // a walk he was only asked to take (to the head of a ridge) gives way to the keys
+    if (player.route?.yields && Math.hypot(dirX, dirZ) > 0) player.route = null;
     // walking himself somewhere: the route steers in place of the keys
     if (player.route && player.mode === 'normal') {
       const r = player.route;
@@ -545,19 +556,47 @@ export function createPlayer(scene, spawn) {
       player.vel.multiplyScalar(Math.max(0, 1 - dt * 14));
     }
 
+    // at a ridge: a key to move, leap, crouch or roll calls him off it
+    if (player.mode === 'work' && (len > 0 || keys.has('Space') || keys.has('KeyC') || pendingRollKey)) {
+      const kind = player.work.kind;
+      keys.delete('Space');
+      pendingRollKey = null;
+      stopWork();
+      player.onWorkStopped(kind);
+    }
+
     if (player.mode === 'work') {
       const W = CONFIG.farm;
       const job = player.work;
-      // each stroke lands 60% of the way through its beat
-      const landed = Math.min(W.strokes, Math.floor(player.modeT / W.strokeTime + 0.4));
-      while (job.strokes < landed) {
-        job.strokes += 1;
-        player.onWorkStroke(job.kind);
-      }
-      player.vel.multiplyScalar(Math.max(0, 1 - dt * 14)); // feet planted at the ridge
-      if (player.modeT >= W.strokes * W.strokeTime) {
+      // how far along the line he stands, and how far off it
+      const ox = player.pos.x - job.ax;
+      const oz = player.pos.z - job.az;
+      const along = ox * job.dx + oz * job.dz;
+      const offX = ox - along * job.dx;
+      const offZ = oz - along * job.dz;
+      if (along >= job.len - 0.02) {
+        // the ridge's end: the last blow has landed
+        player.vel.set(0, 0);
         stopWork();
         player.onWorkDone(job.kind);
+      } else if (player.modeT > job.len / W.workPace * 1.6 + 4) {
+        // held up somewhere along the line (it should never happen): give it up, keeping what is done
+        stopWork();
+        player.onWorkStopped(job.kind);
+      } else {
+        // each blow lands 60% of the way through its beat...
+        const landed = Math.floor(player.modeT / W.strokeTime + 0.4);
+        while (job.strokes < landed) {
+          job.strokes += 1;
+          player.onWorkStroke(job.kind);
+        }
+        // ...and between blows he steps on: still while the blow lands, his
+        // feet moving most as the tool is drawn back for the next
+        const beat = (player.modeT / W.strokeTime) % 1;
+        const pace = W.workPace * (1 + Math.cos(Math.PI * 2 * (beat - 0.05)));
+        const left = (job.len - along) / Math.max(dt, 1e-4);
+        const step = Math.min(pace, left);
+        player.vel.set(job.dx * step - offX * 6, job.dz * step - offZ * 6); // and kept to his line
       }
     }
 
@@ -602,7 +641,7 @@ export function createPlayer(scene, spawn) {
     resolveCollisions(colliders);
     const px = player.pos.x;
     const pz = player.pos.z;
-    const groundY = terrainHeight(px, pz);
+    const groundY = player.groundAt(px, pz);
     if (player.airborne) {
       player.vy -= P.gravity * dt;
       player.pos.y += player.vy * dt;
@@ -628,8 +667,8 @@ export function createPlayer(scene, spawn) {
     if (player.mode !== 'work') m.weapon.visible = player.sit01 < 0.5;
 
     // feel the ground's tilt: it slows a climb and lays the soles to the slope
-    player.slope.x = (terrainHeight(px + SLOPE_PROBE, pz) - terrainHeight(px - SLOPE_PROBE, pz)) / (SLOPE_PROBE * 2);
-    player.slope.z = (terrainHeight(px, pz + SLOPE_PROBE) - terrainHeight(px, pz - SLOPE_PROBE)) / (SLOPE_PROBE * 2);
+    player.slope.x = (player.groundAt(px + SLOPE_PROBE, pz) - player.groundAt(px - SLOPE_PROBE, pz)) / (SLOPE_PROBE * 2);
+    player.slope.z = (player.groundAt(px, pz + SLOPE_PROBE) - player.groundAt(px, pz - SLOPE_PROBE)) / (SLOPE_PROBE * 2);
 
     // the body turns toward where it is being steered. A shove steers
     // nothing, so a bitten peasant staggers back still facing his rat.
@@ -643,12 +682,8 @@ export function createPlayer(scene, spawn) {
       const h = player.hearth;
       player.facing = lerpAngle(player.facing, Math.atan2(h.x - px, h.z - pz), 1 - Math.exp(-dt * 5));
     } else if (player.mode === 'work') {
-      // turned to the spot he is working — unless he is standing on it
-      const wx = player.work.x - px;
-      const wz = player.work.z - pz;
-      if (wx * wx + wz * wz > 0.04) {
-        player.facing = lerpAngle(player.facing, Math.atan2(wx, wz), 1 - Math.exp(-dt * P.turnLerp));
-      }
+      // turned to the ridge he works beside, half toward its crown
+      player.facing = lerpAngle(player.facing, player.work.facing, 1 - Math.exp(-dt * P.turnLerp));
     }
     player.turnRate = dt > 1e-4 ? (player.facing - facingWas) / dt : 0;
     m.group.rotation.y = player.facing;
@@ -662,8 +697,10 @@ export function createPlayer(scene, spawn) {
   player.startWork = startWork;
 
   // walk himself through `points` ({x, z} each) in turn; onArrive at the last
-  player.walkRoute = function walkRoute(points, onArrive) {
-    player.route = points.length ? { points, i: 0, onArrive } : null;
+  // (yields: true lets a movement key call the walk off — a walk he was asked
+  // to take, not one he must)
+  player.walkRoute = function walkRoute(points, onArrive, { yields = false } = {}) {
+    player.route = points.length ? { points, i: 0, onArrive, yields } : null;
     if (!points.length) onArrive();
   };
 

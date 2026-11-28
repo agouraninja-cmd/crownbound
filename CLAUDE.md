@@ -136,10 +136,14 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
                                                         //   the chest's larder; hungUp: true while the one in
                                                         //   hand hangs on the rack too (empty hands; absent =
                                                         //   in hand, no version bump)
-  farm: { stage, done, workedOn },                      // the miller's strip: the job owed (0 till · 1 sow ·
+  farm: { stage, done, workedOn, part },                // the miller's strip: the job owed (0 till · 1 sow ·
                                                         //   2 tend · 3 reap), the ridges done of it, the local
                                                         //   day the last job was finished (one job a day);
-                                                        //   a harvest also lands in history as type "harvest"
+                                                        //   part: { [row]: { end: ±1, k } } the ridges begun —
+                                                        //   worked from that end for k (0..1) of the length;
+                                                        //   emptied when the job is done (absent = {}, no
+                                                        //   version bump); a harvest also lands in history
+                                                        //   as type "harvest"
   coronationAt,                                         // ISO timestamp, set once at rank King (else null)
   introOwed                                             // true on a save begun from nothing, until the opening has
                                                         //   been played or skipped; absent = owes nothing (every
@@ -191,8 +195,10 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 - The miller's strip (the farming job): a fenced wheat field of 10 ridges (`CONFIG.farm.rows`),
   each 18.4 long and 1.4 wide, out past the granary to the north-east at (27, 33), reached by a cart track
   from the granary yard. One job per real local day, each in its
-  turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → ~1.5s of work
-  (hoe, sowing hand or sickle in place of the stick) → that ridge changes its look. The last
+  turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → he walks to
+  its head and works his way along it (hoe, sowing hand or sickle in place of the stick), the
+  ridge changing its look only as far as each blow has reached (~12s a ridge at
+  `CONFIG.farm.workPace`). A movement key calls him off; the stretch worked is kept. The last
   ridge finishes the job and the miller pays: +4 coins for a day's tilling, sowing or weeding,
   +20 for the harvest (`wage` / `harvestPay`). The crop grows only across the days worked
   (shoots the night after sowing, ripe wheat the night after weeding). Nothing spoils: a missed
@@ -578,9 +584,9 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   - One interactable, `field.spot`, re-aimed every step by main.js `aimFieldSpot` at the
     nearest ridge that still wants today's job (any ridge once the job is done — E then only
     says what the strip is waiting on). No prompt shows while he is working.
-  - Player mode `work`: rooted and turned to the ridge for `CONFIG.farm.strokes` ×
-    `strokeTime` seconds; `onWorkStroke` (sounds) and `onWorkDone` (main.js works the ridge)
-    fire from player.js. The hoe and sickle are hidden Groups in the stick hand
+  - Player mode `work`: he walks a line along the ridge (see "Worked along the ridge"
+    below); `onWorkStroke` (sounds, the ridge worked up to the blow) and `onWorkDone`
+    (main.js finishes the ridge) fire from player.js. The hoe and sickle are hidden Groups in the stick hand
     (`mesh.tools`); `takeUp()` swaps them for the stick, `stopWork()` puts it back — also on
     death and respawn. Poses are [drawn, struck] pairs in playerAnim.js (`WORK`): a fifth job
     is one more row there, one in `FARM_JOBS`/`FARM_LOOKS`, and a look if it needs one.
@@ -633,6 +639,41 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
       `field.update` from world.update) — earth and dust off the hoe, a fan of seed from the
       hand, chaff drifting off the sickle. main.js `onWorkStroke` calls it at the stroke's
       landing spot, a step ahead of him. Looks only.
+    - Worked along the ridge, standing on it (2026-11-28, the owner's three bugs: "you
+      just do it in one spot and the whole row goes down", "the hoe is invisable when you
+      are using it at first", "you litterly just walk through the dirt instead of over it"):
+      - A ridge is worked from one end to the other. E at a ridge: main.js `workTheField`
+        picks the end (the one a begun ridge was begun from, else the nearer), walks him
+        there (`walkRoute(..., { yields: true })` — a movement key calls the walk off) and
+        starts `player.startWork(kind, from, to, facing)`. In work mode player.js walks
+        him along that line at `CONFIG.farm.workPace` (a blow each `strokeTime`, his feet
+        still as it lands and stepping on between), and a movement key, Space, C or a roll
+        stops it (`onWorkStopped`). He walks the furrow side `FURROW_SIDE` (0.5) off the
+        crown, on the side he stood, turned in toward it so the blow (`workReach` ahead)
+        lands on the crown.
+      - Each blow calls `workFarmStretch(row, end, k)` (state.js) with k = how far along
+        the ridge it landed; `farm.part[row] = { end, k }` is saved, never shrinks, and
+        refuses the other end while it stands. k ≥ 1 (onWorkDone) is `workFarmRow` — the
+        ridge done, the job paid when it is the last. `farmRowParts()` gives the drawn
+        stretches; field.js `draw(looks, parts)` shows the worked look up to the blow
+        and the old look past it: each cached growth keeps the u of every triangle
+        (`triU`) and is filtered by it, stooks are cached one by one with their u, and
+        the earth takes a `lookOf(row, u)`. A redraw a blow (~every 0.5s).
+      - He stands on the earth: `player.groundAt` (default terrainHeight) is set by
+        main.js to terrainHeight + `field.riseAt(x, z)` — the crowns and furrows as drawn,
+        ramped where a ridge changes partway and at its ends, the lumps left out. It is
+        used for his feet, landings and the slope probes, so he rises over the ridges
+        and his soles lie to their flanks. The camera's floor still reads terrainHeight.
+      - The hoe was hidden in the old way twice over: he stood ~0.25 sunk in the ridge, so
+        the blade struck out of sight, and from the usual camera behind him his body hid
+        the rest. Now he stands on top, turned three-quarters to the ridge, and as each
+        ridge begins the camera glides round to his side (`orbitCam.glideTo(facing + π −
+        1.0, …, 0.9s)`). Any mouse movement or look key now cancels a glide (camera.js).
+      - The `farm` smoke scenario checks a stretch partway (the crown up where worked,
+        down where not), his feet on the earth, a movement key keeping and saving the
+        stretch, E resuming from the same place, the tilled crown higher underfoot than
+        its furrow, and on a pinned clock a stretch refused from the other end. It
+        works the other nine ridges at `workPace` 9 to keep its time.
     - About 5 draw calls. Triangles for the whole field in one look (yard included):
       stubble ~25k, furrow ~19k, sown ~17k, weedy ~27k, tended ~38k, ripe ~56k, stook ~51k
       (was ~20k in wheat). The village view measured ~290k in all with the fallow strip.
@@ -1365,6 +1406,20 @@ headlessly; everything else covered by the regression suite below.
   render pass (cloud container, headless Chromium, `SMOKE_WAIT=load`). Seen only in the
   software renderer, not yet on the owner's screen. Details: "Twice the size and true to
   the year" under "The Miller's Strip" in Noted decisions.
+
+- [x] Fix — "Along the Ridge" (2026-11-28), the owner's three farming bugs. (1) Working one
+  spot changed the whole ridge: now E sends him to the head of the ridge and he works his way
+  along it, blow by blow, the ridge changing only as far as he has got. A movement key calls
+  him off, keeping (and saving) the stretch done, and E later resumes where he left off.
+  `farm.part` holds the begun ridges (no saveVersion bump). (2) The hoe was out of sight: he
+  stood sunk in the ridge and his body hid the tool from behind. Now he walks the furrow side
+  turned in to the crown, and the camera swings round to his side as each ridge begins.
+  (3) He walked through the raised earth: he now walks on the ridges and furrows
+  (`player.groundAt`). A ridge takes ~12s (`CONFIG.farm.workPace`). The day's job is
+  unchanged, and so is the pay. The Charter and CROWNBOUND-Guide.docx (rebuilt) say
+  so. `farm` was rewritten for it and passes (cloud container, `SMOKE_WAIT=load`).
+  Not yet seen on the owner's screen. Details: "Worked along the ridge, standing on it"
+  under "The Miller's Strip".
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's

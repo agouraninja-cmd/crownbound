@@ -101,7 +101,7 @@ function defaultState(now = new Date()) {
     sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
     shop: { owned: [] }, // ids of one-time purchases from the chapman
     chest: { wielded: 'stick', loaves: 0 }, // the weapon in hand (the rest lie in the chest) + the larder
-    farm: { stage: 0, done: [], workedOn: null }, // the miller's strip: the job owed, the ridges done of it, the day the last job was finished
+    farm: { stage: 0, done: [], workedOn: null, part: {} }, // the miller's strip: the job owed, the ridges done of it, the day the last job was finished, the ridges begun
     coronationAt: null, // set the moment the rank reaches King — the Coronation
     // a save begun from nothing owes its player the opening (never in the test world)
     ...(PROVING ? {} : { introOwed: true }),
@@ -176,6 +176,7 @@ function migrate(s) {
   // hand-edited or restored saves may miss fields regardless of version
   if (!Array.isArray(s.quests.daily?.deeds)) s.quests.daily = { date: todayStr(), deeds: [] };
   if (!s.farm) s.farm = { stage: 0, done: [], workedOn: null };
+  if (!s.farm.part) s.farm.part = {}; // ridges begun, not finished (absent before ridges were worked along their length — no version bump)
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   if (!s.sleep.log) s.sleep.log = [];
   if (!s.chronicle) s.chronicle = [];
@@ -685,8 +686,10 @@ export function eatLoaf() {
 
 // ---------- the farm (the miller's strip) ----------
 // One job per real day, each in its turn: till, sow, tend, reap. A job is
-// every ridge in the strip; one left half-done keeps its ridges and is
-// finished another day. Nothing spoils — a missed day costs only the day.
+// every ridge in the strip, worked along its length from one end to the
+// other; a job left half-done keeps its ridges — and a ridge left half-done
+// keeps the stretch already worked — and is finished another day. Nothing
+// spoils — a missed day costs only the day.
 // Field work pays coins and nothing else: no virtue is earned in the field.
 
 export const FARM_JOBS = ['till', 'sow', 'tend', 'reap'];
@@ -715,6 +718,40 @@ export function farmRowLooks(now = new Date()) {
   return Array.from({ length: CONFIG.farm.rows }, (_, i) => (f.done.includes(i) ? look.done : waiting));
 }
 
+// The ridges begun today and not yet finished: { [row]: { end, k, look } } —
+// worked from the end at `end` (-1 or +1 along the ridge) for `k` of its
+// length (0..1), wearing `look` there. Empty once the day's job is done.
+export function farmRowParts(now = new Date()) {
+  const f = state.farm;
+  if (!farmJob(now)) return {};
+  const look = FARM_LOOKS[f.stage].done;
+  const parts = {};
+  for (const [row, p] of Object.entries(f.part)) {
+    if (!f.done.includes(Number(row))) parts[row] = { end: p.end, k: p.k, look };
+  }
+  return parts;
+}
+
+// Work a stretch of ridge `row`: from its end at `end` (-1 or +1) to `k` of
+// its length. A ridge is worked from one end only, so a stretch begun from the
+// other end is refused while one stands. The whole length (k ≥ 1) finishes
+// the ridge (workFarmRow, which pays when it is the last). Returns null if
+// there is nothing to do, else what workFarmRow returns ({ job, done, coins },
+// done false and no coin for a stretch short of the end).
+export function workFarmStretch(row, end, k, now = new Date()) {
+  const job = farmJob(now);
+  const f = state.farm;
+  if (!job || row < 0 || row >= CONFIG.farm.rows || f.done.includes(row)) return null;
+  if (k >= 1) return workFarmRow(row, now);
+  const had = f.part[row];
+  if (had && had.end !== end) return null;
+  if (k <= (had?.k ?? 0)) return { job, done: false, coins: 0 }; // already worked that far
+  f.part[row] = { end, k: Math.round(k * 1000) / 1000 };
+  save();
+  emit('farm');
+  return { job, done: false, coins: 0 };
+}
+
 // Work one ridge of today's job. Returns null if there is nothing to do
 // (no job today, or that ridge is already done), else { job, done, coins }:
 // `done` once the last ridge finishes the job, `coins` what the miller pays
@@ -724,12 +761,14 @@ export function workFarmRow(row, now = new Date()) {
   const f = state.farm;
   if (!job || row < 0 || row >= CONFIG.farm.rows || f.done.includes(row)) return null;
   f.done.push(row);
+  delete f.part[row];
 
   let coins = 0;
   const done = f.done.length >= CONFIG.farm.rows;
   if (done) {
     coins = job === 'reap' ? CONFIG.farm.harvestPay : CONFIG.farm.wage;
     f.done = [];
+    f.part = {};
     f.stage = (f.stage + 1) % FARM_JOBS.length;
     f.workedOn = todayStr(now);
     state.coins += coins;
