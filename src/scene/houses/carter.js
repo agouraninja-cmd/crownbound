@@ -5,10 +5,11 @@ import { mesh, tone } from '../meshUtils.js';
 import { box, cyl, WOOD, WOOD_DARK, WOOD_PALE, IRON, LEATHER, ROPE } from '../kit.js';
 
 // The carter's house: an ordinary daub cottage, gable-on to the road, and at
-// its road end what no other house in the village has — a cart hovel. Under a
-// pent of boards stands the two-wheeled cart, tipped back on its tail with the
-// shafts in the air; a spare wheel leans by the door, the collar hangs on its
-// peg, and the pony that draws it all is tethered at the wall.
+// its road end what no other house in the village has — a cart hovel, as a
+// cart's shed was called. Under a pent of boards stands the two-wheeled cart,
+// tipped back on its tail with the shafts in the air; a spare wheel leans by
+// the door, the collar hangs on its peg, and the pony that draws it all is
+// tethered at the wall.
 
 const HAY = 0xc8ab5c;
 const DUNG = 0x4b3a26;
@@ -65,17 +66,16 @@ function cart(g, rng, tilt) {
   put(box(0.055, 0.065, 0.52), tone(WOOD, 0.85), { x: -0.66, y: 0.085 });
 }
 
-// THE CART HOVEL — a cart's shed, by its old name — against the gable that
-// faces the road: two posts, a plate and a pent of boards, open to the front.
-// The cart was backed in from the lane end, so its shafts stand out there.
+// THE CART HOVEL, against the gable that faces the road: two posts, a plate
+// and a pent of boards, open to the front. The cart was backed in from the
+// lane end, so its shafts stand out there.
 function cartHovel(c) {
   const { rng } = c;
   const length = 2.4;
   const depth = 1.0;
   const high = 2.18; // as high up the gable as the verges of the thatch leave room for
   const low = 1.5;
-  // not solid: what fills it is fenced round by hand, below
-  const sub = c.leanTo('right', 0, { length, depth, high, low, walls: 'open', roof: 'board', solid: false });
+  const sub = c.leanTo('right', 0, { length, depth, high, low, walls: 'open', roof: 'board' });
   const put = (geo, colour, opts) => sub.add(mesh(geo, colour, opts));
 
   // each end is framed back to the house: a tie at the plate, and under it a
@@ -112,10 +112,8 @@ function cartHovel(c) {
   const v = 0.5;
   cart(c.at(u, v, -Math.PI / 2, c.ground(u + 0.32, v) - c.ground(u, v)), rng, 0.68);
   c.haycock(u - 0.02, -0.82, { r: 0.4, h: 0.5, solid: false }); // fodder kept in the dry
-  c.hurdle(c.hx + 0.46, -length / 2 + 0.08, { len: 0.82, h: 1.07 }); // a hurdle across the weather end
-  // nobody walks through it: the hovel's floor, and the shafts where they clear the roof
-  for (const at of [-0.72, 0, 0.72]) c.solid(c.hx + 0.52, at, 0.5);
-  c.solid(u, 1.6, 0.3);
+  c.hurdle(c.hx + 0.46, -length / 2 + 0.08, { len: 0.82, h: 1.07, solid: false }); // a hurdle across the weather end
+  c.solid(u, 1.6, 0.3); // the shafts, where they stand out past the hovel's own footprint
 
   // what the pony leaves is heaped behind the hovel till a garden wants it
   const muck = c.at(u + 0.05, -1.82);
@@ -183,6 +181,9 @@ export default {
       const len = 0.65 + rng() * 0.25;
       c.add(box(0.42, 0.045, len), tone(THATCHES.new[1], 0.94 + rng() * 0.1), c.onRoof(1, -1.95 + i * 0.41, 2.0 + len / 2, 0.02));
     }
+
+    // ...and the daubers: a panel of the far gable made good with clay from another pit
+    c.onWall('left', 0.55).add(mesh(box(0.62, 0.46, 0.014), tone(WASH.clay, 0.95), { y: 0.72, z: 0.007, rz: 0.03 }));
 
     cartHovel(c);
     spareWheel(c);

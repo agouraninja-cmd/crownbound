@@ -1,7 +1,7 @@
 import { WASH, TIMBER, THATCHES, hull } from '../cottage.js';
 import { span } from '../toft.js';
 import { mesh, tone } from '../meshUtils.js';
-import { box, cyl, WOOD_DARK, WOOD_PALE, IRON, ROPE } from '../kit.js';
+import { box, cyl, WOOD_DARK, WOOD_PALE, ROPE } from '../kit.js';
 
 // The thatcher’s cottage: a small plain house, and the neatest in the village
 // — no moss on its thatch, the straw stacked square, the leeks in a straight
@@ -11,7 +11,6 @@ import { box, cyl, WOOD_DARK, WOOD_PALE, IRON, ROPE } from '../kit.js';
 // foot and the hazel he pins them down with.
 
 const NEW = THATCHES.new; // this harvest's straw: [eave, middle, ridge] course
-const OLD = THATCHES.straw; // what the rest of the roof still wears
 const BOND = 0x8f7236; // the twist of straw a yealm is bound with
 const HAZEL = 0xd8c8a0; // hazel split this week, white inside
 const HAZEL_BARK = 0x7a6040;
@@ -38,17 +37,6 @@ function frontSlope(c) {
     at: (u, down, up) => [u, c.peak - sin * down + cos * up, cos * down + sin * up],
     thatch: (down) => (c.onRoof(1, 0, down).y - (c.peak - sin * down)) * cos,
   };
-}
-
-// The ridge: the straw roll and crossed spars his neighbours have from the
-// kit, laid here by hand so as to stop at the verges — the kit's roll runs a
-// hand past them, and this yard ends where the verge does.
-function layRidge(c, { apex }) {
-  const half = c.hx + 0.32;
-  c.add(cyl(0.16, 0.16, half * 2, 6), tone(OLD[2], 1.03), { y: apex - 0.01, rz: Math.PI / 2 });
-  for (let i = 0; i < 6; i++) {
-    for (const side of [-1, 1]) c.add(box(0.035, 0.035, 0.62), WOOD_DARK, { x: -half + (i + 0.5) * (half / 3) + side * 0.03, y: apex + 0.07, rx: side * (c.pitch + 0.3) });
-  }
 }
 
 // The new coat, strake by strake. Every course in it is a wedge: feathered
@@ -142,8 +130,8 @@ function hangBurden(c, { run, verge, at, thatch }) {
   }
 }
 
-// Spars: hazel rods split and pointed, thrown down along x as they come off
-// the hook. Twisted double, each is the staple that pins a yealm to the roof.
+// Spars: hazel rods split and pointed, thrown down along x as they are made.
+// Twisted double, each is the staple that pins a yealm to the roof.
 function sparHeap(g, rng, n = 14) {
   for (let i = 0; i < n; i++) {
     const across = rng() < 0.2; // a few lie over the rest
@@ -173,14 +161,13 @@ export default {
   name: 'The thatcher’s cottage',
   note: 'The thatcher’s cottage — he has got to his own roof at last: half of it new gold straw, the ladder lying where he left off.',
   build(c) {
-    c.shell({ eave: 1.55, pitch: 52, walls: 'daub', wash: WASH.daub, frame: 'box', timber: TIMBER.grey, roof: 'gable', thatch: 'straw', ridge: 'none' });
+    c.shell({ eave: 1.55, pitch: 52, walls: 'daub', wash: WASH.daub, frame: 'box', timber: TIMBER.grey, roof: 'gable', thatch: 'straw' });
     c.door(...c.plot.door, { open: 0.5 });
     c.window('front', 1.3, { shutter: 'propped' });
     c.window('right', 0.45); // the gable looks on the field track
     c.smoke('hole', 0.4, { lit: true, side: -1 });
 
     const roof = frontSlope(c);
-    layRidge(c, roof);
     layNewThatch(c, roof);
     layLadder(c, roof);
     hangBurden(c, roof);
@@ -190,12 +177,12 @@ export default {
     // side keeps to the wall; the yealms are stacked on the other, under the ladder's foot.
     const stack = c.at(-1.6, 1.98);
     for (const [z, y, ry] of [[-0.15, 0.12, 0.02], [0.15, 0.12, -0.03], [0.01, 0.35, 0.05]]) yealm(stack, c.rng, { y, z, ry });
-    c.solid(-1.84, 1.98, 0.3);
-    c.solid(-1.4, 1.98, 0.3);
+    c.block(-2.08, c.hz, -1.12, 2.3);
     c.beast(-1.46, 1.99, { kind: 'cat', lift: 0.48, ry: 0.4 }); // asleep on the warm straw
-    // the rake he combs the new coat down with, the spars, and two yealms stood out of the way
+    // the rake he combs the new coat down with, the spars and the stool he points them on, and two yealms stood out of the way
     c.tool(0.5, c.hz + 0.37, { kind: 'rake', lean: 0.22 });
-    sparHeap(c.at(1.0, c.hz + 0.38), c.rng);
+    sparHeap(c.at(0.98, c.hz + 0.38), c.rng);
+    c.stool(1.4, c.hz + 0.42, { ry: 0.6 });
     for (const [u, lean] of [[1.74, 0.17], [2.02, 0.2]]) {
       yealm(c.at(u, c.hz + 0.32), c.rng, { lean });
       c.solid(u, c.hz + 0.3, 0.2);
@@ -205,24 +192,19 @@ export default {
       c.at(u, v, c.rng() * Math.PI).add(mesh(box(0.2 + c.rng() * 0.16, 0.02, 0.035), tone(NEW[2], 0.92 + c.rng() * 0.12), { y: 0.012, shadow: false }));
     }
     // his short ladder, put by against the gable
-    c.ladder(c.hx + 0.28, -0.55, { len: 2.1, lean: 0.11, ry: Math.PI / 2 });
+    c.ladder(c.hx + 0.27, -0.55, { len: 2.1, lean: 0.105, ry: Math.PI / 2 });
 
     // ----- behind: where the spars are made and the straw is wetted -----
-    const gads = c.at(-1.85, -c.hz - 0.42, Math.PI); // hazel rods from the coppice, leaned up to wait for the hook
+    const gads = c.at(-1.85, -c.hz - 0.42, Math.PI); // hazel rods from the coppice, leaned up to wait their turn at the block
     for (let i = 0; i < 6; i++) {
       const len = 1.3 + c.rng() * 0.25;
       gads.add(mesh(box(0.035, len, 0.035), tone(HAZEL_BARK, 0.85 + c.rng() * 0.3), { x: (i - 2.5) * 0.06, y: (len / 2) * 0.97, z: -len * 0.125 + (i % 2) * 0.04, rx: -0.25, rz: (c.rng() - 0.5) * 0.12 }));
     }
-    // the block he splits them on, the hook left in it
-    const block = c.stump(-0.55, -2.0, { r: 0.2, h: 0.42 });
-    block.add(mesh(box(0.03, 0.2, 0.03), WOOD_PALE, { x: 0.08, y: 0.6, rz: -0.5 }));
-    block.add(mesh(box(0.06, 0.24, 0.014), IRON, { x: -0.03, y: 0.47, rz: -0.5 }));
-    block.add(mesh(box(0.1, 0.05, 0.014), IRON, { x: -0.06, y: 0.38, rz: -0.5 }));
+    c.chopBlock(-0.55, -2.0, { ry: 0.5 }); // where he splits them
     c.tub(0.45, -2.02, { r: 0.34 });
     c.bucket(-0.02, -1.88);
     strawBed(c.at(1.45, -1.97), c.rng);
-    c.solid(1.1, -1.97, 0.32);
-    c.solid(1.8, -1.97, 0.32);
+    c.block(0.8, -2.28, 2.1, -c.hz);
     c.midden(-2.55, -2.0, { r: 0.36 });
     c.bed(-2.95, -1.5, -2.42, 0.1, { crop: 'leeks' });
   },

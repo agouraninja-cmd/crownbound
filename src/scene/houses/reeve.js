@@ -25,11 +25,13 @@ const BARN_THATCH = [0xb39248, 0xcaaa59, 0xdabf70];
 // a window set between the rail and the wall plate, so the frame runs whole round it
 const WINDOW = { h: 0.34, y: 1.5 };
 
-// a full sack of corn: sackcloth bulging over its load, the neck tied and its ears standing; lying: laid on its side
+// A full sack of corn: sackcloth bulging over its load, the neck tied and its
+// ears standing. lean tips one that rests against its neighbour; lying lays it
+// on its side. It starts a little under the ground, so a leaning one still stands on it.
 function sack(c, u, v, { r = 0.23, h = 0.5, lean = 0, lying = false, ry = 0, colour = SACKING } = {}) {
   const g = c.at(u, v, ry, lying ? r * 0.86 : 0);
   g.rotation.z = lying ? 1.5 : lean;
-  const ring = (y, k) => [0, 1, 2, 3, 4].map((i) => [Math.cos(i * 1.257) * r * k, y, Math.sin(i * 1.257) * r * k]);
+  const ring = (y, k) => [0, 1, 2, 3, 4].map((i) => [Math.cos((i * Math.PI * 2) / 5) * r * k, y, Math.sin((i * Math.PI * 2) / 5) * r * k]);
   g.add(mesh(hull([...ring(-0.04, 0.88), ...ring(h * 0.38, 1.1), ...ring(h * 0.7, 0.92), ...ring(h * 0.9, 0.4)]), colour));
   g.add(mesh(cyl(r * 0.42, r * 0.24, h * 0.16, 5), tone(colour, 0.86), { y: h * 0.96 }));
 }
@@ -43,11 +45,12 @@ function bushel(c, u, v) {
   g.add(mesh(box(0.56, 0.028, 0.045), tone(WOOD_PALE, 1.15), { y: 0.29, ry: 0.5 }));
 }
 
-// tally sticks: split hazel, a notch cut for every load and every day's work owed, tied in a bundle and hung on
-// a peg in the wall — `wall` is a group on the wall's face, y the height of the bundle's middle
+// Tally sticks: split hazel, a notch cut for every load and every day's work
+// owed, tied in a bundle and hung on a peg. `wall` is a group on the wall's
+// face (c.onWall); y is the height of the bundle's middle.
 function tallies(wall, y) {
   wall.add(mesh(box(0.035, 0.035, 0.14), WOOD_DARK, { y: y + 0.4, z: 0.06 }));
-  wall.add(mesh(box(0.02, 0.16, 0.02), INK, { y: y + 0.32, z: 0.1, shadow: false })); // the thong
+  wall.add(mesh(box(0.02, 0.16, 0.02), INK, { y: y + 0.32, z: 0.1, shadow: false })); // the thong it hangs by
   for (let i = 0; i < 5; i++) {
     const x = (i - 2) * 0.042;
     const front = i % 2 === 1;
@@ -72,8 +75,8 @@ export default {
     c.window('right', 0.6, WINDOW);
     c.smoke('louvre', 0.9);
     // a roof looked after: a patch of this autumn's straw let into the front slope
-    c.add(box(0.8, 0.03, 0.62), tone(THATCHES.new[0], 0.98), { ...c.onRoof(1, 2.0, 2.75, 0.012), shadow: false });
-    c.add(box(0.5, 0.03, 0.4), tone(THATCHES.new[1], 0.96), { ...c.onRoof(1, 2.25, 2.62, 0.02), shadow: false });
+    c.add(box(0.8, 0.02, 0.62), tone(THATCHES.new[0], 0.98), { ...c.onRoof(1, 2.0, 2.75, 0.012), shadow: false });
+    c.add(box(0.5, 0.02, 0.4), tone(THATCHES.new[1], 0.96), { ...c.onRoof(1, 2.25, 2.62, 0.02), shadow: false });
 
     // by the door: the bench he hears the tally from, the tally sticks on their peg, corn in the sack and the measure it is told by
     c.bench(0.85, 2.22, { len: 1.3 });
@@ -81,7 +84,7 @@ export default {
     sack(c, 1.9, 2.34, { r: 0.24, h: 0.52, lean: 0.05 });
     sack(c, 2.4, 2.33, { r: 0.22, h: 0.48, lean: -0.2, ry: 0.6, colour: tone(SACKING, 0.92) });
     sack(c, 2.0, 2.72, { r: 0.2, h: 0.46, lying: true, ry: 3.3, colour: tone(SACKING, 1.07) });
-    c.solid(2.15, 2.45, 0.4);
+    c.solid(2.15, 2.45, 0.4); // the heap is knee-high: he walks round it
     bushel(c, 1.45, 2.68);
 
     // The barn: raw daub in an old dark frame, its thatch newer than the house's. Its front verge stops just short of
@@ -105,7 +108,7 @@ export default {
     const pony = c.beast(gate.u - gate.w / 2 + 0.85, gate.v - 1.3, { kind: 'pony', ry: -2.214, colour: DUN });
     pony.add(mesh(box(0.06, 0.235, 0.235), ROPE, { x: 0.95, y: 1.19, rz: -0.5, shadow: false }));
     span(pony, [0.97, 1.08, 0], [1.5, 1.0, -0.1], 0.025, 0.025, ROPE, false);
-    pony.add(mesh(box(0.2, 0.05, 0.2), ROPE, { x: 1.55, y: 1.0, z: -0.1, shadow: false }));
+    pony.add(mesh(cyl(0.09, 0.09, 0.07, 6), ROPE, { x: 1.55, y: 1.0, z: -0.1, shadow: false }));
     pony.add(mesh(cone(0.3, 0.2, 6), HAY, { x: 0.6, y: 0.08, z: -0.55 }));
 
     // behind the house: the hayrick by the barn, the dung heap at the far end, the back door clear between them

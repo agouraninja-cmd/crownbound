@@ -75,13 +75,20 @@ function beam(c, from, to) {
     put(new THREE.CylinderGeometry(r, r, 0.08, 4, 1, true, -0.7, 1.9), tone(HEWN, 0.96), { x, y, rz: Math.PI / 2 });
   }
 
-  // the broad axe, struck into the log where he left off
+  // the broad axe, struck into the log where he left off: its blade widens
+  // from the eye to the edge, and the haft stands up out of it
   const eye = [shoulder + 0.5, y + 0.3];
-  put(box(0.18, 0.2, 0.035), IRON, { x: eye[0] + 0.064, y: eye[1] - 0.064, rz: -Math.PI / 4 });
+  const blade = [];
+  for (const [along, half] of [[0, 0.045], [0.19, 0.11]]) {
+    for (const s of [-1, 1]) for (const z of [-0.018, 0.018]) blade.push([eye[0] + (along + s * half) * Math.SQRT1_2, eye[1] + (s * half - along) * Math.SQRT1_2, z]);
+  }
+  put(hull(blade), IRON);
   put(box(0.64, 0.045, 0.045), WOOD, { x: eye[0] + 0.2, y: eye[1] + 0.2, rz: Math.PI / 4 });
-  // the adze, hooked over the squared end by its blade
-  put(box(0.04, 0.62, 0.04), WOOD, { x: x0 + 0.45, y: y - 0.15, z: 0.165, rz: 0.1 });
-  put(box(0.11, 0.03, 0.17), IRON, { x: x0 + 0.42, y: y + 0.158, z: 0.09 });
+  // the adze, hooked over the squared end by its blade, the haft hanging down the near face
+  const ax = x0 + 0.42;
+  const top = y + 0.143;
+  put(box(0.04, 0.62, 0.04), WOOD, { x: ax + 0.03, y: y - 0.15, z: 0.165, rz: 0.1 });
+  put(hull([-1, 1].flatMap((s) => [[ax + s * 0.03, top, 0.185], [ax + s * 0.03, top + 0.035, 0.185], [ax + s * 0.075, top, 0.01], [ax + s * 0.075, top + 0.012, 0.01]])), IRON);
 
   for (const k of [0, 0.5, 1]) c.solid(u0 + (u1 - u0) * k, v0 + (v1 - v0) * k, k === 0.5 ? 0.32 : 0.45);
 }
@@ -173,7 +180,8 @@ function rivenLog(c, u, v, ry) {
 }
 
 // Riven planks stacked to season, a stick between each course so the air can
-// get at them. They lie along the group's x, on two bearers off the wet ground.
+// get at them. They lie along the group's x, on two bearers off the wet
+// ground. Returns how high the top course stands.
 function plankStack(c, u, v, ry) {
   const g = c.at(u, v, ry);
   const { rng } = c;
@@ -187,9 +195,12 @@ function plankStack(c, u, v, ry) {
       g.add(mesh(box(len, thick, 0.19 + rng() * 0.03), tone(HEWN, 0.84 + rng() * 0.2), { x: (rng() - 0.5) * 0.16, y: y + thick / 2, z: (k - 1) * 0.26, ry: (rng() - 0.5) * 0.02 }));
     }
     y += thick;
-    if (course < 3) for (const x of [-0.62, 0.62]) g.add(mesh(box(0.05, 0.045, 0.8), WOOD, { x: x + (rng() - 0.5) * 0.08, y: y + 0.0225 }));
-    y += 0.045;
+    if (course < 3) {
+      for (const x of [-0.62, 0.62]) g.add(mesh(box(0.05, 0.045, 0.8), WOOD, { x: x + (rng() - 0.5) * 0.08, y: y + 0.0225 }));
+      y += 0.045;
+    }
   });
+  return y;
 }
 
 // timber waiting: three trunks as they came from the wood, lopped and topped,
@@ -233,9 +244,9 @@ export default {
     beam(c, [1.5, 2.6], [3.35, 2.5]);
     chips(c, 2.3, 2.6, [2.0, 0.75], 70);
     // the slabs knocked off between the notches lie where they fell, bark up or bark down
-    for (let i = 0; i < 5; i++) {
-      c.at(2.5 + i * 0.26 + c.rng() * 0.1, 2.8 + c.rng() * 0.14, c.rng() * 3).add(mesh(box(0.3, 0.05, 0.12), i % 2 ? BARK : tone(HEWN, 0.94), { y: 0.02, rz: (c.rng() - 0.5) * 0.2 }));
-    }
+    [[2.62, 2.88], [2.9, 2.97], [3.08, 2.8], [3.7, 2.84], [3.66, 2.6]].forEach(([u, v], i) => {
+      c.at(u, v, c.rng() * 3).add(mesh(box(0.3, 0.05, 0.12), i % 2 ? BARK : tone(HEWN, 0.94), { y: 0.02, rz: (c.rng() - 0.5) * 0.2 }));
+    });
     c.beast(2.0, 2.92, { kind: 'hen', colour: 0x8a5a34, ry: 2.5 }); // after the grubs the axe turns out
     chips(c, -0.5, 2.8, [1.5, 0.45], 12); // trodden toward the door
 
@@ -266,8 +277,8 @@ export default {
       hovel.add(mesh(box(0.04, top + 0.6, 0.245), board(), { x: -shed.length / 2, y: (top - 0.6) / 2, z }));
     }
     for (let i = 0; i < 4; i++) hovel.add(mesh(box(0.25, shed.low + 0.58, 0.04), board(), { x: -shed.length / 2 + 0.02 + (i + 0.5) * 0.265, y: (shed.low - 0.62) / 2, z: shed.depth }));
-    plankStack(c, -1.4, -2.38, 0);
-    c.beast(-1.1, -2.5, { kind: 'cat', lift: 0.47, ry: 2.4 }); // asleep on the top course
+    const stackTop = plankStack(c, -1.4, -2.38, 0);
+    c.beast(-1.1, -2.5, { kind: 'cat', lift: stackTop, ry: 2.4 }); // asleep on the top course
     chips(c, -1.2, -3.0, [1.6, 0.3], 10);
 
     // timber waiting at the far gable, and the leeks behind the house

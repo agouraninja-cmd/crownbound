@@ -91,7 +91,7 @@ const bundle = (g, tall, lean, colour, x = 0) => g.add(mesh(cyl(0.04, 0.085, tal
 // Pulled flax, stood to dry with the bundles' heads leaned together.
 function stook(c, u, v, tall = 0.95) {
   const turn = c.rng() * TAU;
-  const spread = tall * 0.2; // slim: the strip between her gable and the fence is narrow
+  const spread = tall * 0.18; // slim: the strip between her gable and the fence is narrow
   const lean = Math.asin(spread / (tall * 0.84)); // the bundles cross just under their heads
   for (let i = 0; i < 4; i++) bundle(c.at(u, v, turn + (i / 4) * TAU), tall, lean, tone(FLAX_STRAW, 0.88 + c.rng() * 0.22), spread);
   // the seed heads, splayed above the tie
@@ -171,10 +171,10 @@ export default {
 
     // on the lane side: the pulled flax stooked along the fence, and the long
     // hemp, too tall to stook, leaned on the gable
-    c.fence([[4.02, 1.5], [4.02, -0.9]], { h: 0.85 });
-    stook(c, 3.66, 1.05);
-    stook(c, 3.65, 0.35, 1.0);
-    stook(c, 3.66, -0.35);
+    c.fence([[3.95, 1.4], [3.95, -0.9]], { h: 0.85 });
+    stook(c, 3.64, 0.95);
+    stook(c, 3.64, 0.3, 1.0);
+    stook(c, 3.64, -0.35);
     for (const v of [-1.0, -1.22, -1.43]) bundle(c.at(3.86, v, (c.rng() - 0.5) * 0.3), 1.55, 0.37 + (c.rng() - 0.5) * 0.06, tone(HEMP_STALK, 0.9 + c.rng() * 0.2));
     c.solid(3.6, -1.2, 0.3);
 
