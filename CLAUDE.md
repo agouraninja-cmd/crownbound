@@ -74,7 +74,7 @@ src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep 
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt, the waymark (a newcomer shown the way)
 src/ui/toasts.js      flavor message queue
-src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Chest panel UIs; opens/closes every panel
+src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Weapon Rack, Chest panel UIs; opens/closes every panel
 src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, the day book (money in / out / into savings), the seals and the climb chart (all SVG built here)
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
@@ -127,10 +127,11 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
                                                         //   for the v2 Chronicler; ledger shows last 7)
   shop: { owned: [] },                                  // ids of one-time chapman purchases; purchases
                                                         //   also land in history as type "purchase"
-  chest: { wielded, loaves, hungUp },                   // weapon in hand ('stick' or an owned hand item;
-                                                        //   the rest lie in the chest) + loaves in the larder;
-                                                        //   hungUp: true while it hangs on the peg rack by the
-                                                        //   door (empty hands; absent = in hand, no version bump)
+  chest: { wielded, loaves, hungUp },                   // weapon in hand ('stick' or an owned hand item; the
+                                                        //   rest hang on the peg rack by the door) + loaves in
+                                                        //   the chest's larder; hungUp: true while the one in
+                                                        //   hand hangs on the rack too (empty hands; absent =
+                                                        //   in hand, no version bump)
   farm: { stage, done, workedOn },                      // the miller's strip: the job owed (0 till · 1 sow ·
                                                         //   2 tend · 3 reap), the ridges done of it, the local
                                                         //   day the last job was finished (one job a day);
@@ -197,20 +198,22 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   (rug 250c, door paint 300c, glass window 400c, garden 600c — pre-built hidden meshes in the
   hovel, shown when owned), comforts (loaf 10c → the chest's larder; rat trophy 60c;
   lantern 120c). One-time items live in shop.owned; the loaf repeats.
-- The chest by the cot (E inside the hovel → lid up + Chest panel; closing the panel lowers it):
-  the hand holds ONE weapon — the stick, cudgel or quarterstaff — and the chest keeps the rest;
-  "Take up" swaps (`chest.wielded`, applied by main.js `applyPurchases`). A newly bought weapon
-  goes straight to hand. Loaves bought at the cart land in the larder (cap
+- The chest by the cot (E inside the hovel → lid up + Chest panel; closing the panel lowers it)
+  is the larder (since The Full Rack, 2026-11-28, the weapons hang on the rack — next bullet).
+  Loaves bought at the cart land in the larder (cap
   `CONFIG.chest.larderCap` = 6; the cart refuses bread when it's full) and are eaten from the
   chest for a full heal, wounded only. Bread mends HP and nothing else — the sacred rule holds.
-- The peg rack by the door (inside, on the +x wall between the door and the window, `HOVEL.rack`):
-  E hangs up the weapon in hand — he walks about empty-handed, the weapon is seen on the pegs,
-  and a swing is refused with a line ("Thy hands are empty…", no stamina spent) — and E again
-  takes it down. `chest.hungUp` (`weaponHungUp` / `hangUpWeapon`, state.js); taking up another
-  weapon at the chest, or buying one, puts it in hand and the racked one back in the chest.
-  Field work still takes up its tools. main.js `applyPurchases` sets `player.setUnarmed` (hides
-  `mesh.slot`, the stick's own Group in the fist) and `world.setRackWeapon` (the look from
-  `WEAPON_LOOKS`, playerMesh.js, shared with the hand).
+- The peg rack by the door (inside, on the +x wall between the door and the window, `HOVEL.rack`)
+  holds every owned weapon not in hand, each on its own pair of pegs (one slot per tier:
+  stick, cudgel, quarterstaff — `HOVEL.rack.slots`). E opens the Weapon Rack panel (panels.js
+  `renderRack`): "Take up" puts a weapon in hand (`wieldWeapon`, `chest.wielded`) and the one
+  held goes on the pegs; "Hang up" on the one in hand hangs it too — he walks about
+  empty-handed and a swing is refused with a line ("Thy hands are empty…", no stamina spent).
+  `chest.hungUp` (`weaponHungUp` / `hangUpWeapon`, state.js); taking one up or buying one
+  clears it. A newly bought weapon goes straight to hand. Field work still takes up its tools.
+  main.js `applyPurchases` sets `player.setUnarmed` (hides `mesh.slot`, the stick's own Group
+  in the fist) and `world.setRackWeapons(looks)` (looks[tier] from `WEAPON_LOOKS`,
+  playerMesh.js, shared with the hand; null = empty pegs).
 - The hovel is enterable: E opens/closes the hinged door (closed = solid collider), furnished
   one-room peasant interior, indoor camera pulls in close. E on the cot sleeps: fade out, full heal,
   and the bedtime is recorded. On the next load, if ≥7h passed (≤13h, so it was last night) and it is
@@ -1266,6 +1269,13 @@ headlessly; everything else covered by the regression suite below.
   screenshot → scripts/smoke-rack.png); `house`, `market`, `combat`, `body`, `proving` and the
   render pass (cloud container, headless Chromium, `SMOKE_WAIT=load`). Not yet seen on the
   owner's screen.
+  Next day — "The Full Rack" (2026-11-28), the owner: "make the rack hold all the weapons,
+  not just one". Every weapon not in hand hangs on the rack, side by side; E at it opens a
+  Weapon Rack panel (Take up / Hang up), and the Chest panel keeps only the larder. The
+  wares' read-mores, the Charter and build-guide.py send the player to the rack. No save
+  change. `house` (three weapons listed, all hung up, the cudgel taken up) and `market` (the
+  stick ⇄ cudgel swap at the rack, the chest's one picture) rewritten; they, `body`,
+  `proving`, `combat` and the render pass (cloud container, `SMOKE_WAIT=load`).
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
@@ -1302,7 +1312,7 @@ headlessly; everything else covered by the regression suite below.
   too close he shuffles back, a click (no swing, no stamina) and a bite both get him up
   (screenshot → scripts/smoke-hearth.png) ·
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
-  `house` door collider open/close + the peg rack (E hangs the stick up, empty hands don't swing or spend, saved, E takes it down) + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
+  `house` door collider open/close + the peg rack (E opens its panel, all three weapons listed, Hang up empties the hands — no swing, no stamina, saved — and Take up the cudgel puts it in hand) + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (chip fills the name, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + money put into savings from the Today card (savings, the month's saving, pledge kept, today's entry listed) + a recount leaves the month's saving + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
@@ -1310,7 +1320,7 @@ headlessly; everything else covered by the regression suite below.
   a chest read-more without the buying talk checked later; shop panel →
   scripts/smoke-shop.png) + buy flow (coins, ownership, hovel
   mesh shown, rank gate, cudgel damage, loaves fill the larder to its cap) + the chest (stick ⇄ cudgel
-  damage, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
+  damage swapped at the rack, the chest's loaf picture, loaf from the larder heals, panel → scripts/smoke-chest.png) + cart screenshot ·
   `crown` v5→current migration (incl. best owned weapon → chest.wielded, str's level
   landing on ath, and int reset to level 1 with the rank recounted)
   + last-level daily completion → King + coronation once-only · `farm` v10→current migration

@@ -596,18 +596,18 @@ export function wieldedWeapon() {
   return ownedWeapons().find((w) => w.id === state.chest.wielded) ?? CONFIG.chest.stick;
 }
 
-// take up a weapon from the chest; the one in hand goes back in
+// take up a weapon from the rack; the one in hand goes back on its pegs
 export function wieldWeapon(id) {
   if (!ownedWeapons().some((w) => w.id === id)) return false;
   state.chest.wielded = id;
-  delete state.chest.hungUp; // taken up from the chest, it is in hand; what hung on the rack goes in the chest
+  delete state.chest.hungUp; // taken down from the rack, it is in hand; the one held goes on the rack
   save();
   emit('chest');
   return true;
 }
 
-// The peg rack by the door: the weapon in hand hung up (empty hands — no
-// swing) or taken down again. `chest.hungUp` is absent while it is in hand,
+// The peg rack by the door holds every weapon not in hand; `hungUp` puts
+// the one in hand there too (empty hands — no swing), until one is taken down. `chest.hungUp` is absent while it is in hand,
 // so no older save needs a migration.
 export function weaponHungUp() {
   return !!state.chest.hungUp;

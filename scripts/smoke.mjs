@@ -1317,20 +1317,34 @@ try {
     if (!open.open) errors.push('house: E near the door did not open it');
     if (Math.abs(open.x + 7.33) > 0.05) errors.push(`house: open doorway still pushed the player (x ${open.x.toFixed(2)})`);
 
-    // 2b) the peg rack by the door: E hangs the stick up (empty hands, no
-    //     swing, no stamina), the rack shows it, the save keeps it; E again
-    //     takes it down
+    // 2b) the peg rack by the door holds every weapon not in hand: E opens
+    //     it; with the cudgel and quarterstaff owned, all three are listed;
+    //     "Hang up" empties the hands (no swing, no stamina) and puts the stick
+    //     on its pegs beside the others, saved; "Take up" puts one in hand
     await page.evaluate(() => {
       const g = window.__game;
+      g.getState().shop.owned.push('cudgel', 'quarterstaff'); // so the rack has all three to hold
       g.player.pos.x = -7.95; // local (1.05, 0.3): the floor before the rack
       g.player.pos.z = 2.3;
     });
-    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('hang up'), { timeout: 4000 }).catch(() => {});
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('weapon rack'), { timeout: 4000 }).catch(() => {});
     const rackPrompt = await page.evaluate(() => document.getElementById('interact-prompt').textContent);
     console.log(`rack prompt: ${rackPrompt}`);
-    if (!rackPrompt.includes('hang up the trusty stick')) errors.push(`house: the rack did not offer to hang up the stick ("${rackPrompt}")`);
+    if (!rackPrompt.includes('the weapon rack')) errors.push(`house: the rack was not offered ("${rackPrompt}")`);
     await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 300));
+    const rackPanel = await page.evaluate(() => ({
+      open: !document.getElementById('rack-panel').classList.contains('hidden'),
+      rows: document.querySelectorAll('#rack-body .deed').length,
+      takeUp: document.querySelectorAll('#rack-body [data-wield]').length,
+    }));
+    console.log(`rack panel: ${JSON.stringify(rackPanel)}`);
+    if (!rackPanel.open || rackPanel.rows !== 3 || rackPanel.takeUp !== 2) errors.push(`house: the rack panel -> ${JSON.stringify(rackPanel)}`);
+    await page.click('#rack-body [data-hang]');
     await new Promise((r) => setTimeout(r, 200));
+    const allUp = await page.evaluate(() => document.querySelectorAll('#rack-body [data-wield]').length);
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
     const before = await page.evaluate(() => window.__game.getState().stamina.current);
     await page.keyboard.press('KeyF');
     await new Promise((r) => setTimeout(r, 300));
@@ -1339,8 +1353,9 @@ try {
       const saved = JSON.parse(localStorage.getItem('crownbound_save'));
       return { unarmed: g.player.unarmed, saved: !!saved.chest.hungUp, mode: g.player.mode, stamina: g.getState().stamina.current };
     });
-    console.log(`hung up: ${JSON.stringify(hung)}`);
-    if (!hung.unarmed || !hung.saved) errors.push(`house: E at the rack did not hang the stick up (${JSON.stringify(hung)})`);
+    console.log(`hung up: ${JSON.stringify({ allUp, ...hung })}`);
+    if (allUp !== 3) errors.push(`house: with all hung up, ${allUp} of 3 offered to take up`);
+    if (!hung.unarmed || !hung.saved) errors.push(`house: "Hang up" did not empty his hands (${JSON.stringify(hung)})`);
     if (hung.mode === 'attack' || hung.stamina !== before) errors.push(`house: empty hands still swung (${JSON.stringify(hung)})`);
     await page.evaluate(() => {
       const g = window.__game;
@@ -1356,12 +1371,23 @@ try {
       g.player.pos.x = -7.95;
       g.player.pos.z = 2.3;
     });
-    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('take down'), { timeout: 4000 }).catch(() => {});
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('weapon rack'), { timeout: 4000 }).catch(() => {});
     await page.keyboard.press('KeyE');
     await new Promise((r) => setTimeout(r, 300));
-    const down = await page.evaluate(() => ({ unarmed: window.__game.player.unarmed, saved: !!JSON.parse(localStorage.getItem('crownbound_save')).chest.hungUp }));
+    await page.click('#rack-body [data-wield="cudgel"]');
+    await new Promise((r) => setTimeout(r, 200));
+    const down = await page.evaluate(() => ({
+      unarmed: window.__game.player.unarmed,
+      saved: !!JSON.parse(localStorage.getItem('crownbound_save')).chest.hungUp,
+      wielded: window.__game.getState().chest.wielded,
+      damage: window.__game.player.attackDamage,
+    }));
     console.log(`taken down: ${JSON.stringify(down)}`);
-    if (down.unarmed || down.saved) errors.push(`house: E at the rack again did not take the stick down (${JSON.stringify(down)})`);
+    if (down.unarmed || down.saved || down.wielded !== 'cudgel' || down.damage !== 2) errors.push(`house: "Take up" the cudgel -> ${JSON.stringify(down)}`);
+    await page.click('#rack-body [data-wield="stick"]'); // the stick back in hand for what follows
+    await new Promise((r) => setTimeout(r, 200));
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
 
 
     //    middle can't be reached, so this once never offered sleep at all);
@@ -2457,36 +2483,35 @@ try {
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
 
-    // 6b) the chest at home: E lifts the lid and opens the panel; the stick
-    //     and the cudgel trade places in hand; a loaf mends the wounded
+    // 6b) home: at the rack by the door the stick and the cudgel trade places
+    //     in hand (each pictured, each with its read-more, without the cart's
+    //     talk of buying); then the chest: E lifts the lid, the panel holds
+    //     the larder, and a loaf mends the wounded
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = -9.2; // inside the hovel, at the chest's corner against the -z wall
-      g.player.pos.z = 1.05;
-      g.player.takeDamage(6, 0, 0);
+      g.door.isOpen || g.door.toggle(); // the rack is reached from inside
+      g.player.pos.x = -7.95; // inside the hovel, before the rack
+      g.player.pos.z = 2.3;
     });
-    await new Promise((r) => setTimeout(r, 400));
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('weapon rack'), { timeout: 4000 }).catch(() => {});
     await page.keyboard.press('KeyE');
     await new Promise((r) => setTimeout(r, 400));
-    const chestOpen = await page.evaluate(() => ({
-      panel: !document.getElementById('chest-panel').classList.contains('hidden'),
-      lid: window.__game.chest.isOpen,
-      hand: document.getElementById('chest-body').textContent.includes('oaken cudgel'),
-      // the stick, the cudgel and the larder's loaf, each with its picture
-      pictures: [...document.querySelectorAll('#chest-body .ware-pic svg')].filter(
+    const rackOpen = await page.evaluate(() => ({
+      panel: !document.getElementById('rack-panel').classList.contains('hidden'),
+      hand: document.getElementById('rack-body').textContent.includes('oaken cudgel'),
+      pictures: [...document.querySelectorAll('#rack-body .ware-pic svg')].filter(
         (svg) => svg.querySelectorAll('path, rect, circle, ellipse').length >= 5
       ).length,
     }));
-    console.log('chest:', JSON.stringify(chestOpen));
-    if (!chestOpen.panel || !chestOpen.lid) errors.push('market: E at the chest did not open lid + panel');
-    if (chestOpen.pictures !== 3) errors.push(`market: chest shows ${chestOpen.pictures} pictures, not 3 (stick, cudgel, loaf)`);
-    // the chest's wares read more too, without the cart's talk of buying
-    await page.click('#chest-body .ware-pic[data-more="cudgel"]');
+    console.log('rack:', JSON.stringify(rackOpen));
+    if (!rackOpen.panel) errors.push('market: E at the rack did not open its panel');
+    if (rackOpen.pictures !== 2) errors.push(`market: rack shows ${rackOpen.pictures} pictures, not 2 (stick, cudgel)`);
+    await page.click('#rack-body .ware-pic[data-more="cudgel"]');
     await new Promise((r) => setTimeout(r, 150));
-    const chestLore = await page.evaluate(() => document.querySelector('#chest-body .ware-more')?.textContent ?? '');
-    if (!chestLore.includes('How to use it')) errors.push('market: the chest\'s cudgel did not unfold its read-more');
-    if (chestLore.includes('Once bought')) errors.push('market: the chest\'s read-more still talks of buying');
-    await page.click('#chest-body .ware-more-link[data-more="cudgel"]');
+    const rackLore = await page.evaluate(() => document.querySelector('#rack-body .ware-more')?.textContent ?? '');
+    if (!rackLore.includes('How to use it')) errors.push('market: the rack\'s cudgel did not unfold its read-more');
+    if (rackLore.includes('Once bought')) errors.push('market: the rack\'s read-more still talks of buying');
+    await page.click('#rack-body .ware-more-link[data-more="cudgel"]');
     await new Promise((r) => setTimeout(r, 150));
     await page.click('[data-wield="stick"]');
     await new Promise((r) => setTimeout(r, 150));
@@ -2500,6 +2525,29 @@ try {
     console.log('swap:', JSON.stringify({ stickDamage, ...swapped }));
     if (stickDamage !== 1) errors.push(`market: stick in hand but attackDamage ${stickDamage} != 1`);
     if (swapped.damage !== 2 || swapped.wielded !== 'cudgel') errors.push(`market: cudgel back in hand -> ${JSON.stringify(swapped)}`);
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.player.pos.x = -9.2; // inside the hovel, at the chest's corner against the -z wall
+      g.player.pos.z = 1.05;
+      g.player.takeDamage(6, 0, 0);
+    });
+    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.includes('open the chest'), { timeout: 4000 }).catch(() => {});
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 400));
+    const chestOpen = await page.evaluate(() => ({
+      panel: !document.getElementById('chest-panel').classList.contains('hidden'),
+      lid: window.__game.chest.isOpen,
+      // the larder's loaf, with its picture
+      pictures: [...document.querySelectorAll('#chest-body .ware-pic svg')].filter(
+        (svg) => svg.querySelectorAll('path, rect, circle, ellipse').length >= 5
+      ).length,
+    }));
+    console.log('chest:', JSON.stringify(chestOpen));
+    if (!chestOpen.panel || !chestOpen.lid) errors.push('market: E at the chest did not open lid + panel');
+    if (chestOpen.pictures !== 1) errors.push(`market: chest shows ${chestOpen.pictures} pictures, not 1 (the loaf)`);
     await page.click('[data-eat]');
     await new Promise((r) => setTimeout(r, 150));
     const fed = await page.evaluate(() => ({

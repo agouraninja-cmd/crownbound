@@ -39,7 +39,7 @@ function hatch(x, y, n, dx, dy, len, angle = 0, opacity = 0.45) {
 }
 
 const PICTURES = {
-  // the trusty stick (not sold — it is the hand's first weapon, kept in the chest
+  // the trusty stick (not sold — it is the hand's first weapon, kept on the rack
   // when another is taken up): a crooked branch, a twig stub, a rag round the grip
   stick: () => `
     ${shadow(32, 57, 21)}
@@ -247,11 +247,11 @@ function ratLine(blows) {
 }
 
 // how to carry a weapon again once another is in hand
-const CHEST_SWAP =
-  'When thou carriest another weapon it waits in the chest by thy cot: go into thy hovel, stand ' +
-  'at the chest, press E to open it, and choose &#8220;Take up&#8221;.';
+const RACK_SWAP =
+  'When thou carriest another weapon it hangs on the rack by thy door: go into thy hovel, stand ' +
+  'at the rack, press E, and choose &#8220;Take up&#8221;.';
 
-// how a weapon reaches the hand — said at the cart, needless in the chest
+// how a weapon reaches the hand — said at the cart, needless at home (rack or chest)
 const BOUGHT = (inChest) => (inChest ? '' : 'Once bought it goes straight to thy hand. ');
 
 const SWING =
@@ -262,7 +262,7 @@ const LORE = {
   stick: {
     about:
       'A crooked length of hazel with a rag wound round the grip. Every villager starts with one.',
-    use: () => `It is thy first weapon and is never lost. ${SWING} ${CHEST_SWAP}`,
+    use: () => `It is thy first weapon and is never lost. ${SWING} ${RACK_SWAP}`,
     boon: () => {
       const f = weaponFacts(CONFIG.chest.stick);
       return `${f.damage} damage a blow, at a reach of ${f.reach}. ${ratLine(f.blows)}. It costs nothing and asks nothing.`;
@@ -273,7 +273,7 @@ const LORE = {
     about:
       'A club of seasoned oak, knotted at the head and bound in leather at the grip. ' +
       'Heavier than a stick, and it lands like it.',
-    use: (item, inChest) => `${BOUGHT(inChest)}${SWING} ${CHEST_SWAP}`,
+    use: (item, inChest) => `${BOUGHT(inChest)}${SWING} ${RACK_SWAP}`,
     boon: (item) => {
       const f = weaponFacts(item);
       const stick = weaponFacts(CONFIG.chest.stick);
@@ -296,7 +296,7 @@ const LORE = {
         rank && !inChest
           ? `The chapman sells it only to a ${rank.title} or better: ${rank.totalLevels} virtue levels in all, won by real deeds at the Quest Board. `
           : '';
-      return `${gate}${BOUGHT(inChest)}${SWING} ${CHEST_SWAP}`;
+      return `${gate}${BOUGHT(inChest)}${SWING} ${RACK_SWAP}`;
     },
     boon: (item) => {
       const f = weaponFacts(item);

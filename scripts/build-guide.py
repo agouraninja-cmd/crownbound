@@ -207,7 +207,7 @@ wares = table_after(c1, quests, [
     ["A candle lantern", coins(ITEM['lantern']['price']), "A light for the doorpost"],
 ])
 c2h = para_after(wares, H3, "The chest")
-c2 = para_after(c2h, BODY, f"The chest beside your cot (E, inside the hovel) keeps what the hand does not. You hold **one weapon** — the stick, the cudgel or the quarterstaff — and “Take up” swaps it; a newly bought weapon goes straight to your hand. The peg rack by the door (E) takes the weapon in hand, so you can walk about empty-handed (no swinging); E there again takes it down. Loaves wait in the larder (**{C['chest']['larderCap']} at most**) and are eaten there, when wounded, for a full heal. Bread mends HP and nothing else.")
+c2 = para_after(c2h, BODY, f"Your weapons hang on the peg rack by the hovel door (E, inside). You hold **one weapon** — the stick, the cudgel or the quarterstaff — and “Take up” swaps it; “Hang up” puts it on the rack too, so you walk about empty-handed (no swinging). A newly bought weapon goes straight to your hand. The chest beside your cot (E) is the larder: loaves wait there (**{C['chest']['larderCap']} at most**) and are eaten, when wounded, for a full heal. Bread mends HP and nothing else.")
 
 # ---- sleep ----
 set_text(P[32], f"You earn the **Well-Rested boon** (+{SL['wisXp']} Wisdom XP, +{SL['coins']} coins, +{SL['staminaBonus']} stamina cap for the day, once per day) when:")

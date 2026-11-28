@@ -31,7 +31,7 @@ export const HOVEL = {
   chest: { x0: -1.28, x1: -0.62, z0: -1.21, z1: -0.79, lidHinge: 0.23, openAngle: -1.7 }, // lid swings up off its back edge
   table: { x: 1.0, z: 0.95, r: 0.5 },
   ledger: { x: 0.85, z: -1.1 }, // where you stand to read the sleep ledger
-  rack: { z: 0.26, pegY: 1.62 }, // the peg rack on the +x wall between the door and the window
+  rack: { z: 0.26, pegY: 1.62, slots: [-0.15, 0, 0.15] }, // the peg rack on the +x wall between the door and the window; a slot per weapon tier
   ceilY: 1.85, // indoor camera stays under this
   smoke: { x: 0.3, y: 3.12, z: 0.48 }, // the smoke hole in the thatch, over the hearth
   barrel: { x: 1.1, z: 1.75, r: 0.38 }, // the water butt outside the +z wall
@@ -397,26 +397,30 @@ function furnish(g, rng) {
   add(cyl(0.11, 0.09, 0.2, 8), WOOD_PALE, { x: 1.38, y: 0.1, z: -1.16 });
   add(cyl(0.115, 0.115, 0.025, 8), IRON, { x: 1.38, y: 0.17, z: -1.16, shadow: false });
 
-  // the peg rack by the door, where the weapon in hand is hung up: a plank on
-  // the wall, a fork of two pegs the weapon's wrap rests in, a cleat below.
-  // `rackWeapon` is its own Group, shown while something hangs there; main.js
-  // gives it the look of the weapon hung (setRackWeapon in world.js).
+  // the peg rack by the door, where every weapon not in hand hangs: a plank
+  // on the wall, a fork of two pegs for each weapon (the stick, the cudgel,
+  // the quarterstaff, side by side), a cleat below. Each hanging weapon is
+  // its own Group, shown while it is on its pegs; main.js gives each the look
+  // of its tier (setRackWeapons in world.js).
   const rz = H.rack.z;
-  add(box(0.035, 1.05, 0.26), WOOD_DARK, { x: 1.56, y: 1.2, z: rz });
-  for (const dz of [-0.06, 0.06]) {
-    add(box(0.16, 0.035, 0.035), WOOD_PALE, { x: 1.48, y: H.rack.pegY, z: rz + dz, rz: 0.25 });
-  }
-  add(box(0.1, 0.05, 0.14), WOOD_PALE, { x: 1.51, y: 0.72, z: rz }); // the cleat it leans on
-  const rackWeapon = new THREE.Group();
-  rackWeapon.position.set(1.47, H.rack.pegY + 0.04, rz);
-  const hang = new THREE.Group(); // scaled to the weapon's size; its top stays on the pegs
-  hang.add(mesh(cyl(0.039, 0.039, 0.17), 0x6b3a26, { y: -0.12, keep: true })); // the leather wrap
-  const shaft = mesh(cyl(0.036, 0.028, 0.75), 0x7a5a35, { y: -0.375, keep: true });
-  hang.add(shaft);
-  rackWeapon.add(hang);
-  rackWeapon.rotation.z = 0.06; // leaning back to the wall
-  rackWeapon.visible = false;
-  g.add(rackWeapon);
+  add(box(0.035, 1.3, 0.46), WOOD_DARK, { x: 1.56, y: 1.07, z: rz });
+  add(box(0.1, 0.05, 0.42), WOOD_PALE, { x: 1.51, y: 0.42, z: rz }); // the cleat beneath them, below even the staff's foot
+  const rackSlots = H.rack.slots.map((dz) => {
+    for (const side of [-0.045, 0.045]) {
+      add(box(0.16, 0.035, 0.03), WOOD_PALE, { x: 1.48, y: H.rack.pegY, z: rz + dz + side, rz: 0.25 });
+    }
+    const group = new THREE.Group();
+    group.position.set(1.47, H.rack.pegY + 0.04, rz + dz);
+    const hang = new THREE.Group(); // scaled to the weapon's size; its top stays on the pegs
+    hang.add(mesh(cyl(0.039, 0.039, 0.17), LEATHER, { y: -0.12, keep: true })); // the leather wrap
+    const shaft = mesh(cyl(0.036, 0.028, 0.75), 0x7a5a35, { y: -0.375, keep: true });
+    hang.add(shaft);
+    group.add(hang);
+    group.rotation.z = 0.06; // leaning back to the wall
+    group.visible = false;
+    g.add(group);
+    return { group, hang, shaft };
+  });
 
   // ---- interior shop upgrades, hidden until bought ----
 
@@ -440,7 +444,7 @@ function furnish(g, rng) {
   trophy.visible = false;
   g.add(trophy);
 
-  return { upgrades: { rug, trophy }, hearth: { flames, glow, halo }, chestLid, rack: { group: rackWeapon, hang, shaft }, windowLight: daylight };
+  return { upgrades: { rug, trophy }, hearth: { flames, glow, halo }, chestLid, rack: rackSlots, windowLight: daylight };
 }
 
 export function buildQuestBoard() {
