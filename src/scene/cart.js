@@ -362,7 +362,6 @@ export function createCart({ terrainHeight, clock, always = false }) {
   const qb = new THREE.Quaternion();
   const Q = {
     hangNear: aim(0.18, -1, 0.1),
-    hangFar: aim(0.18, -1, -0.1),
     lead: null, // toward the cheek-strap, from where she walks (below)
     stallNear: aim(0.42, -0.88, -0.2), // hands together before the apron
     stallFar: aim(0.42, -0.88, 0.2),
@@ -385,8 +384,8 @@ export function createCart({ terrainHeight, clock, always = false }) {
     c.group.visible = !away;
     spot.off = phase !== 'stall';
     if (away) {
-      bed.x = mule.x = 1e4;
-      bed.z = mule.z = 1e4;
+      bed.x = mule.x = herPose.x = 1e4;
+      bed.z = mule.z = herPose.z = 1e4;
       return;
     }
     const pose = phase === 'coming' ? ROAD_IN.at(st.d) : phase === 'going' ? ROAD_OUT.at(st.d) : park;
@@ -502,7 +501,7 @@ export function createCart({ terrainHeight, clock, always = false }) {
       reconcile(secondsOfDay(readClock()), hold);
       const moved = advance(dt, playerPos);
       place(dt, moved);
-      chapman.update(dt, playerPos);
+      if (c.group.visible) chapman.update(dt, playerPos); // nobody to nod to him from an empty pitch
     },
     phase: () => PHASES[st.idx],
     distance: () => st.d,

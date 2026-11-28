@@ -2776,6 +2776,22 @@ try {
     // she opens, her stall open till closing, off down the west road after.
     // The clock is pinned through cart.setClock; her feet are quickened
     // (cart.hurry) where the walk itself is not what is being checked.
+    // 0) opened at seven in the morning: her pitch empty — no cart, no prompt,
+    //    and no nod to him from nobody
+    await page.goto(`http://localhost:${PORT}/?smoke=cart&hour=7&intro=0`, { waitUntil: WAIT });
+    await new Promise((r) => setTimeout(r, 2000));
+    await page.evaluate(() => { const g = window.__game; g.player.pos.x = 1.5; g.player.pos.z = 9.0; });
+    await new Promise((r) => setTimeout(r, 1200));
+    const dawn = await page.evaluate(() => ({
+      phase: window.__game.cart.phase(),
+      shown: window.__game.cart.group.visible,
+      greeted: window.__game.cart.chapman.greetedYet(),
+      promptHidden: document.getElementById('interact-prompt').classList.contains('hidden'),
+    }));
+    console.log('loaded at 7:00:', JSON.stringify(dawn));
+    if (dawn.phase !== 'before' || dawn.shown || !dawn.promptHidden) errors.push(`cart: something at her pitch on a 7:00 load -> ${JSON.stringify(dawn)}`);
+    if (dawn.greeted) errors.push('cart: she greeted him from an empty pitch');
+
     await page.goto(`http://localhost:${PORT}/?smoke=cart${DAY}`, { waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     const at = (h, m, s = 0) => `${h}:${m}:${s}`;
