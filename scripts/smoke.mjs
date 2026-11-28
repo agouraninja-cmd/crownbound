@@ -3830,7 +3830,7 @@ try {
     if (v.windows < 30) errors.push(`village: only ${v.windows} doorways and windows`);
     if (!(v.day < 0.25)) errors.push(`village: the windows glow by day (${v.day.toFixed(2)})`);
     if (!(v.night > 0.6)) errors.push(`village: the windows stay dark at night (${v.night.toFixed(2)})`);
-    if (v.meshes > 21) errors.push(`village: ${v.meshes} meshes — the rows are not being baked`); // three a row at most, the windows, the embers
+    if (v.meshes > 14) errors.push(`village: ${v.meshes} meshes — the rows are not being baked`); // two a row at most, the windows, the embers
     if (v.triangles > 24 * 6000) errors.push(`village: ${v.triangles} triangles for 24 houses`);
 
     // the map: The Village shows all 24, each with a line of its own
