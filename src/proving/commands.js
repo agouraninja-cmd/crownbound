@@ -465,8 +465,8 @@ export const COMMANDS = [
   {
     name: 'reset',
     group: 'Starting over',
-    usage: 'reset stamina | hp | daily | weekly | monthly | quests | dummy | rats | farm | world',
-    about: 'Put one thing back as it began. “reset world” starts the whole test world over.',
+    usage: 'reset stamina | hp | daily | weekly | monthly | quests | dummy | rats | farm | miller | world',
+    about: 'Put one thing back as it began. “reset miller” makes him a stranger again, to hear his introduction over. “reset world” starts the whole test world over.',
     run([word], game) {
       const s = getState();
       switch (word) {
@@ -495,13 +495,17 @@ export const COMMANDS = [
           s.farm = { stage: 0, done: [], workedOn: null, part: {} };
           commit('farm');
           return 'The strip lies in stubble, waiting to be tilled.';
+        case 'miller':
+          delete s.met;
+          commit();
+          return 'The miller has never set eyes on thee. Go near him to be introduced.';
         case 'world':
           wipeSave();
           realClock();
           reloadWith('The test world begins anew. (Thy own commands are kept.)');
           return 'The test world is begun again…';
         default:
-          return fail('Reset what? stamina, hp, daily, weekly, monthly, quests, dummy, rats, farm or world.');
+          return fail('Reset what? stamina, hp, daily, weekly, monthly, quests, dummy, rats, farm, miller or world.');
       }
     },
   },

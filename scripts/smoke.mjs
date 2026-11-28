@@ -2335,17 +2335,18 @@ try {
     }
     console.log('miller moved:', moved.toFixed(2));
     if (moved < 0.8) errors.push('alive: the miller never walked his rounds');
-    await page.evaluate(() => {
+    // stood on the far side of him from his post: out of the post's reach, within his own
+    const far = await page.evaluate(() => {
       const g = window.__game;
       const at = g.miller.at();
-      g.player.pos.x = at.x - 0.8;
-      g.player.pos.z = at.z - 0.6;
+      const post = g.layout.LAYOUT.miller;
+      const d = Math.hypot(at.x - post.x, at.z - post.z);
+      g.player.pos.x = at.x + ((at.x - post.x) / d) * 1.4;
+      g.player.pos.z = at.z + ((at.z - post.z) / d) * 1.4;
+      return Math.hypot(g.player.pos.x - post.x, g.player.pos.z - post.z);
     });
-    await new Promise((r) => setTimeout(r, 500));
-    const followPrompt = await page.evaluate(
-      () => document.getElementById('interact-prompt').textContent
-    );
-    console.log('follow prompt:', JSON.stringify(followPrompt));
+    const followPrompt = await promptOffered();
+    console.log('follow prompt:', JSON.stringify(followPrompt), 'from his post:', far.toFixed(2));
     if (!followPrompt.includes('miller'))
       errors.push(`alive: prompt "${followPrompt}" did not follow the walking miller`);
   } else if (scenario === 'sage') {
@@ -4015,6 +4016,155 @@ try {
     await look('dusk', 2.5, 2, -Math.PI / 2 - 0.3, 0.16, 6, 18.6);
     await look('night', -12, 5.4, Math.PI / 2 - 0.5, 0.2, 9, 22);
     await page.evaluate(() => window.__game.sky.setClock(new Date(2026, 5, 21, 13, 0)));
+  } else if (scenario === 'miller') {
+    // The miller's introduction: said once, the first time he is ever come near.
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const until = (fn, ms = 10000) => page.waitForFunction(fn, { timeout: ms, polling: 200 }).then(() => true, () => false);
+    const want = (ok, what) => {
+      if (!ok) errors.push(`miller: ${what}`);
+    };
+    const load = async (query) => {
+      await page.goto(`http://localhost:${PORT}/?smoke=miller&market=0${query}`, { waitUntil: WAIT, timeout: 40000 });
+      await until(() => !!window.__game);
+      await wait(1500);
+      // the rats are put out of the yard: this is about the miller, and a bite would move the player
+      await page.evaluate(() => {
+        for (const r of window.__game.rats.list) {
+          r.alive = false;
+          r.group.visible = false;
+        }
+      });
+    };
+    const panel = () => page.evaluate(() => window.__game.openPanelId());
+    const toasts = () => page.evaluate(() => document.getElementById('toasts').textContent);
+    const met = (key = 'crownbound_save') => page.evaluate((k) => JSON.parse(localStorage.getItem(k)).met?.miller === true, key);
+    // stood d paces off the miller, wherever his rounds have him
+    const standBy = (d) =>
+      page.evaluate((d) => {
+        const g = window.__game;
+        const at = g.miller.at();
+        g.player.pos.x = at.x - d * 0.8;
+        g.player.pos.z = at.z - d * 0.6;
+      }, d);
+    const cardUp = () => until(() => window.__game.openPanelId() === 'miller');
+
+    // 1) ?intro=0, the old first load every other scenario stands on: no introduction, his wave as it was
+    await load(DAY);
+    await standBy(2.5);
+    want(await until(() => window.__game.miller.greetedYet()), 'with ?intro=0 he never noticed the player');
+    await wait(1200);
+    want((await panel()) === null, `with ?intro=0 a panel opened (${await panel()})`);
+    want((await toasts()).includes('floury hand'), `with ?intro=0 his wave was not told ("${await toasts()}")`);
+    want(!(await met()), 'with ?intro=0 the save says they have met');
+
+    // 2) a true load: nothing at the spawn, nothing from six paces, the card on coming near
+    await load(NOON);
+    want(!(await page.evaluate(() => window.__game.intro.playing())), 'the opening is playing over a save that owes none');
+    await wait(1000);
+    want((await panel()) === null, `a panel was open at the spawn (${await panel()})`);
+    await standBy(6);
+    await wait(1500);
+    want((await panel()) === null, 'the introduction came from six paces off');
+    await standBy(2.5);
+    want(await cardUp(), 'coming near him brought no introduction');
+    const card = await page.evaluate(() => {
+      const g = window.__game;
+      const el = document.getElementById('miller-panel');
+      const C = g.CONFIG;
+      const text = el.textContent;
+      const at = g.miller.at();
+      return {
+        shown: !el.classList.contains('hidden'),
+        text: text.replace(/\s+/g, ' ').slice(0, 160),
+        village: text.includes(C.realm.village),
+        bounty: text.replace(/\s+/g, ' ').includes(`${C.rewards.ratCoins} coins a tail`),
+        wage: text.replace(/\s+/g, ' ').includes(`${C.farm.wage} coins`),
+        harvest: text.includes(String(C.farm.harvestPay)),
+        face: !!el.querySelector('svg.miller-svg'),
+        keys: g.player.isEnabled(),
+        // turned to face him: the way he looks, against the way to the miller
+        turned: Math.cos(g.player.facing - Math.atan2(at.x - g.player.pos.x, at.z - g.player.pos.z)),
+      };
+    });
+    console.log('the card:', JSON.stringify(card));
+    want(card.shown, 'the miller panel is hidden though it is the one open');
+    want(card.village && card.bounty && card.wage && card.harvest, 'the card lacks the village or one of the config numbers');
+    want(card.face, 'the card has no likeness of him');
+    want(!card.keys, 'the keys were still the player’s under the card');
+    want(card.turned > 0.9, `he did not turn to the miller (${card.turned.toFixed(2)})`);
+    want(await met(), 'the meeting was not saved as the card opened');
+    want(!(await toasts()).includes('floury hand'), 'his passing wave was told over his introduction');
+    await wait(1200);
+    await page.screenshot({ path: 'scripts/smoke-miller.png' });
+
+    // 3) Enter answers him: the card goes, the keys come back, and it is not said twice
+    await page.keyboard.press('Enter');
+    want(await until(() => window.__game.openPanelId() === null && window.__game.player.isEnabled()), 'Enter did not close the card and hand back the keys');
+    await wait(1500);
+    want((await panel()) === null, 'the introduction was said a second time');
+    // E beside him is what it was: the day's tally
+    await standBy(1.3);
+    const tag = await promptOffered();
+    want(tag.includes('miller'), `no prompt for the miller ("${tag}")`);
+    await page.keyboard.press('e');
+    want(await until(() => document.getElementById('toasts').textContent.includes('tail')), `E gave no tally ("${await toasts()}")`);
+    want((await panel()) === null, 'E beside him opened a panel');
+
+    // 4) the next load: they have met, so only the wave
+    await load(NOON);
+    await standBy(2.5);
+    want(await until(() => document.getElementById('toasts').textContent.includes('floury hand')), `met already, yet no wave ("${await toasts()}")`);
+    want((await panel()) === null, 'the introduction was said again on the next load');
+
+    // 5) a save from before the introduction (no `met`) is introduced once too — and the
+    //    card waits its turn: under another panel nothing happens till that one is shut
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('crownbound_save'));
+      delete s.met;
+      sessionStorage.setItem('smoke-older', JSON.stringify(s));
+    });
+    await page.evaluateOnNewDocument(() => {
+      const older = sessionStorage.getItem('smoke-older');
+      if (older) {
+        sessionStorage.removeItem('smoke-older');
+        localStorage.setItem('crownbound_save', older);
+      }
+    });
+    await load(NOON);
+    want(!(await met()), 'the older save was not put in place');
+    await page.evaluate(() => window.__game.openPanel('guide'));
+    await standBy(2.5);
+    await wait(1500);
+    want((await panel()) === 'guide', `the introduction did not wait for the Charter to be shut (${await panel()})`);
+    await page.keyboard.press('Escape');
+    want(await cardUp(), 'an older save was not introduced once the Charter was shut');
+    await page.click('[data-miller-done]');
+    want(await until(() => window.__game.openPanelId() === null && window.__game.player.isEnabled()), 'his button did not close the card');
+    want(await met(), 'the older save does not remember the meeting');
+
+    // 6) the test world meets him on its own save, and `reset miller` makes him a stranger again
+    await load(`${NOON}&test=1`);
+    await standBy(2.5);
+    want(await cardUp(), 'the test world brought no introduction');
+    want(await met('crownbound_test_save'), 'the test world’s meeting was not saved to the test save');
+    await page.keyboard.press('Escape');
+    await until(() => window.__game.openPanelId() === null);
+    await standBy(8);
+    await wait(600);
+    const said = await page.evaluate(() => {
+      const input = document.querySelector('#proving-console input');
+      input.value = 'reset miller';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const last = document.querySelector('#proving-console .pc-log').lastElementChild;
+      return { text: last.textContent, bad: last.className === 'pc-bad' };
+    });
+    console.log('reset miller:', JSON.stringify(said));
+    want(!said.bad && !(await met('crownbound_test_save')), `"reset miller" did not forget the meeting (${said.text})`);
+    await wait(800);
+    want((await panel()) === null, 'forgotten from eight paces off, the card came at once');
+    await standBy(2.5);
+    want(await cardUp(), 'after "reset miller" he did not introduce himself again');
+    await page.keyboard.press('Escape');
   }
 
   await new Promise((r) => setTimeout(r, 1500));
