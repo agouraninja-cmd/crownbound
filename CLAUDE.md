@@ -678,9 +678,11 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
         works the other nine ridges at `workPace` 9 to keep its time.
     - The seedlip (same day, the owner: "the stick is still invisable" — seen sowing,
       when the stick was put away and the hand cast seed from nothing): sowing now takes
-      up `mesh.tools.seedlip`, a wicker seed basket slung at the left hip on a strap
-      over the right shoulder (on the chest, not a fist; `TOOL_FOR.sow`). The stick is
-      still put away for all four jobs and back in hand when he stops.
+      up `mesh.tools.seedlip`, a wicker seed basket carried at the left hip (on the
+      chest, not a fist; `TOOL_FOR.sow`). It first had a shoulder strap — a straight
+      brown band across his round chest, which the owner rightly read as "the stick is
+      in his stomick"; the strap is gone, do not put one back as a straight box. The
+      stick is still put away for all four jobs and back in hand when he stops.
     - About 5 draw calls. Triangles for the whole field in one look (yard included):
       stubble ~25k, furrow ~19k, sown ~17k, weedy ~27k, tended ~38k, ripe ~56k, stook ~51k
       (was ~20k in wheat). The village view measured ~290k in all with the fallow strip.
