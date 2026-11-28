@@ -24,6 +24,7 @@ Each entry has a name, the idea as the owner gave it, then the questions it leav
 | **The Market Square** | Players trade micro-transactions with one another |
 | **The Heralds** | In-game marketing |
 | **The Fuller Board** | More choices and stats on the Quest Board |
+| **The Vices** | Track addictions and drug use against a limit — going past it weakens your guy |
 
 The Homelands and The Four Crowns are two different answers to the same question — what a
 kingdom *is*. They are alternatives; the owner has not picked one.
@@ -401,3 +402,34 @@ Open questions (the idea was one line; the examples are guesses, not the owner's
   virtues never pays more. A difficulty setting on the honor system would tempt everyone to
   pick "hard".
 - How to keep logging quick: sessions are meant to be 10–15 minutes a day.
+
+---
+
+## The Vices — addictions and drug use, with a limit
+
+*Noted 2026-11-27.*
+
+- The game **tracks addictions and drug use**.
+- There is **a certain limit**; going past it **weakens your guy**.
+
+Open questions (guesses and cautions are Claude's, not the owner's):
+- What can be tracked: alcohol, nicotine, cannabis, other drugs — and habits that are not
+  drugs, such as gambling, the phone, caffeine or sugar? A set list, or typed by the player?
+- Who sets the limit, over what span (a day, a week, a month), and can it be raised on the
+  spot? A limit of none must be possible.
+- What "weakens" means: less stamina, a slower walk, softer blows, a tired look? For how long,
+  and how does he recover — time, days within the limit, good deeds?
+- Does it ever take away virtue XP or levels already earned, or only dim him for a while?
+- Does staying within the limit give anything back?
+- Honor system: if logging costs him strength, the temptation is not to log. How is telling
+  the truth kept from feeling like punishing yourself?
+- Tone: no shaming, and one bad day should not feel like ruin (the owner has said streaks are
+  not healthy). Should a day over the limit offer a next step, as a bled month does in the
+  Treasury?
+- Safety: the game gives no medical advice and should never call any amount safe. Stopping
+  some things suddenly (heavy drinking, some pills) can be dangerous, so it should not push
+  quitting all at once, and should say where real help is found.
+- Privacy: this is far more sensitive than a deed. Today the history goes to the Chronicler
+  (the Anthropic API), and the save goes into the Scribe's export and the dev mirror file.
+  Should this record be kept out of any of them?
+- How it sits with The Finer Virtues: keeping within a limit could feed Discipline.
