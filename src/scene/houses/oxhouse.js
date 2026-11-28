@@ -11,14 +11,14 @@ import { box, WOOD, WOOD_DARK, WOOD_PALE, STONE, STRAW, IRON } from '../kit.js';
 // through the foot of the end wall and the dung heap outside it. The village's
 // plough-team lives here: a red ox and a black in the hurdle fold before the
 // byre door, their yoke hung by the house door, the goad stood beside it and
-// the plough laid over on its side in the yard.
+// the plough tipped over on its side in the yard.
 
 const RED = 0x8a4427; // the near ox
-const BLACK = 0x2f2a27; // the off ox
+const BLACK = 0x3b3531; // the off ox
 const DUNG = 0x4b3a26;
-const WET = 0x33291f; // stone and earth soaked by what runs out of a byre
+const WET = 0x54452f; // stone and earth soaked by what runs out of a byre
 const HAY = 0xc8ab5c;
-const ASH = 0xc7b388; // ash wood handled smooth: the yoke's bows, the goad
+const ASH = 0xc7b388; // ash wood handled smooth: the yoke's bows, the goad, the fork
 const NEW_DAUB = 0xb89f74; // not yet weathered down to the colour of the wall
 
 const BYRE = 2.75; // the byre doorway, along the front wall
@@ -28,13 +28,14 @@ const DRAIN = 1.0; // the drain, along the end wall (toward the front)
 export default {
   id: 'oxhouse',
   name: 'The ox house',
-  note: 'The ox house — one long roof over man and beast: a red ox and a black in the hurdle yard, their yoke on the wall, the plough laid on its side.',
+  note: 'The ox house — man and beast under one long thatch: a red ox and a black in the hurdle yard, the yoke hung by the door, the plough laid on its side.',
   build(c) {
     c.shell({ eave: 1.7, pitch: 50, walls: 'daub', wash: WASH.earth, frame: 'cruck', timber: TIMBER.grey, roof: 'gable', thatch: 'straw', moss: 3 });
     c.door(...c.plot.door, { open: 0.4 });
-    c.door('back', c.plot.door[1]); // the passage runs door to door, between hall and byre
+    // the passage runs door to door between hall and byre, and the wind is let through it
+    c.door('back', c.plot.door[1], { open: 1, lit: 0.4 });
     c.door('front', BYRE, { w: 1.3, kind: 'hurdle', lit: 0 }); // the beasts' own way in: wide, and shut by nothing but a hurdle
-    c.window('front', -3.5, { shutter: 'side', hinge: -1 });
+    c.window('front', -3.5);
     c.window('back', -2.9);
     c.smoke('hole', -2.4); // the hearth is in the hall: no smoke rises over the beasts
 
@@ -45,28 +46,32 @@ export default {
     byreEnd(c);
 
     // a horn went through the byre wall: daubed up again, and the patch still pale
-    c.onWall('front', 1.2).add(mesh(new THREE.PlaneGeometry(0.66, 0.52), NEW_DAUB, { y: 0.92, z: 0.012, rz: 0.06 }));
+    const patch = mesh(new THREE.CircleGeometry(0.36, 5), NEW_DAUB, { y: 0.95, z: 0.012, rz: 0.5 });
+    patch.scale.set(1.15, 0.8, 1);
+    c.onWall('front', 1.2).add(patch);
 
-    // behind: their winter hay, and the nettles nobody cuts
+    // behind: what is left of their winter hay by the byre, the hall's chopping block by its door,
+    // and at the hall's end the nettles nobody cuts
     c.haycock(2.2, -2.75, { r: 0.52, h: 0.8 });
-    c.bush(-4.85, -2.9, { r: 0.42 });
+    c.chopBlock(-2.2, -2.8, { ry: 0.7 });
+    c.bush(-4.85, -1.2, { r: 0.38 });
   },
 };
 
 // The yoke, hung by the house door on a peg in the wall post: a long beam
-// hollowed to sit on two necks, and under each seat the bent ash bow that
-// goes round the neck. One colour throughout — its lengths overlap at the joints.
+// hollowed to sit on two necks, and under each seat the ash bow that goes
+// round the neck, its ends pinned up through the beam.
 function yoke(c) {
   const wall = c.onWall('front', POST);
   const out = 0.13; // it hangs clear of the post's face
-  const oak = tone(WOOD, 0.9);
-  wall.add(mesh(box(0.05, 0.05, 0.3), WOOD_DARK, { y: 1.36, z: 0.16, rx: -0.12 }));
-  const beam = [[-0.74, 1.42], [-0.48, 1.5], [-0.2, 1.45], [0.2, 1.45], [0.48, 1.5], [0.74, 1.42]];
-  for (let i = 0; i < beam.length - 1; i++) span(wall, [...beam[i], out], [...beam[i + 1], out], 0.13, 0.11, oak);
-  const bow = [[-0.14, 1.6], [-0.14, 1.16], [-0.08, 1.04], [0.08, 1.04], [0.14, 1.16], [0.14, 1.6]];
-  for (const seat of [-0.48, 0.48]) {
-    for (let i = 0; i < bow.length - 1; i++) span(wall, [seat + bow[i][0], bow[i][1], out], [seat + bow[i + 1][0], bow[i + 1][1], out], 0.035, 0.035, ASH);
-  }
+  // A bent length of wood, drawn as straight ones from point to point [along
+  // the wall, up it]. One colour to a length: its pieces overlap at the bends.
+  const bent = (line, at, thick, deep, colour) => {
+    for (let i = 0; i < line.length - 1; i++) span(wall, [at + line[i][0], line[i][1], out], [at + line[i + 1][0], line[i + 1][1], out], thick, deep, colour);
+  };
+  wall.add(mesh(box(0.05, 0.05, 0.3), WOOD_DARK, { y: 1.13, z: 0.16, rx: -0.12 })); // the peg
+  bent([[-0.8, 1.23], [-0.5, 1.28], [-0.2, 1.22], [0.2, 1.22], [0.5, 1.28], [0.8, 1.23]], 0, 0.13, 0.11, tone(WOOD, 0.9));
+  for (const seat of [-0.5, 0.5]) bent([[-0.16, 1.39], [-0.16, 0.92], [-0.09, 0.79], [0.09, 0.79], [0.16, 0.92], [0.16, 1.39]], seat, 0.045, 0.045, ASH);
 }
 
 // the goad they are driven with: an ash rod with an iron prick, stood by the door
@@ -74,60 +79,70 @@ function goad(c) {
   const at = 0.3;
   const wall = c.onWall('front', at);
   const foot = [0, c.ground(at, c.hz + 0.45), 0.45];
-  const tip = [0.14, 1.5, 0.09];
+  const tip = [0.14, 1.5, 0.09]; // under the eave, against the wall plate
   span(wall, foot, tip, 0.04, 0.04, ASH);
   span(wall, tip, tip.map((t, i) => t + (t - foot[i]) * 0.05), 0.02, 0.02, IRON);
 }
 
-// The plough, laid over on its land side by the house door, as it is left
-// between seasons: a heavy beam, the coulter's knife through it, the iron
-// share on the sole, a mouldboard to turn the slice and two stilts to hold it
-// by. It is built as it stands in the furrow — x forward, y up, z toward the
-// furrow — and then tipped.
+// The plough, tipped over by the house door as it is left between seasons: a
+// heavy beam, the coulter's knife through it, the iron share on the sole, a
+// broad mouldboard to turn the slice and two stilts to hold it by. It is built
+// as it stands in the furrow — x forward, y up, z toward the furrow — and then
+// laid over.
 function plough(c) {
-  const [u, v, ry] = [-3.25, 3.2, 0.1];
-  const tip = 1.33; // how far over it lies: the land-side stilt has come to rest on the ground
+  // its nose toward the hall's end and the stilts toward the door, drawn in under the eaves: the lane cuts close by this corner
+  const [u, v, ry] = [-3.8, 3.0, Math.PI - 0.25];
   const p = new THREE.Group();
-  p.rotation.x = -tip; // its top falls toward the house wall, so the lane sees its upper side
-  p.position.y = 0.07;
+  // over onto its mouldboard, away from the lane (which so sees its whole
+  // side), and nose-down: the board's rear edge and the share's wing take the weight
+  p.rotation.set(1.0, 0, -0.3);
+  p.position.y = 0.13;
   c.at(u, v, ry).add(p);
-  const oak = () => tone(TIMBER.grey, 0.92 + c.rng() * 0.2);
+  const oak = () => tone(WOOD, 0.84 + c.rng() * 0.2);
   span(p, [-0.8, 0.06, 0], [0.2, 0.06, 0], 0.12, 0.1, oak()); // the sole
   span(p, [0, 0.06, 0], [0, 0.56, 0], 0.1, 0.08, oak()); // the sheath, up to the beam
-  span(p, [-1.15, 0.5, -0.02], [1.6, 0.62, 0], 0.13, 0.11, oak()); // the beam
-  span(p, [-0.72, 0.06, -0.03], [-1.6, 0.98, -0.3], 0.065, 0.065, oak()); // the stilts…
-  span(p, [-0.6, 0.1, 0.12], [-1.6, 0.98, 0.3], 0.065, 0.065, oak());
-  span(p, [-1.3, 0.67, -0.21], [-1.3, 0.69, 0.23], 0.045, 0.045, oak()); // …and the rung between them
+  span(p, [-1.15, 0.5, -0.02], [1.4, 0.61, 0], 0.13, 0.11, oak()); // the beam
+  span(p, [-0.72, 0.06, -0.03], [-1.6, 0.98, -0.3], 0.065, 0.065, WOOD_PALE); // the stilts…
+  span(p, [-0.6, 0.1, 0.12], [-1.6, 0.98, 0.3], 0.065, 0.065, tone(WOOD_PALE, 0.92));
+  span(p, [-1.3, 0.67, -0.21], [-1.3, 0.69, 0.23], 0.045, 0.045, WOOD_PALE); // …and the rung between them
   span(p, [0.62, 0.76, 0], [0.8, 0.1, 0], 0.07, 0.025, IRON); // the coulter
-  p.add(mesh(box(0.05, 0.16, 0.04), IRON, { x: 1.55, y: 0.64 })); // the hake the team is hitched to
-  // the share: an iron wedge on the sole's nose
-  p.add(mesh(hull([[0.15, 0, -0.05], [0.15, 0.12, -0.05], [0.15, 0, 0.16], [0.15, 0.1, 0.16], [0.62, 0.01, -0.03], [0.62, 0.04, -0.03]]), IRON));
-  // the mouldboard: a board slewed off behind the share
-  const board = [[0.18, 0.02, 0.05], [0.18, 0.3, 0.05], [-0.75, 0.02, 0.3], [-0.75, 0.4, 0.38]];
-  p.add(mesh(hull([...board, ...board.map(([x, y, z]) => [x + 0.01, y, z + 0.045])]), tone(WOOD_PALE, 1.08)));
-  // he walks round it
+  p.add(mesh(box(0.035, 0.2, 0.06), IRON, { x: 1.41, y: 0.61 })); // the hake on the beam's nose, where the team is hitched
+  // the share: an iron wedge socketed over the sole's nose, winged toward the furrow
+  p.add(mesh(hull([[0.12, -0.01, -0.06], [0.12, 0.13, -0.06], [0.12, -0.01, 0.16], [0.12, 0.1, 0.16], [0.62, 0.01, -0.03], [0.62, 0.04, -0.03]]), IRON));
+  // the mouldboard: a board slewed off behind the share, leaning out at the top
+  const board = [[0.18, 0.02, 0.05], [0.18, 0.3, 0.06], [-0.75, 0.02, 0.32], [-0.75, 0.44, 0.58]];
+  p.add(mesh(hull([...board, ...board.map(([x, y, z]) => [x + 0.012, y, z + 0.045])]), tone(WOOD_PALE, 1.08)));
+  // he walks round it: where it lies, as [along it, toward the wall, how wide]
   const cos = Math.cos(ry);
   const sin = Math.sin(ry);
-  for (const [x, z] of [[-1.1, -0.5], [0, -0.4], [1.1, -0.45]]) c.solid(u + x * cos + z * sin, v - x * sin + z * cos, 0.42);
+  for (const [x, z, r] of [[-1.25, 1.05, 0.4], [-0.6, 0.55, 0.4], [0.3, 0.25, 0.4], [1.1, 0.2, 0.35]]) c.solid(u + x * cos + z * sin, v - x * sin + z * cos, r);
 }
 
-// The fold before the byre door: wattle hurdles staked end to end, and the gap
-// toward the lane closed with slip-poles. The two oxen stand in it nose to
-// nose over an armful of hay, looking out at whoever goes by. (They cannot be
-// reached, so they need stop nobody.)
+// The fold before the byre door: wattle hurdles staked end to end from the
+// house wall round to its corner, and the gap toward the lane closed with
+// slip-poles. The two oxen stand in it nose to nose over an armful of hay,
+// looking out at whoever goes by. (They cannot be reached, so they need stop
+// nobody.)
 function fold(c) {
-  const lane = c.hz + 1.65; // the hurdles along the lane
-  c.hurdle(1.275, lane, { len: 1.55 });
-  c.slipPoles(BYRE, lane, { w: 1.4 });
-  c.hurdle(4.285, lane, { len: 1.67, ry: 0.02 });
-  c.hurdle(0.5, 2.72, { len: 1.47, ry: Math.PI / 2 });
-  c.hurdle(5.12, 2.66, { len: 1.58, ry: Math.PI / 2 - 0.03 });
-  c.hurdle(4.77, 1.87, { len: 0.7 }); // …and back to the corner of the house
-  c.beast(1.36, 2.8, { kind: 'ox', colour: RED, ry: -0.25, solid: false });
-  c.beast(4.24, 2.8, { kind: 'ox', colour: BLACK, ry: Math.PI + 0.25, solid: false });
+  const [left, right] = [0.5, 5.12]; // its two ends, along the house: by the house door, and past the byre's corner
+  const lane = c.hz + 1.65; // its side toward the lane
+  const wall = c.hz + 0.18; // where a hurdle meets the house, clear of the footing
+  const corner = c.hz + 0.07; // …and the one that comes back to the byre's corner
+  const [post0, post1] = [BYRE - 0.7, BYRE + 0.7]; // the slip-poles' posts, before the byre door
+  const h = 0.76; // low enough to see the team over
+  c.hurdle((left + post0) / 2, lane, { len: post0 - left, h });
+  c.slipPoles(BYRE, lane, { w: post1 - post0 });
+  c.hurdle((post1 + right) / 2, lane, { len: right - post1, h, ry: 0.02 });
+  c.hurdle(left, (wall + lane) / 2, { len: lane - wall, h, ry: Math.PI / 2 });
+  c.hurdle(right, (corner + lane) / 2, { len: lane - corner, h, ry: Math.PI / 2 - 0.03 });
+  c.hurdle((c.hx + 0.12 + right) / 2, corner, { len: right - c.hx - 0.12, h });
+
+  // the team: each stands along the house, tail to its end of the fold and head turned to the slip-poles
+  c.beast(left + 0.86, lane - 0.65, { kind: 'ox', colour: RED, ry: -0.25, solid: false });
+  c.beast(right - 0.88, lane - 0.65, { kind: 'ox', colour: BLACK, ry: Math.PI + 0.25, solid: false });
   const hay = mesh(lump(0.22), HAY, { y: 0.06, ry: 0.4 });
   hay.scale.set(1.5, 0.5, 1);
-  c.at(BYRE + 0.05, 3.22).add(hay);
+  c.at(BYRE + 0.05, lane - 0.43).add(hay);
 }
 
 // The byre's end: the drain through the footing, the wet that runs from it,
@@ -135,45 +150,50 @@ function fold(c) {
 function byreEnd(c) {
   const { rng } = c;
 
-  // the drain: a hole left in the footing under the sill, a stone either side
-  // and one over it, and a hollowed log to throw the wet clear of the wall
+  // the drain: a hole through the footing under the sill, in a stone set there for it
   const wall = c.onWall('right', DRAIN);
-  wall.add(mesh(box(0.3, 0.2, 0.05), 0x1f1812, { y: 0.13, z: 0.16, shadow: false }));
-  for (const s of [-1, 1]) wall.add(mesh(box(0.15, 0.36, 0.24), tone(STONE, 0.95 + rng() * 0.1), { x: s * 0.225, y: 0.1, z: 0.12 }));
-  wall.add(mesh(box(0.62, 0.09, 0.26), tone(STONE, 0.9 + rng() * 0.1), { y: 0.275, z: 0.13 }));
-  wall.add(mesh(box(0.16, 0.07, 0.3), tone(WOOD_DARK, 0.8), { y: 0.0, z: 0.32, rx: 0.2 }));
-  wall.add(mesh(box(0.4, 0.5, 0.03), WET, { y: -0.2, z: 0.2 })); // the stain down the stones under it
-  // …and across the ground to the heap
-  for (const [u, v, ry, len] of [[4.74, 0.98, 0.2, 0.5], [5.0, 0.76, 1.0, 0.46]]) c.at(u, v, ry).add(mesh(box(len, 0.04, 0.26), WET));
+  wall.add(mesh(box(0.66, 0.46, 0.24), tone(STONE, 1.04), { y: 0.08, z: 0.12 }));
+  wall.add(mesh(box(0.3, 0.2, 0.02), 0x1f1812, { y: 0.13, z: 0.24, shadow: false }));
+  // the stain under it, spreading down the stone…
+  const stain = [[-0.15, 0.03], [0.15, 0.03], [-0.33, -0.3], [0.33, -0.3]];
+  wall.add(mesh(hull(stain.flatMap(([x, y]) => [[x, y, 0.24], [x, y, 0.256]])), WET));
+  // …and the wet across the ground to the heap, lying to the slope (the second
+  // length a finger higher: where they cross, neither shows through the other)
+  const wet = (u0, v0, u1, v1, wide, up) => span(c.g, [u0, c.ground(u0, v0) + up, v0], [u1, c.ground(u1, v1) + up, v1], 0.03, wide, WET);
+  wet(c.hx + 0.2, DRAIN, 5.08, DRAIN - 0.1, 0.6, 0.012);
+  wet(4.95, DRAIN - 0.1, 5.1, 0.45, 0.36, 0.02);
 
-  // the dung heap: forked out of the byre all winter, carted to the fields in spring
-  const [hu, hv] = [4.9, -0.35];
+  // the dung heap: forked out of the byre all winter, carted to the fields in
+  // spring. Three piles run together along the wall, the middle one the biggest.
+  const [hu, hv] = [4.9, -0.3];
+  const [wide, long, high] = [0.475, 0.85, 0.75]; // the big pile: half across, half along, and its height
   const heap = c.at(hu, hv);
-  const pile = (r, h, x, z, wide, long, k) => {
-    const m = mesh(cone(r, h, 7), tone(DUNG, k), { x, y: h / 2 - 0.05, z });
-    m.scale.set(wide, 1, long);
+  const pile = (r, h, x, z, sx, sz, shade) => {
+    const m = mesh(cone(r, h, 7), tone(DUNG, shade), { x, y: h / 2 - 0.05, z });
+    m.scale.set(sx, 1, sz);
     heap.add(m);
   };
-  pile(0.5, 0.75, 0, 0, 0.95, 1.7, 1);
+  pile(0.5, high, 0, 0, wide / 0.5, long / 0.5, 1);
   pile(0.34, 0.5, 0.05, 0.52, 1, 1.2, 1.14);
   pile(0.3, 0.36, -0.03, -0.62, 1.1, 1.3, 0.9);
-  for (let i = 0; i < 5; i++) {
-    // straw from their bedding, on the big pile's slopes
+  for (let i = 0; i < 4; i++) {
+    // straw from their bedding, lying on the big pile's slopes: t is how far down from its top
     const t = 0.3 + rng() * 0.5;
     const a = rng() * Math.PI * 2;
-    heap.add(mesh(box(0.26, 0.03, 0.06), tone(STRAW, 0.8 + rng() * 0.3), { x: Math.cos(a) * t * 0.475, y: 0.72 - t * 0.75, z: Math.sin(a) * t * 0.85, ry: rng() * 3, shadow: false }));
+    const straw = { x: Math.cos(a) * t * wide, y: high * (1 - t) - 0.03, z: Math.sin(a) * t * long, ry: rng() * 3, shadow: false };
+    heap.add(mesh(box(0.26, 0.03, 0.06), tone(STRAW, 0.8 + rng() * 0.3), straw));
   }
   for (const dv of [-0.75, 0, 0.6]) c.solid(hu, hv + dv, 0.45);
 
-  // the fork, stuck in it where the last load was thrown up
+  // the fork, stuck in it where the last load was thrown up: its tines are in the dung
   const fork = new THREE.Group();
   fork.position.set(0.05, 0.42, 0.25);
   fork.rotation.set(-0.3, 0, 0.22);
-  fork.add(mesh(box(0.035, 1.2, 0.035), WOOD_PALE, { y: 0.62 }));
+  fork.add(mesh(box(0.04, 1.2, 0.04), ASH, { y: 0.62 }));
   fork.add(mesh(box(0.2, 0.035, 0.035), WOOD_DARK, { y: 0.04 }));
   for (const s of [-1, 1]) fork.add(mesh(box(0.025, 0.3, 0.025), WOOD_DARK, { x: s * 0.085, y: -0.1 }));
   heap.add(fork);
 
-  // the hand-barrow the next load waits on
-  c.barrow(4.95, -2.42, { ry: Math.PI / 2 + 0.05, load: DUNG });
+  // the hand-barrow the next load waits on, its feet settled into the slope
+  c.barrow(4.95, -2.37, { ry: Math.PI / 2 + 0.05, load: DUNG, lift: -0.03 });
 }

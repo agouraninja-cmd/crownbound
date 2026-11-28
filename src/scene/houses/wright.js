@@ -246,9 +246,8 @@ export default {
   build(c) {
     c.shell({ eave: 1.75, pitch: 50, walls: 'daub', wash: WASH.daub, frame: 'box', timber: TIMBER.new, roof: 'halfhip', thatch: 'reed', barge: true });
     c.door(...c.plot.door, { open: 0.35, colour: 0xa98f62 }); // a new door of his own making
-    // set a hand lower than most, so the plate runs whole above them
-    c.window('front', 1.5, { y: 1.33, shutter: 'side' });
-    c.window('left', 0.6, { y: 1.33 });
+    c.window('front', 1.5, { shutter: 'side' });
+    c.window('left', 0.6);
     // a gablet at each end of the ridge; the hearth is under the far one
     c.smoke('gablet', 1);
     c.smoke('gablet', -1, { lit: false });

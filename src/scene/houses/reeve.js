@@ -22,9 +22,6 @@ const SACKING = 0xb5a17a; // hemp sackcloth
 // the barn was thatched some winters after the house: its straw is still the paler of the two
 const BARN_THATCH = [0xb39248, 0xcaaa59, 0xdabf70];
 
-// a window set between the rail and the wall plate, so the frame runs whole round it
-const WINDOW = { h: 0.34, y: 1.5 };
-
 // A full sack of corn: sackcloth bulging over its load, the neck tied and its
 // ears standing. lean tips one that rests against its neighbour; lying lays it
 // on its side. It starts a little under the ground, so a leaning one still stands on it.
@@ -70,9 +67,9 @@ export default {
     // opposed doors, a passage between them; the hall and its hearth lie to the right of it
     c.door(...c.plot.door, { open: 0.5 });
     c.door('back', -0.9);
-    c.window('front', 2.6, { ...WINDOW, shutter: 'side' });
-    c.window('front', -2.6, { ...WINDOW, shutter: 'side', hinge: -1 });
-    c.window('right', 0.6, WINDOW);
+    c.window('front', 2.6, { shutter: 'side' });
+    c.window('front', -2.6, { shutter: 'side', hinge: -1 });
+    c.window('right', 0.6);
     c.smoke('louvre', 0.9);
     // a roof looked after: a patch of this autumn's straw let into the front slope
     c.add(box(0.8, 0.02, 0.62), tone(THATCHES.new[0], 0.98), { ...c.onRoof(1, 2.0, 2.75, 0.012), shadow: false });
