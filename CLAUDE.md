@@ -1417,7 +1417,8 @@ headlessly; everything else covered by the regression suite below.
   (3) He walked through the raised earth: he now walks on the ridges and furrows
   (`player.groundAt`). A ridge takes ~12s (`CONFIG.farm.workPace`). The day's job is
   unchanged, and so is the pay. The Charter and CROWNBOUND-Guide.docx (rebuilt) say
-  so. `farm` was rewritten for it and passes (cloud container, `SMOKE_WAIT=load`).
+  so. `farm` was rewritten for it; it, `spent`, `body`, `intro`, `keys`, `proving`, `walk`,
+  `hearth`, `guide` and the render pass (cloud container, `SMOKE_WAIT=load`).
   Not yet seen on the owner's screen. Details: "Worked along the ridge, standing on it"
   under "The Miller's Strip".
 
