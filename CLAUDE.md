@@ -60,7 +60,8 @@ src/scene/ambient.js  ambient life: smoke from the hovel's roof and the neighbou
 src/scene/particles.js  soft-puff particle pool (one Points draw call per pool): smoke
 src/scene/sprites.js  the canvas-drawn soft dot texture + additive glow billboards
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
-src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
+src/scene/cartday.js  the chapwoman's day, from the clock alone (pure): her two roads (east road in, west road out), her timetable, cartDay(seconds) — where she should be; hourWords
+src/scene/cart.js     the chapwoman's cart: cart + mule + chapwoman, walked along her roads by the clock (createCart): turning wheels, a walking mule, her steps to her stall
 src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, fence + gate + hayrick + plough + harrow + scarecrow; draw(looks) rebuilds the crop; kick() throws earth/seed/chaff as he works
 src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
 src/scene/campfire.js campfire mesh, tongues of flame, sparks, smoke; scales with streak tier
@@ -213,9 +214,11 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   (shoots the night after sowing, ripe wheat the night after weeding). Nothing spoils: a missed
   day costs only the day, and a half-done job keeps its ridges. COINS ONLY — field work pays no
   XP, costs no stamina and feeds no streak; virtue is still earned only by real deeds.
-- The shop (the chapman's cart): parked by the path on market days only — Sun/Wed/Fri local
-  (`CONFIG.shop.marketWeekdays`; `?market=1|0` URL param forces it for testing). E at the cart
-  opens the shop panel. THE SACRED RULE: coins buy comfort and swagger, never virtue — no XP,
+- The shop (the chapwoman's cart): by the path every day from `CONFIG.shop.opens` (8 AM) to
+  `closes` (5 PM) by the player's own clock. She walks her mule and cart up the east road a
+  little before opening and down the west road at closing — see "The Chapwoman's Hours" under
+  Noted decisions (`?market=1` keeps her there at every hour, `?market=0` away, for testing).
+  E at the cart opens the shop panel while the stall is open. THE SACRED RULE: coins buy comfort and swagger, never virtue — no XP,
   no streak repair, no stamina is ever for sale. Catalogue (config `shop.items`): gear
   (cudgel 300c → damage 2; quarterstaff 1000c → damage 3 + reach, Squire-gated), home upgrades
   (rug 250c, door paint 300c, glass window 400c, garden 600c — pre-built hidden meshes in the
@@ -311,9 +314,8 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 - The chapman's cart was pulled forward from v3 at the owner's request (2026-07-03), in mute
   form: the chapman and mule are scenery (breath/nod/tail sways via world.cart.update) until v2
   gives them dialogue. Stock rotation from the original pitch is deferred until the catalogue
-  outgrows one cart-load — all nine items show every market day. Market-day status is fixed per
-  load, like rollover. On non-market days the cart, its colliders, and its prompt don't exist;
-  only the wheel-rut dirt patch remains.
+  outgrows one cart-load — all nine items show every day. (Market days, fixed per load, are
+  gone since The Chapwoman's Hours: the chapman is a chapwoman and keeps daily hours.)
 - The wares have pictures (2026-11-16, the owner: "Add pictures of each item in the chapman's
   cart"). Each shop row shows a 60px ink-and-wash drawing beside its name — the Map's style, an
   SVG string from `warePicture(id)` in src/ui/wares.js, no image file. The washes are the
@@ -723,8 +725,8 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     cached; it is a picture only, no place on it can be visited. The village plan beside it is
     redrawn every time the map opens, from the game's own data: LAYOUT positions and turns, the
     path (`pathX`), the strip (`fieldToWorld`, each ridge coloured by today's `farmRowLooks`),
-    the real trees and boulders (`world.mapMarks`, scatter's own arrays), the cart only on a
-    market day, the bounds (radius 78) — and the player as a red arrow along `player.facing`.
+    the real trees and boulders (`world.mapMarks`, scatter's own arrays), the cart only while
+    it stands on its pitch (`cart.present()`), the bounds (radius 78) — and the player as a red arrow along `player.facing`.
     Three zooms (two until The Neighbours): The Green (the village's heart), The Village
     (every neighbour's house) and The Bounds (all the walkable land); the first open picks
     by where he stands, then the choice holds for the session.
@@ -799,7 +801,7 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   - The moved clock. The test world swaps `globalThis.Date` for `MovedDate`, which runs
     `shift` ms ahead for "now" only (`new Date()`, `Date.now()`); dates built from a value are
     untouched. So `nextday` is a stored count of days plus a reload, and the ordinary load
-    path — rollover, market day, the dawn verdict, the sky, the Chronicler's weeks — finds a
+    path — rollover, the chapwoman’s hours, the dawn verdict, the sky, the Chronicler's weeks — finds a
     new day with no test-only branch anywhere in the game. This is why
     `import './proving/proving.js'` must stay the first line of main.js. `time 7:30` moves the
     hour at once (same day, nothing to roll over). Stored in `crownbound_test_clock`
@@ -1085,6 +1087,53 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   - Left as they were, though the same reading of the period frowned on them: the granary's
     staddle stones (a later fashion), the scarecrow shaped like a man, and the hovel's roof
     (flatter than thatch was laid).
+
+- The Chapwoman's Hours (2026-11-28), the owner: "Have her come every day from 8am to 5pm but
+  in the morning have an animation of her actually walking to the villege with her cart a
+  little before 8 and then leaving at 5pm." (He had asked what time "the cart women" came, and
+  then how a peddler came through a village in the period.) The chapman became a woman — he
+  called her "her" — and every word the player reads says "chapwoman" (Claude's word; the
+  period's "huckster" now reads as a swindler). The code still says `cart.chapman` for the
+  alive controller. No rule, reward or save changed. What a future session must know:
+  - Her day is the clock's (cartday.js, pure). `timetable()` works back from `opens`: she
+    comes over the world's edge on the east road (+z, toward Hollin Cross) ROAD_IN.length /
+    `pace` seconds before, plus `SETTLE` (4s) to step from the mule's head to her place — so
+    with `pace` 1.2 she sets out at 7:58:48 and her stall opens at 8:00:00. At `closes` she
+    steps back to the mule's head and leads it on down the west road (-z, the Marches), gone
+    by 5:01:27. `cartDay(seconds)` names the phase: before · coming · settling · stall ·
+    packing · going · after. The shop's E is offered only in `stall`.
+  - Two roads, hand-set points through a Catmull-Rom curve (`road()`): in down the middle of
+    the path and onto the pitch square to it; out straight off the pitch, past the Charter
+    post on its far side and back past the Tome, then down the middle. The `cart` smoke
+    scenario sweeps the cart's, mule's and her footprint along both against every collider
+    (clear by 2.87 in and 0.81 out, at the Charter post) — move a structure near the path and
+    it says so. The heading at the pitch is exact on both roads, so she never jumps there.
+  - cart.js `createCart()` drives it: each step it reads her clock and `reconcile`s — a
+    little behind the timetable (≤ 30 min, `LATE`) she catches up by herself (walks on, or
+    starts out late and further along); a little ahead (≤ 3 min, `EARLY` — the frame clock
+    and the wall clock drift) she waits; otherwise she is put where the clock says (the test
+    world's `time`, a load mid-walk, midnight). A load in the middle of her day says nothing;
+    seen live, her day raises three toasts (`onEvent`: coming, opened, packing; main.js).
+  - She will not pack up on him: while the shop panel is open at closing she stays (`hold`,
+    main.js passes `openPanelId() === 'shop'`). He standing ahead of the mule's nose holds
+    her up on the road (`blockedBy`). Her two colliders (bed r 1.5, mule r 0.9) follow the
+    cart and are parked at 10,000 while she is away; the shop's spot carries `off`, which
+    main.js `nearestInteractable` now honours.
+  - Under `?hour=` the sky holds still but her clock runs on from that hour (main.js
+    `cartClock`), so `?hour=7.97` shows her coming. `cart.setClock(fn)` pins it and
+    `cart.hurry(k)` quickens or stills her feet without moving her timetable (tests only).
+    In the test world, `time 7:58` / `time 16:59` show her come and go; `market on | off |
+    auto` keeps her at every hour, away, or to her hours.
+  - The model: every moving part is its own Group (bake keeps them) — the two wheels roll
+    by distance / radius, the mule's four legs swing in a walk (hind, fore, other hind, other
+    fore) by distance / `STRIDE` with a head bob, and her figure (russet gown, linen apron
+    and wimple, madder hood, purse) is its own Group whose arms hang from shoulder pivots
+    aimed by quaternion: one hand on the mule's cheek-strap and her staff in the other while
+    they walk, folded before her at the stall (her two fidgets: holding out a ware, smoothing
+    her apron). The staff is leaned on the cart while she trades, and the prop under the bed
+    shows only then. The cart pitches and rolls to the ground under it (Euler 'YZX').
+  - Left as it was: the wheel ruts painted on her pitch, the flora kept clear there, and her
+    stall spot (`LAYOUT.cart`, the same as the chapman's).
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -1646,6 +1695,18 @@ headlessly; everything else covered by the regression suite below.
   owner's screen; the frame rate on a real GPU is not measured, and night in the lanes wants
   his eye. CROWNBOUND-Guide.docx rebuilt. Details: "The Neighbours" under Noted decisions.
 
+- [x] Post-v1 — "The Chapwoman's Hours" (2026-11-28): the chapman is a chapwoman, and she
+  comes every day. A little before 8 AM she leads her mule and cart up the east road into the
+  village — wheels turning, the mule walking, her hand on his cheek-strap and her staff in the
+  other — pulls onto her pitch by the path, steps round to her wares, and the stall opens at 8.
+  At 5 PM she packs up and leads them on down the west road, past the Charter post and the
+  Tome, and out of sight a minute and a half later. If he is at her wares at five she waits
+  for him; if he stands in the road ahead of the mule she stops. Every in-game word (Charter,
+  map, shop, wares, test-world `market`) and CROWNBOUND-Guide.docx (rebuilt) give her hours;
+  market days are gone. No rule, reward or save change. New smoke scenario `cart`; RESULTS.
+  Seen only in the software renderer, not yet on the owner's screen; the walk was judged from
+  stills. Details: "The Chapwoman's Hours" under Noted decisions.
+
 - [x] Post-v1 — "The Tally of Blows" (2026-11-28), the owner: "Add a damage counter for each
   hit on the dummy." Each blow that lands on the dummy throws up its damage — a gold number
   ringed in ink that pops, rises about a unit and fades in under a second, a little scattered
@@ -1694,6 +1755,7 @@ headlessly; everything else covered by the regression suite below.
   `house` door collider open/close + the peg rack (E opens its panel, all three weapons listed, Hang up empties the hands — no swing, no stamina, saved — and Take up the cudgel puts it in hand) + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
   interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (no preset chips, a goal with no name refused, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + money put into savings from the Today card (savings, the month's saving, pledge kept, today's entry listed) + a recount leaves the month's saving + booth screenshot ·
+  `cart` the chapwoman's day: her timetable (sets out under 5 min before opening, gone under 5 min after closing, the phases at 7, 7:59, 8, 13, 17:00 and 18), both roads clear of every collider by > 0.3 (cart, mule and she swept along them), open with the prompt at 13:00, nobody and nothing solid at 7:00, coming up the east road and moving at 30s past setting out with the mule's collider following, held up by him ahead of the mule and on again when he steps aside, onto her pitch and the stall opened with its toast (her feet quickened by `cart.hurry`), waiting at closing while the shop is open and packing up once it shuts, gone (nothing solid, no prompt, the packing toast with her hour), and back at once when the clock is put back to 13:00 (screenshot of her on the road → scripts/smoke-cart.png) ·
   `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
   (the cudgel's unfolds with its config damage and folds again; the chest's three pictures and
   a chest read-more without the buying talk checked later; shop panel →

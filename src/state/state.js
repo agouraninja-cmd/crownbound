@@ -99,7 +99,7 @@ function defaultState(now = new Date()) {
     stamina: { current: CONFIG.stamina.baseCap, date: today },
     counters: { date: today, dummyHits: 0, ratsKilled: 0 },
     sleep: { retiredAt: null, lastRewardDate: null, wellRestedDate: null, log: [] },
-    shop: { owned: [] }, // ids of one-time purchases from the chapman
+    shop: { owned: [] }, // ids of one-time purchases from the chapwoman
     chest: { wielded: 'stick', loaves: 0 }, // the weapon in hand (the rest lie in the chest) + the larder
     farm: { stage: 0, done: [], workedOn: null, part: {} }, // the miller's strip: the job owed, the ridges done of it, the day the last job was finished, the ridges begun
     coronationAt: null, // set the moment the rank reaches King — the Coronation
@@ -593,7 +593,7 @@ export function setEpicProgress(pct) {
   emit('quests');
 }
 
-// ---------- the shop (the chapman's cart) ----------
+// ---------- the shop (the chapwoman's cart) ----------
 
 const handItems = () => CONFIG.shop.items.filter((i) => i.category === 'hand');
 
@@ -630,7 +630,7 @@ export function buyItem(id) {
   if (id === 'loaf') state.chest.loaves += 1; // bread keeps in the chest's larder
   state.history.push({
     date: todayStr(),
-    questText: `Bought ${item.name} from the chapman`,
+    questText: `Bought ${item.name} from the chapwoman`,
     statTrained: null,
     type: 'purchase',
   });

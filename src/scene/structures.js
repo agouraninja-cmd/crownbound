@@ -199,7 +199,7 @@ export function buildHovel() {
   add(box(0.035, 0.52, 0.035), WOOD_PALE, { x: 0.33, y: 0.62, z: -1.76, rz: -0.55 });
   add(box(0.15, 0.1, 0.03), IRON, { x: 0.2, y: 0.47, z: -1.76, rz: -0.55 });
 
-  // ---- exterior shop upgrades, hidden until bought at the chapman's cart ----
+  // ---- exterior shop upgrades, hidden until bought at the chapwoman's cart ----
 
   // 'window': a real glass pane with a cross mullion over the dark opening
   const glassWindow = new THREE.Group();

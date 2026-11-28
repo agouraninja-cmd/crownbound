@@ -157,7 +157,7 @@ export function buildPlayerMesh() {
 
   // trusty stick (a sword, someday), turning in the fist at the grip (the
   // wrist). It lies across the fist, not along the arm: `hold` turns it out of
-  // the thumb side. Kept out of the bake: the chapman's gear re-materials and
+  // the thumb side. Kept out of the bake: the chapwoman's gear re-materials and
   // re-scales it (player.js setWeaponTier).
   const grip = new THREE.Group();
   grip.position.y = -RIG.forearm;

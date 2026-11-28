@@ -4,6 +4,7 @@ import './ui/ui.css';
 import { buildWorld } from './scene/world.js';
 import { skyAt, clockHour, compass } from './scene/daylight.js';
 import { LAYOUT, pathX, fieldGap, trackGap, doorstep } from './scene/layout.js';
+import { cartDay, timetable, hourWords, ROAD_IN, ROAD_OUT } from './scene/cartday.js';
 import { createPlayer } from './player/player.js';
 import { WEAPON_LOOKS } from './player/playerMesh.js';
 import { createOrbitCamera } from './player/camera.js';
@@ -28,13 +29,11 @@ import { initConsole } from './proving/console.js';
 const { messages: bootMessages } = loadState();
 initMirror(); // dev-only: shadow the save to saves/crownbound-save.json (adopts it on an empty boot; never in the test world)
 
-// Market days bring the chapman's cart. Sessions are short, so the flag is
-// fixed per load like the rollover; ?market=1|0 overrides it (smoke tests).
+// The chapwoman keeps her cart by the path every day from opening to closing
+// by the player's own clock (src/scene/cartday.js). ?market=1 keeps her there
+// at every hour, ?market=0 keeps her away (smoke tests, the test world).
 const marketParam = new URLSearchParams(location.search).get('market');
-const marketToday =
-  marketParam !== null
-    ? marketParam === '1'
-    : CONFIG.shop.marketWeekdays.includes(new Date().getDay());
+const market = marketParam === '1' ? 'always' : marketParam === '0' ? 'never' : 'clock';
 
 // The sky shows the hour of the player's own clock. ?hour=17.5 holds it at
 // that hour of today instead (smoke tests, and a look at any time of day).
@@ -43,6 +42,13 @@ function skyClock() {
   const now = new Date();
   if (Number.isFinite(hourParam)) now.setHours(0, 0, hourParam * 3600, 0);
   return now;
+}
+// Her day is read from the same clock, but it runs on under ?hour= (the sky
+// holds still, she does not), so ?hour=7.97 shows her coming up the road.
+const loadedAt = performance.now();
+const cartStart = skyClock().getTime();
+function cartClock() {
+  return Number.isFinite(hourParam) ? new Date(cartStart + (performance.now() - loadedAt)) : new Date();
 }
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -57,12 +63,12 @@ document.getElementById('app').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-const world = buildWorld(scene, marketToday, skyClock);
+const world = buildWorld(scene, market, skyClock, cartClock);
 const player = createPlayer(scene, LAYOUT.playerSpawn);
 player.hearth = LAYOUT.campfire; // stand still by it and he sits to warm himself
 
 // the weapon in hand (chosen at the chest) and the home comforts bought from
-// the chapman, applied on load, on purchase, and when a weapon is taken up
+// the chapwoman, applied on load, on purchase, and when a weapon is taken up
 function applyPurchases() {
   const w = wieldedWeapon(); // the stick carries no damage/reach/tier of its own
   player.attackDamage = w.damage ?? CONFIG.player.attackDamage;
@@ -355,7 +361,7 @@ initPanels(
       facing: player.facing,
       trees: world.mapMarks.trees,
       rocks: world.mapMarks.rocks,
-      market: !!world.cart,
+      market: !!world.cart?.present(), // her cart standing on its pitch
       looks: farmRowLooks(),
     }),
   }
@@ -422,7 +428,6 @@ const opening = !staminaSpent() && (introParam === '1' || (introParam !== '0' &&
 function greet() {
   for (const m of bootMessages) if (!(opening && m.greeting)) toast(m.text, m.style);
   if (opening) toast(KEYS_LINE, '');
-  if (marketToday) toast('The chapman has come — his cart stands by the path.', 'gold');
 }
 
 // The cold fire: until a first daily deed has ever been logged the fire has
@@ -520,6 +525,7 @@ function nearestInteractable() {
   const inside = insideHovel();
   for (const it of world.interactables) {
     if (it.insideOnly && !inside) continue;
+    if (it.off) continue; // not to be had just now (the chapwoman's stall, shut)
     const d = Math.hypot(player.pos.x - it.x, player.pos.z - it.z);
     if (d < it.radius && d < bestD) {
       bestD = d;
@@ -605,7 +611,17 @@ world.exchequer.onGreet = () =>
     ''
   );
 world.miller.onGreet = () => toast('The miller raises a floury hand.', '');
-if (world.cart) world.cart.chapman.onGreet = () => toast('The chapman looks up from his wares.', '');
+if (world.cart) {
+  world.cart.chapman.onGreet = () =>
+    toast(world.cart.walking() ? 'The chapwoman nods to thee as she leads her mule by.' : 'The chapwoman looks up from her wares.', '');
+  // her day, as it happens while he is about: the cart on the road, the stall
+  // opened, the stall packed up (a load in the middle of her day says nothing)
+  world.cart.onEvent = (what) => {
+    if (what === 'coming') toast('A cart creaks up the east road — the chapwoman is coming.', '');
+    if (what === 'opened') toast(`The chapwoman has come — her cart stands by the path till ${hourWords(CONFIG.shop.closes)}.`, 'gold');
+    if (what === 'packing') toast(`The chapwoman packs up her wares. She comes again at ${hourWords(CONFIG.shop.opens)}.`, '');
+  };
+}
 
 // the miller has no panel — just a word on the day's tally for the rat-catcher
 function millerGreeting() {
@@ -800,7 +816,7 @@ if (PROVING) {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, village: world.village, mapMarks: world.mapMarks, planPath, layout: { LAYOUT, pathX, fieldGap, trackGap, doorstep }, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, damageShown, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, village: world.village, mapMarks: world.mapMarks, planPath, layout: { LAYOUT, pathX, fieldGap, trackGap, doorstep }, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, damageShown, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, cartday: { cartDay, timetable, hourWords, ROAD_IN, ROAD_OUT }, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -835,7 +851,7 @@ function step(dt) {
   world.chest.update(dt);
   world.exchequer.update(dt, player.pos);
   world.miller.update(dt, player.pos);
-  world.cart?.update(dt, player.pos);
+  world.cart?.update(dt, player.pos, openPanelId() === 'shop'); // she will not pack up on him mid-purchase
   orbitCam.update(dt, player.pos);
   // his back to a neighbour's wall, the eye has nowhere to stand but in the back of his head: he is not drawn then
   player.mesh.group.visible = !orbitCam.crowded();

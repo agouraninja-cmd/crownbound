@@ -2,8 +2,8 @@
 // Every number here is read from config.js at render time, so re-tuning the
 // game can never leave the charter lying. Only the prose is fixed.
 import { CONFIG } from '../state/config.js';
+import { hourWords } from '../scene/cartday.js';
 
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const FIRE_LINES = {
   embers: 'cold embers',
@@ -76,17 +76,18 @@ export function renderGuide(guideBody) {
     .map(([k, v]) => `<div class="kv"><span><b>${k}</b></span><span class="v">${v}</span></div>`)
     .join('');
 
-  // the chapman's section draws itself only while a shop exists in the config
+  // the chapwoman's section draws itself only while a shop exists in the config
   const marketSection = CONFIG.shop
     ? `<div class="sheet-section">
-        <h2>The Chapman&#8217;s Cart</h2>
-        <p class="muted">A peddler parks by the path on ${CONFIG.shop.marketWeekdays
-          .map((d) => WEEKDAY_NAMES[d])
-          .join(', ')}. He deals in comfort and swagger for coin — but virtue is not for sale,
-        at any price. No XP, no streak, no stamina changes hands at his cart.</p>
+        <h2>The Chapwoman&#8217;s Cart</h2>
+        <p class="muted">Every day a chapwoman keeps her cart by the path from
+        ${hourWords(CONFIG.shop.opens)} till ${hourWords(CONFIG.shop.closes)}. She leads her mule up the east
+        road a little before she opens, and on down the west road when she shuts. She deals in comfort
+        and swagger for coin — but virtue is not for sale, at any price. No XP, no streak, no stamina
+        changes hands at her cart.</p>
         ${
           CONFIG.chest
-            ? `<p class="muted">His bread keeps in the larder of the chest by thy cot — up to
+            ? `<p class="muted">Her bread keeps in the larder of the chest by thy cot — up to
               ${CONFIG.chest.larderCap} loaves — and a loaf eaten there mends every wound. Thy weapons
               hang on the peg rack by thy door (E): thou carriest one and choosest which, or hangest
               them all up to walk about empty-handed.</p>`

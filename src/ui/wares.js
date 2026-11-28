@@ -1,4 +1,4 @@
-// The chapman's wares, pictured and explained. Two things live here, both
+// The chapwoman's wares, pictured and explained. Two things live here, both
 // shown in the shop and again in the Chest (its weapons and its larder):
 //
 // - Pictures, drawn in ink and wash like the Map — one small SVG per item in
@@ -294,7 +294,7 @@ const LORE = {
       const rank = CONFIG.ranks.find((r) => r.title === item.minRank);
       const gate =
         rank && !inChest
-          ? `The chapman sells it only to a ${rank.title} or better: ${rank.totalLevels} virtue levels in all, won by real deeds at the Quest Board. `
+          ? `The chapwoman sells it only to a ${rank.title} or better: ${rank.totalLevels} virtue levels in all, won by real deeds at the Quest Board. `
           : '';
       return `${gate}${BOUGHT(inChest)}${SWING} ${RACK_SWAP}`;
     },
@@ -339,10 +339,10 @@ const LORE = {
   },
 
   loaf: {
-    about: 'A round of brown bread from the chapman&#8217;s basket, scored and dusted with flour. Bread keeps.',
+    about: 'A round of brown bread from the chapwoman&#8217;s basket, scored and dusted with flour. Bread keeps.',
     use: () =>
       `Each loaf goes to the larder of the chest by thy cot, which holds ${CONFIG.chest.larderCap}; ` +
-      'the chapman will not sell bread to a full larder. When thou art hurt, go into thy hovel, ' +
+      'the chapwoman will not sell bread to a full larder. When thou art hurt, go into thy hovel, ' +
       'stand at the chest, press E to open it, and choose &#8220;Eat a loaf&#8221;.',
     boon: () =>
       `A loaf mends every wound at once, back to the full ${CONFIG.player.maxHp} HP. It mends health ` +

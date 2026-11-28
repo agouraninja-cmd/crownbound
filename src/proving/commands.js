@@ -396,21 +396,21 @@ export const COMMANDS = [
     name: 'market',
     group: 'The village',
     usage: 'market on | off | auto',
-    about: 'Bring the chapman’s cart, send it away, or leave it to the weekday. Reloads.',
+    about: 'Keep the chapwoman’s cart by the path at every hour, keep her away, or leave her to her hours (auto). Reloads. To watch her come or go: time 7:58 or time 16:59.',
     run([word]) {
       if (!['on', 'off', 'auto'].includes(word)) fail('market on, market off, or market auto.');
       const url = new URL(location.href);
       if (word === 'auto') url.searchParams.delete('market');
       else url.searchParams.set('market', word === 'on' ? '1' : '0');
-      reloadWith({ on: 'The chapman is called to the village.', off: 'The chapman is sent on his way.', auto: 'The chapman keeps his own days again.' }[word], url.toString());
-      return 'Word is sent to the chapman…';
+      reloadWith({ on: 'The chapwoman stays by the path at every hour.', off: 'The chapwoman is sent on her way.', auto: 'The chapwoman keeps her own hours again.' }[word], url.toString());
+      return 'Word is sent to the chapwoman…';
     },
   },
   {
     name: 'give',
     group: 'The village',
     usage: `give <ware> | all`,
-    about: `Own one of the chapman’s wares without paying: ${itemIds().join(', ')}.`,
+    about: `Own one of the chapwoman’s wares without paying: ${itemIds().join(', ')}.`,
     run([word], game) {
       const ids = word === 'all' ? itemIds() : [word];
       if (!ids.every(item)) fail(`No such ware. The wares are: ${itemIds().join(', ')}.`);

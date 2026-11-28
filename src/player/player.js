@@ -127,7 +127,7 @@ export function createPlayer(scene, spawn) {
     route: null,
     onAttackSwing: null, // called once at the active frame of a swing
     onActionBlocked: () => {},
-    // gear from the chapman (main.js applies ownership on load + purchase)
+    // gear from the chapwoman (main.js applies ownership on load + purchase)
     attackDamage: CONFIG.player.attackDamage,
     attackReach: CONFIG.player.attackRange,
     setWeaponTier(t) {

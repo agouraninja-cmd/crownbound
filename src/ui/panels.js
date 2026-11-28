@@ -27,6 +27,7 @@ import {
   importSave,
 } from '../state/state.js';
 import { CONFIG } from '../state/config.js';
+import { hourWords } from '../scene/cartday.js';
 import { mouseFeelId, setMouseFeel } from '../state/prefs.js';
 import { PROVING, worldUrl } from '../proving/proving.js';
 import { todayStr } from '../state/dates.js';
@@ -682,7 +683,7 @@ function bindWareToggles(body, rerender) {
   }
 }
 
-// ---------- The Chapman's Cart (market days only) ----------
+// ---------- The Chapwoman's Cart (open by day: CONFIG.shop.opens–closes) ----------
 
 const SHOP_SECTIONS = [
   ['hand', 'Wares for the Hand'],
@@ -722,7 +723,7 @@ function renderShop() {
   shopBody.innerHTML = `
     <div class="sheet-section">
       <div class="kv"><span>Thy purse</span><span class="v">${s.coins} coins</span></div>
-      <p class="muted">The chapman deals in comfort and swagger. Virtue is not for sale, at any price.
+      <p class="muted">The chapwoman deals in comfort and swagger. Virtue is not for sale, at any price.
         Click a ware&#8217;s picture to read more of it.</p>
     </div>
     ${sections}`;
@@ -819,7 +820,7 @@ function renderChest() {
           <span class="muted">${
             loaves
               ? 'A loaf mends every wound at once. Bread keeps; eat it when thou art hurt.'
-              : 'Empty. The chapman sells loaves on market days.'
+              : `Empty. The chapwoman sells loaves at her cart, ${hourWords(CONFIG.shop.opens)} till ${hourWords(CONFIG.shop.closes)}.`
           }</span>
           ${wareMoreLink(loaf)}
         </div>

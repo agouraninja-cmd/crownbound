@@ -56,10 +56,16 @@ export const CONFIG = {
     staminaBonus: 40, // extra cap (and pool) for the rest of the day
   },
 
-  // The Chapman's Cart. The sacred rule: coins buy comfort and swagger,
+  // The Chapwoman's Cart. The sacred rule: coins buy comfort and swagger,
   // never virtue — no XP, no streak repair, no stamina is ever for sale.
+  // She keeps her cart by the path every day from `opens` till `closes` (hours
+  // by the player's own clock). She walks her mule up the east road a little
+  // before `opens`, timed to be set up on the hour, and leads it on down the
+  // west road at `closes` (src/scene/cartday.js is her timetable).
   shop: {
-    marketWeekdays: [0, 3, 5], // Sun, Wed, Fri — the chapman's route through the village
+    opens: 8, // 8 AM
+    closes: 17, // 5 PM
+    pace: 1.2, // how fast she and the mule walk the road, units a second (he walks 4.2)
     items: [
       // wares for the hand (gear; damage/reach read by main.js)
       { id: 'cudgel', name: 'an oaken cudgel', flavor: 'Twice the argument of a stick.',
@@ -86,7 +92,7 @@ export const CONFIG = {
   },
 
   // The chest by the cot keeps the larder; the hand holds one weapon and the peg rack by the door the rest;
-  // loaves bought from the chapman wait in its larder until eaten (a full
+  // loaves bought from the chapwoman wait in its larder until eaten (a full
   // heal, wounded only). Still the sacred rule — bread mends HP, nothing more.
   chest: {
     larderCap: 6, // loaves the chest can keep at once

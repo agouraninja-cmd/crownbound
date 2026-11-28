@@ -23,9 +23,11 @@ d = Document(str(root / 'scripts' / 'guide-template.docx'))
 R, ST, SL, PL, FM = C['rewards'], C['stamina'], C['sleep'], C['player'], C['farm']
 KING = C['ranks'][-1]['totalLevels']
 ITEM = {i['id']: i for i in C['shop']['items']}
-DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-market = [DAYS[n] for n in C['shop']['marketWeekdays']]
-MARKET = ', '.join(market[:-1]) + ' and ' + market[-1]
+def hour_words(h):  # 8 -> "8 AM", 17 -> "5 PM", 8.5 -> "8:30 AM" (as cartday.js hourWords)
+    whole = int(h)
+    mins = round((h - whole) * 60)
+    return f"{(whole + 11) % 12 + 1}{f':{mins:02d}' if mins else ''} {'AM' if whole < 12 else 'PM'}"
+OPENS, CLOSES = hour_words(C['shop']['opens']), hour_words(C['shop']['closes'])
 WORDS = {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five'}
 # the prose below speaks of "two dozen" neighbours' houses: stop here if the village has changed
 assert C['houses'] == 24, f"the guide says two dozen houses; the layout has {C['houses']}"
@@ -121,7 +123,7 @@ fill(tour, [
     ["The granary and the miller", f"{WORDS[C['rats']['count']].capitalize()} rats prowl the yard, and the miller walks his rounds there. He pays a bounty per tail; E beside him tells the day’s tally."],
     ["The miller’s strip", "A fenced wheat field out past the granary to the north-east, at the end of a cart track. One job a day — see The Miller’s Strip."],
     ["The Exchequer", "A money-changer’s booth by the path — checkered counting cloth, scales, and a clerk. E at the counter opens the Treasury, where your real savings are tracked."],
-    ["The chapman’s cart", f"A mule cart parked by the path on market days only — {MARKET}. E opens the shop."],
+    ["The chapwoman’s cart", f"A mule cart by the path every day from {OPENS} to {CLOSES}. E opens the shop."],
 ])
 
 # ---- quests ----
@@ -165,7 +167,7 @@ s1 = para_after(h, BODY, "The moment stamina reaches zero, the day’s play is o
 s2 = para_after(s1, BODY, "From bed you can still open the Quest Board, the Tome and the Exchequer. If no daily deed is done yet today, completing one from bed **refills the pool and gets him up**. Once a daily deed is done, a second emptying is final until tomorrow. “Retire for the night” on the card marks your real bedtime; the walk home does not.")
 
 # ---- combat ----
-c0 = para_after(P[20], BODY, f"Left click swings what is in your hand. Three blows chain when you swing in quick succession — a chop, a backhand, a sweep — and all three cost, reach and hit the same. You begin with a stick (damage {PL['attackDamage']}); the chapman sells a cudgel (damage {ITEM['cudgel']['damage']}) and, to a {ITEM['quarterstaff']['minRank']}, a quarterstaff (damage {ITEM['quarterstaff']['damage']} and a longer reach).")
+c0 = para_after(P[20], BODY, f"Left click swings what is in your hand. Three blows chain when you swing in quick succession — a chop, a backhand, a sweep — and all three cost, reach and hit the same. You begin with a stick (damage {PL['attackDamage']}); the chapwoman sells a cudgel (damage {ITEM['cudgel']['damage']}) and, to a {ITEM['quarterstaff']['minRank']}, a quarterstaff (damage {ITEM['quarterstaff']['damage']} and a longer reach).")
 
 steps = C['dummy']
 curve = f"**{steps[0]['xp']} XP** per hit for the first {steps[0]['upTo']} hits" + ''.join(f", **{s_['xp']} XP** until {s_['upTo']} hits" for s_ in steps[1:])
@@ -180,7 +182,7 @@ f2 = para_after(f1, BODY, "The crop grows only across the days you turn up: shoo
 # ---- wealth ----
 fill(purses, [
     ["", "What it is", "Where"],
-    ["Coins", "Quest spoils, rat bounties and field wages. Spent at the chapman’s cart on gear, home comforts and bread.", "Shown on the HUD and in the Tome"],
+    ["Coins", "Quest spoils, rat bounties and field wages. Spent at the chapwoman’s cart on gear, home comforts and bread.", "Shown on the HUD and in the Tome"],
     ["The Treasury", "Your real-world savings, tracked by hand against a goal. Game coins never convert into it and it pays no coins; a savings goal won earns Intelligence XP, its one reward.", "The Exchequer’s counting table"],
 ])
 set_text(P[29], "The Treasury is real money, on your honor. A coffer fills with coin as your savings near the goal, beside your savings in large numerals and a track to the goal that shows how far you are and when your monthly pledge gets you there.")
@@ -194,9 +196,9 @@ for kind, line in [
 ]:
     w = para_after(w, kind, line)
 
-# ---- the chapman's cart ----
-ch = para_after(w, H2, "The Chapman’s Cart")
-c1 = para_after(ch, BODY, f"The chapman parks by the path on **market days only — {MARKET}**. Each ware has a picture; click it (or “Read more”) for what it is, how to use it and what it does for you. **The sacred rule:** coins buy comfort and swagger, never virtue — no XP, no streak repair and no stamina is ever for sale.")
+# ---- the chapwoman's cart ----
+ch = para_after(w, H2, "The Chapwoman’s Cart")
+c1 = para_after(ch, BODY, f"The chapwoman keeps her cart by the path **every day from {OPENS} to {CLOSES}**, by your own clock. A little before she opens you can watch her lead her mule and cart up the east road into the village, and at closing she packs up and leads them on down the west road. If you are at her wares when she shuts, she waits for you to finish. Each ware has a picture; click it (or “Read more”) for what it is, how to use it and what it does for you. **The sacred rule:** coins buy comfort and swagger, never virtue — no XP, no streak repair and no stamina is ever for sale.")
 wares = table_after(c1, quests, [
     ["Ware", "Price", "What it does"],
     ["An oaken cudgel", coins(ITEM['cudgel']['price']), f"A weapon: damage {ITEM['cudgel']['damage']}"],
@@ -232,14 +234,14 @@ set_text(P[39], "Your save lives only in this browser, and separately for each a
 # ---- the proving ground (after Saving) ----
 ph = para_after(P[39], H2, "The Proving Ground (the Test World)")
 t1 = para_after(ph, BODY, "A second world for trying things out, kept wholly apart from your real one. Open it from **The Proving Ground** at the bottom of the Tome, or add **?test=1** to the game’s address (**https://agouraninja-cmd.github.io/crownbound/?test=1**). It has a save of its own: nothing done there changes your real chronicle, and a dark banner across the top of the screen always says which world you are in. **Leave** on the banner takes you back.")
-t2 = para_after(t1, BODY, f"Press **/** to open the command line, type a command and press Enter; Esc closes it. **help** lists every command. A few of them: **stamina full**, **rank {C['ranks'][-1]['title'].lower()}**, **level wis 10**, **coins 500**, **streak 30**, **daily**, **tp field**, **market on**, **give cudgel**, **time 7:30** and **nextday** — a night passes, which is how streaks, the growing crop, market days and the dawn can all be tried in one sitting. **copy** brings in a copy of your real save to experiment on (the real one is not touched), **reset world** begins the test world again, **newgame** starts it from nothing as a newcomer would — opening and all — and **intro** plays the game’s opening once more.")
+t2 = para_after(t1, BODY, f"Press **/** to open the command line, type a command and press Enter; Esc closes it. **help** lists every command. A few of them: **stamina full**, **rank {C['ranks'][-1]['title'].lower()}**, **level wis 10**, **coins 500**, **streak 30**, **daily**, **tp field**, **market on**, **give cudgel**, **time 7:30** and **nextday** — a night passes, which is how streaks, the growing crop and the dawn can all be tried in one sitting (and **time 7:58** shows the chapwoman coming up the road). **copy** brings in a copy of your real save to experiment on (the real one is not touched), **reset world** begins the test world again, **newgame** starts it from nothing as a newcomer would — opening and all — and **intro** plays the game’s opening once more.")
 t3 = para_after(t2, BODY, "You can make commands of your own. Type **make fresh = stamina full; heal; coins 1000** and from then on **fresh** runs all three; **forget fresh** unmakes it. Your own commands stay in the browser even when the test world is begun again.")
 
 # ---- the road ahead ----
 fill(road, [
     ["Version", "What comes"],
     ["v2 — The Living Village", "Villagers with AI-driven dialogue. Already here: the Sage, and the Chronicler’s weekly entries"],
-    ["v3 — Coin & Commerce", "Festival mini-games, rotating cart stock, more gear and home upgrades. Already here: the chapman’s cart"],
+    ["v3 — Coin & Commerce", "Festival mini-games, rotating cart stock, more gear and home upgrades. Already here: the chapwoman’s cart"],
     ["v4 — Bonds & Bloodline", "Relationships, courtship, marriage, family — gated by sustained streaks"],
     ["v5 — The Ascension Arc", "Squire, Knight, and Lord chapters, real enemies, the militia, and the Coronation ceremony (the crowning itself already happens at King)"],
 ])

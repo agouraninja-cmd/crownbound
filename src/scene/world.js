@@ -8,7 +8,7 @@ import { buildFlora } from './flora.js';
 import { windTime } from './wind.js';
 import { buildAmbient } from './ambient.js';
 import { buildHovel, buildQuestBoard, buildTome, buildGranary, buildDummy, buildExchequer, buildCharter, buildMiller, HOVEL } from './structures.js';
-import { buildCart } from './cart.js';
+import { createCart } from './cart.js';
 import { buildField } from './field.js';
 import { buildVillage } from './village.js';
 import { makeAlive, makeStroll } from './alive.js';
@@ -21,7 +21,9 @@ const WINDOW_BY_DAY = new THREE.Color(0x4a2c16);
 const WINDOW_BY_NIGHT = new THREE.Color(0xd9822e);
 
 // skyClock: () => Date — the moment the sky shows (main.js: the real clock, or ?hour=)
-export function buildWorld(scene, marketToday = false, skyClock) {
+// market: 'clock' (the chapwoman keeps her hours) | 'always' | 'never'
+// cartClock: () => Date — the moment her day is read from
+export function buildWorld(scene, market = 'clock', skyClock, cartClock = () => new Date()) {
   const sky = createSky(scene, skyClock);
   scene.add(buildTerrain());
 
@@ -59,7 +61,7 @@ export function buildWorld(scene, marketToday = false, skyClock) {
   };
   sky.refresh();
 
-  // home upgrades bought from the chapman: meshes pre-built, shown when owned
+  // home upgrades bought from the chapwoman: meshes pre-built, shown when owned
   const homeUpgrades = hovel.upgrades;
   function applyHomeUpgrades(ownedIds) {
     for (const [id, obj] of Object.entries(homeUpgrades)) {
@@ -146,40 +148,15 @@ export function buildWorld(scene, marketToday = false, skyClock) {
   scene.add(field.group);
   colliders.push(...field.colliders);
 
-  // the chapman's cart parks by the path on market days only — no cart, no
-  // collider, no prompt on other days (his wheel ruts stay painted year-round)
+  // the chapwoman's cart: by the path every day from opening to closing, up
+  // the east road before it and down the west road after (cart.js). Her
+  // colliders and the shop's E follow where she is; ?market=0 keeps her away
+  // altogether. (Her wheel ruts stay painted on her pitch at every hour.)
   let cart = null;
-  if (marketToday) {
-    const c = buildCart();
-    placeAt(c.group, LAYOUT.cart, 1.5);
-    const th = LAYOUT.cart.rotY;
-    // the mule stands ahead of the bed; his own collision circle
-    colliders.push({ x: LAYOUT.cart.x + 1.9 * Math.cos(th), z: LAYOUT.cart.z - 1.9 * Math.sin(th), r: 0.9 });
-    // the chapman's own world position (he stands off the cart's centre)
-    const chapman = makeAlive({
-      x: LAYOUT.cart.x + -0.3 * Math.cos(th) + -1.05 * Math.sin(th),
-      z: LAYOUT.cart.z - -0.3 * Math.sin(th) + -1.05 * Math.cos(th),
-      yaw: th,
-      forward: Math.PI, // he faces the path on local -z
-      sway: c.sway,
-      head: c.head,
-      gestures: [
-        // nudging a ware straight on the cart bed
-        { dur: 1.5, apply: (k) => { c.armCart.rotation.z = -1.0 + Math.sin(k * Math.PI) * 0.45; } },
-        // resettling his weight on the staff
-        { dur: 1.7, apply: (k) => { c.armStaff.rotation.z = 0.5 + Math.sin(k * Math.PI) * 0.35; } },
-      ],
-    });
-    let cartT = (LAYOUT.cart.x * 5.1) % Math.PI;
-    cart = {
-      chapman,
-      update(dt, playerPos) {
-        cartT += dt;
-        c.muleHead.rotation.z = -0.1 + Math.sin(cartT * 0.5) * 0.09; // dozy nod
-        c.muleTail.rotation.x = Math.sin(cartT * 2.1) * 0.3; // fly-swatting
-        chapman.update(dt, playerPos);
-      },
-    };
+  if (market !== 'never') {
+    cart = createCart({ terrainHeight, clock: cartClock, always: market === 'always' });
+    scene.add(cart.group);
+    colliders.push(...cart.colliders);
   }
 
   // hovel collision: axis-aligned wall/furniture rects (the hovel is unrotated)
@@ -311,19 +288,7 @@ export function buildWorld(scene, marketToday = false, skyClock) {
   field.spot = { id: 'field', label: 'the miller’s strip', x: LAYOUT.field.x, z: LAYOUT.field.z, radius: 1.25, row: 0 };
   interactables.push(field.spot);
 
-  if (cart) {
-    // the chapman's side of the cart, in world coords (the cart is rotated)
-    const th = LAYOUT.cart.rotY;
-    const lx = -0.3;
-    const lz = -1.05;
-    interactables.push({
-      id: 'shop',
-      label: 'the chapman’s cart',
-      x: LAYOUT.cart.x + lx * Math.cos(th) + lz * Math.sin(th),
-      z: LAYOUT.cart.z - lx * Math.sin(th) + lz * Math.cos(th),
-      radius: 2.4,
-    });
-  }
+  if (cart) interactables.push(cart.spot); // offered only while her stall is open (spot.off)
 
   // ambient life: smoke from the hovel's roof and the neighbours', motes, birds, butterflies
   const ambient = buildAmbient({

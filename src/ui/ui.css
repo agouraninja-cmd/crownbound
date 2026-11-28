@@ -582,10 +582,10 @@ button:disabled {
 .deed-tag.tag-gold { color: #8a6d1c; }
 .deed-tag.tag-grim { color: #7a2e1f; }
 
-/* the chapman's price buttons sit at the end of a deed row */
+/* the chapwoman's price buttons sit at the end of a deed row */
 .deed button { flex-shrink: 0; padding: 3px 12px; font-size: 14px; align-self: center; }
 
-/* the chapman's wares (and the chest's), each with its picture (ink and wash, drawn in wares.js) */
+/* the chapwoman's wares (and the chest's), each with its picture (ink and wash, drawn in wares.js) */
 .deed.ware { align-items: center; padding: 5px 0; flex-wrap: wrap; }
 .deed.ware .deed-tag { align-self: center; }
 .ware-pic,
@@ -654,7 +654,7 @@ button.ware-pic:active { transform: translateY(1px); }
   letter-spacing: 1px;
   color: var(--ink-faded);
 }
-/* a ware above thy rank is shown, but faded, like a thing behind the chapman's counter;
+/* a ware above thy rank is shown, but faded, like a thing behind the chapwoman's counter;
    an empty larder fades its loaf the same way */
 .deed.ware.locked .ware-pic { opacity: 0.55; filter: grayscale(0.6) sepia(0.25); }
 

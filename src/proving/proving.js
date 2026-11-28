@@ -2,7 +2,7 @@
 // with ?test=1 and it runs on its own save slot — the true save is never
 // written there, and read only when the `copy` command is asked to. The test
 // world has a command line (console.js) and a clock that can be moved, so a
-// night can pass when told to: streaks, the crop, market days and the dawn
+// night can pass when told to: streaks, the crop, the chapwoman's hours and the dawn
 // can all be tried in one sitting.
 //
 // This module must stay the FIRST import of main.js — the moved clock has to
@@ -22,14 +22,14 @@ export function worldUrl(test) {
     url.searchParams.set('test', '1');
   } else {
     url.searchParams.delete('test');
-    url.searchParams.delete('market'); // a chapman called by command stays behind in the test world
+    url.searchParams.delete('market'); // a chapwoman kept or sent away by command stays behind in the test world
   }
   return url.toString();
 }
 
 // ---------- the moved clock ----------
 // The game reads the hour and the day with `new Date()` in dozens of places
-// (rollover, the sky, market days, the dawn). Rather than thread a clock
+// (rollover, the sky, the chapwoman's hours, the dawn). Rather than thread a clock
 // through all of them, the test world swaps in a Date that runs `shift`
 // milliseconds ahead of the real one. Dates built from a value (a save's
 // timestamp, a year-month-day) are untouched; only "now" moves.
@@ -101,7 +101,7 @@ export function realClock() {
 
 // ---------- reloading ----------
 // Some commands only take hold on a load (a new day, a fresh world, the
-// chapman called). The page reloads — to another address if one is given —
+// chapwoman kept or sent away). The page reloads — to another address if one is given —
 // and the line left here is shown once it is back.
 const NOTE_KEY = 'crownbound_test_note';
 

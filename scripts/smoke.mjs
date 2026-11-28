@@ -1826,7 +1826,7 @@ try {
         daily: text.includes(`+${C.rewards.daily.xp} XP`),
         caps: text.includes(`${C.stamina.baseCap}`) && text.includes(`${C.stamina.questCap}`),
         king: text.includes(`${C.ranks[C.ranks.length - 1].totalLevels}`),
-        market: !C.shop || text.includes('Chapman'),
+        market: !C.shop || (text.includes('Chapwoman') && text.includes(window.__game.cartday.hourWords(C.shop.opens)) && text.includes(window.__game.cartday.hourWords(C.shop.closes))),
       };
     });
     console.log('charter:', JSON.stringify(charter));
@@ -1836,7 +1836,7 @@ try {
     if (!charter.daily) errors.push('guide: daily reward not drawn from config');
     if (!charter.caps) errors.push('guide: stamina caps not drawn from config');
     if (!charter.king) errors.push('guide: rank ladder not drawn from config');
-    if (!charter.market) errors.push('guide: shop is configured but the charter is silent on market days');
+    if (!charter.market) errors.push('guide: shop is configured but the charter does not give the chapwoman’s hours');
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 300));
     // frame the post from the northwest so the parchment faces the camera
@@ -2541,7 +2541,7 @@ try {
     else if (!shown[0].includes('ball court')) errors.push('chronicle: Tome journal is not newest-first');
     await page.screenshot({ path: 'scripts/smoke-chronicle.png' });
   } else if (scenario === 'market') {
-    // 1) force a market day (any real weekday) and seed a fat purse
+    // 1) keep her stall open at every hour (market=1) and seed a fat purse
     await page.goto(`http://localhost:${PORT}/?smoke=market&market=1${DAY}`, { waitUntil: WAIT });
     await new Promise((r) => setTimeout(r, 2000));
     if (!(await page.evaluate(() => !!window.__game.cart)))
@@ -2558,12 +2558,12 @@ try {
     // 2) the prompt offers the cart; E opens the shop
     await page.evaluate(() => {
       const g = window.__game;
-      g.player.pos.x = 1.5; // on the path, the chapman's side
+      g.player.pos.x = 1.5; // on the path, the chapwoman's side
       g.player.pos.z = 9.0;
     });
     const prompt = await promptOffered();
     console.log('prompt:', JSON.stringify(prompt));
-    if (!prompt.includes('chapman')) errors.push(`market: prompt "${prompt}" does not offer the cart`);
+    if (!prompt.includes('chapwoman')) errors.push(`market: prompt "${prompt}" does not offer the cart`);
     await page.keyboard.press('KeyE');
     await new Promise((r) => setTimeout(r, 300));
     if (await page.evaluate(() => document.getElementById('shop-panel').classList.contains('hidden')))
@@ -2752,7 +2752,7 @@ try {
       g.player.pos.z = 9.0;
     });
 
-    // 7) cart portrait, then the empty spot on a non-market day
+    // 7) cart portrait, then the empty pitch with her kept away (market=0)
     await page.evaluate(() => window.__game.orbitCam.setView(-1.1, 0.3, 5.5));
     await new Promise((r) => setTimeout(r, 600));
     await page.screenshot({ path: 'scripts/smoke-market.png' });
@@ -2771,6 +2771,219 @@ try {
     console.log('off-day:', JSON.stringify({ cart: offDay.cart, promptHidden: offPrompt }));
     if (offDay.cart !== null) errors.push('market: cart present though market=0');
     if (!offPrompt) errors.push('market: something still prompts at the empty spot');
+  } else if (scenario === 'cart') {
+    // The chapwoman's day, by the clock: up the east road a little before
+    // she opens, her stall open till closing, off down the west road after.
+    // The clock is pinned through cart.setClock; her feet are quickened
+    // (cart.hurry) where the walk itself is not what is being checked.
+    await page.goto(`http://localhost:${PORT}/?smoke=cart${DAY}`, { waitUntil: WAIT });
+    await new Promise((r) => setTimeout(r, 2000));
+    const at = (h, m, s = 0) => `${h}:${m}:${s}`;
+    // pin her clock to a moment (running on from it, or held) — evaluated in the page
+    const pin = (hms, run = true) =>
+      page.evaluate(({ hms, run }) => {
+        const g = window.__game;
+        const [h, m, s] = hms.split(':').map(Number);
+        const d = new Date();
+        d.setHours(h, m, s, 0);
+        const t0 = performance.now();
+        g.cart.setClock(run ? () => new Date(d.getTime() + performance.now() - t0) : () => d);
+      }, { hms, run });
+    const cartNow = () =>
+      page.evaluate(() => {
+        const g = window.__game;
+        const c = g.cart;
+        const [bed, mule] = c.colliders;
+        return {
+          phase: c.phase(),
+          d: c.distance(),
+          shown: c.group.visible,
+          x: c.group.position.x,
+          z: c.group.position.z,
+          off: c.spot.off,
+          bed: [bed.x, bed.z],
+          mule: [mule.x, mule.z],
+          toasts: window.__toastLog || [],
+          shop: !document.getElementById('shop-panel').classList.contains('hidden'),
+        };
+      });
+    // every toast raised from here on, kept (they fade before they can be read)
+    const words = await page.evaluate(() => {
+      window.__toastLog = [];
+      new MutationObserver((ms) => {
+        for (const m of ms) for (const n of m.addedNodes) window.__toastLog.push(n.textContent);
+      }).observe(document.getElementById('toasts'), { childList: true });
+      const g = window.__game;
+      return { opens: g.cartday.hourWords(g.CONFIG.shop.opens), closes: g.cartday.hourWords(g.CONFIG.shop.closes) };
+    });
+    const waitPhase = (phase, ms = 15000) =>
+      page.waitForFunction((p) => window.__game.cart.phase() === p, { timeout: ms, polling: 'raf' }, phase).then(() => true, () => false);
+
+    // 1) the timetable: on the road a little before she opens, gone soon after she shuts
+    const tt = await page.evaluate(() => {
+      const g = window.__game;
+      const { cartDay, timetable, ROAD_IN, ROAD_OUT } = g.cartday;
+      const T = timetable();
+      const S = g.CONFIG.shop;
+      return {
+        T, opens: S.opens * 3600, closes: S.closes * 3600, roadIn: ROAD_IN.length, roadOut: ROAD_OUT.length,
+        at7: cartDay(7 * 3600).phase, at759: cartDay(T.sets + 10).phase, at8: cartDay(S.opens * 3600).phase,
+        at13: cartDay(13 * 3600).phase, at5: cartDay(S.closes * 3600 + 1).phase, at6: cartDay(18 * 3600).phase,
+      };
+    });
+    console.log('timetable:', JSON.stringify(tt));
+    if (!(tt.T.sets < tt.opens && tt.opens - tt.T.sets < 300)) errors.push(`cart: she does not set out a little before opening -> ${tt.opens - tt.T.sets}s before`);
+    if (tt.T.closes !== tt.closes || tt.T.gone - tt.closes > 300) errors.push(`cart: she is not gone soon after closing -> ${tt.T.gone - tt.closes}s after`);
+    const phases = [tt.at7, tt.at759, tt.at8, tt.at13, tt.at5, tt.at6].join(' ');
+    if (phases !== 'before coming stall stall packing after') errors.push(`cart: her day reads ${phases}`);
+
+    // 2) her roads are clear: the cart, the mule and she, at every step along
+    //    both, keep off every collider in the village (her own two aside)
+    const clear = await page.evaluate(() => {
+      const g = window.__game;
+      const own = new Set(g.cart.colliders);
+      const cols = g.colliders.filter((c) => !own.has(c));
+      const gap = (x, z) => {
+        let best = Infinity;
+        for (const c of cols) {
+          let d;
+          if (c.r !== undefined) d = Math.hypot(x - c.x, z - c.z) - c.r;
+          else if (c.cos !== undefined) {
+            const dx = x - c.x, dz = z - c.z;
+            const u = dx * c.cos - dz * c.sin, w = dx * c.sin + dz * c.cos;
+            d = Math.hypot(Math.max(Math.abs(u) - c.halfX, 0), Math.max(Math.abs(w) - c.halfZ, 0));
+          } else d = Math.hypot(Math.max(c.minX - x, 0, x - c.maxX), Math.max(c.minZ - z, 0, z - c.maxZ));
+          best = Math.min(best, d);
+        }
+        return best;
+      };
+      const foot = [];
+      for (let x = -1.1; x <= 1.01; x += 0.35) for (const z of [-0.9, 0, 0.9]) foot.push([x, z]);
+      for (let x = 1.2; x <= 2.81; x += 0.4) for (const z of [-0.45, 0, 0.45]) foot.push([x, z]);
+      foot.push([2.4, -0.7]); // she, at the mule's head
+      const out = {};
+      for (const [name, road] of [['in', g.cartday.ROAD_IN], ['out', g.cartday.ROAD_OUT]]) {
+        let worst = Infinity;
+        for (let d = 0; d <= road.length; d += 0.5) {
+          const p = road.at(d);
+          const c = Math.cos(p.rotY), s = Math.sin(p.rotY);
+          for (const [lx, lz] of foot) worst = Math.min(worst, gap(p.x + lx * c + lz * s, p.z - lx * s + lz * c));
+        }
+        out[name] = +worst.toFixed(2);
+      }
+      return out;
+    });
+    console.log('roads clear by:', JSON.stringify(clear));
+    if (!(clear.in > 0.3)) errors.push(`cart: the road in passes within ${clear.in} of something solid`);
+    if (!(clear.out > 0.3)) errors.push(`cart: the road out passes within ${clear.out} of something solid`);
+
+    // 3) at one in the afternoon her stall is open, and E is offered at it
+    const noon = await cartNow();
+    if (noon.phase !== 'stall' || noon.off || !noon.shown) errors.push(`cart: not open at 13:00 -> ${JSON.stringify(noon)}`);
+    await page.evaluate(() => { const g = window.__game; g.player.pos.x = 1.5; g.player.pos.z = 9.0; });
+    const openPrompt = await promptOffered();
+    if (!openPrompt.includes('chapwoman')) errors.push(`cart: prompt "${openPrompt}" at her stall at 13:00`);
+
+    // 4) seven in the morning: nobody there — no cart, nothing solid, no prompt
+    await pin(at(7, 0));
+    await waitPhase('before', 4000);
+    await new Promise((r) => setTimeout(r, 800));
+    const seven = await cartNow();
+    const sevenPrompt = await page.evaluate(() => document.getElementById('interact-prompt').classList.contains('hidden'));
+    console.log('7:00:', JSON.stringify({ ...seven, toasts: undefined, promptHidden: sevenPrompt }));
+    if (seven.phase !== 'before' || seven.shown || seven.bed[0] < 1000 || seven.mule[0] < 1000) errors.push(`cart: still about at 7:00 -> ${JSON.stringify(seven)}`);
+    if (!sevenPrompt) errors.push('cart: something prompts at her empty pitch at 7:00');
+
+    // 5) half a minute after she sets out: on the east road, walking, the
+    //    shop shut; the cart moves along it
+    await page.evaluate(() => { const g = window.__game; g.player.pos.x = -5; g.player.pos.z = 4; });
+    const setOut = tt.T.sets + 30;
+    await pin(`${Math.floor(setOut / 3600)}:${Math.floor(setOut / 60) % 60}:${Math.floor(setOut % 60)}`);
+    await waitPhase('coming', 4000);
+    const c1 = await cartNow();
+    await new Promise((r) => setTimeout(r, 1500));
+    const c2 = await cartNow();
+    console.log('coming:', JSON.stringify({ d1: c1.d, d2: c2.d, z: c2.z, off: c2.off }));
+    if (c1.phase !== 'coming' || !c1.shown || !c1.off) errors.push(`cart: not coming, shown and shut at 30s past setting out -> ${JSON.stringify(c1)}`);
+    if (!(c1.z > 20)) errors.push(`cart: not on the east road -> z ${c1.z}`);
+    if (!(c2.d > c1.d + 0.5)) errors.push(`cart: did not move along the road (${c1.d} → ${c2.d})`);
+    if (Math.hypot(c2.mule[0] - c2.x, c2.mule[1] - c2.z) > 2.0) errors.push('cart: the mule’s collider does not follow the cart');
+    // her screenshot on the road, held still
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.cart.hurry(1e-6);
+      const q = g.cartday.ROAD_IN.at(g.cart.distance() + 2.2);
+      g.player.pos.x = q.x - 0.5 * Math.sin(q.rotY);
+      g.player.pos.z = q.z - 0.5 * Math.cos(q.rotY);
+      g.player.vel.set(0, 0);
+      g.player.mesh.group.scale.setScalar(0.001);
+      g.orbitCam.setView(-q.rotY - 1.6, 0.12, 3.4); // from ahead of her, on her side of the road
+    });
+    await new Promise((r) => setTimeout(r, 2500));
+    await page.screenshot({ path: 'scripts/smoke-cart.png' });
+    await page.evaluate(() => { const g = window.__game; g.player.mesh.group.scale.setScalar(1); g.cart.hurry(1); });
+
+    // 6) he stands in the road ahead of the mule: she waits; he steps aside: on she comes
+    const blockAt = await page.evaluate(() => {
+      const g = window.__game;
+      const q = g.cartday.ROAD_IN.at(g.cart.distance());
+      g.player.pos.x = q.x + 3.3 * Math.cos(q.rotY) + 0.4 * Math.sin(q.rotY);
+      g.player.pos.z = q.z - 3.3 * Math.sin(q.rotY) + 0.4 * Math.cos(q.rotY);
+      g.player.vel.set(0, 0);
+      return g.cart.distance();
+    });
+    await new Promise((r) => setTimeout(r, 1500));
+    const held = await page.evaluate(() => window.__game.cart.distance());
+    await page.evaluate(() => { const g = window.__game; g.player.pos.x = -5; g.player.pos.z = 4; });
+    await new Promise((r) => setTimeout(r, 1500));
+    const freed = await page.evaluate(() => window.__game.cart.distance());
+    console.log('held up:', JSON.stringify({ blockAt, held, freed }));
+    if (held - blockAt > 0.15) errors.push(`cart: she walked on into him (${blockAt} → ${held})`);
+    if (!(freed > held + 0.5)) errors.push(`cart: she did not walk on once he stepped aside (${held} → ${freed})`);
+
+    // 7) quicker feet for the rest of the walk: onto her pitch, a few steps
+    //    to her place, and the stall opens with a word of it
+    await page.evaluate(() => window.__game.cart.hurry(25));
+    const opened = await waitPhase('stall', 20000);
+    const o = await cartNow();
+    console.log('opened:', JSON.stringify({ phase: o.phase, x: o.x, z: o.z, off: o.off, toasts: o.toasts }));
+    if (!opened || o.off) errors.push(`cart: the stall never opened -> ${JSON.stringify(o)}`);
+    if (Math.hypot(o.x - 3.2, o.z - 8.5) > 0.05) errors.push(`cart: not on her pitch -> (${o.x}, ${o.z})`);
+    if (!o.toasts.some((t) => t.includes('chapwoman') && t.includes('east road'))) errors.push('cart: no word of her coming up the road');
+    if (!o.toasts.some((t) => t.includes('chapwoman has come') && t.includes(words.closes)))
+      errors.push('cart: no word of the stall opening, with its closing hour');
+
+    // 8) closing time with the shop open: she waits for him to finish
+    await page.evaluate(() => { const g = window.__game; g.cart.hurry(1); g.player.pos.x = 1.5; g.player.pos.z = 9.0; });
+    await promptOffered();
+    await page.keyboard.press('KeyE');
+    await new Promise((r) => setTimeout(r, 400));
+    await pin(at(17, 0, 10));
+    await new Promise((r) => setTimeout(r, 1500));
+    const waiting = await cartNow();
+    if (!waiting.shop || waiting.phase !== 'stall') errors.push(`cart: she did not wait while the shop was open at closing -> ${waiting.phase}, shop ${waiting.shop}`);
+    await page.keyboard.press('Escape');
+    const packed = await waitPhase('packing', 4000);
+    if (!packed) errors.push(`cart: she did not pack up once the shop was shut -> ${(await cartNow()).phase}`);
+    await page.evaluate(() => window.__game.cart.hurry(25));
+
+    // 9) the road out, and gone: nothing solid left, no prompt, a word of her going
+    const gone = await waitPhase('after', 20000);
+    await page.evaluate(() => { const g = window.__game; g.player.pos.x = 1.5; g.player.pos.z = 9.0; });
+    await new Promise((r) => setTimeout(r, 800));
+    const g6 = await cartNow();
+    const gonePrompt = await page.evaluate(() => document.getElementById('interact-prompt').classList.contains('hidden'));
+    console.log('gone:', JSON.stringify({ phase: g6.phase, shown: g6.shown, bed: g6.bed, promptHidden: gonePrompt, toasts: g6.toasts }));
+    if (!gone || g6.shown || g6.bed[0] < 1000) errors.push(`cart: not gone after closing -> ${JSON.stringify(g6)}`);
+    if (!gonePrompt) errors.push('cart: something still prompts at her pitch after she has gone');
+    if (!g6.toasts.some((t) => t.includes('packs up') && t.includes(words.opens)))
+      errors.push('cart: no word of her packing up, with the hour she comes again');
+
+    // 10) the clock put back to the afternoon: her stall stands again at once
+    await pin(at(13, 0));
+    const back = await waitPhase('stall', 4000);
+    const b = await cartNow();
+    if (!back || b.off || !b.shown) errors.push(`cart: not back on her pitch at 13:00 -> ${JSON.stringify(b)}`);
   } else if (scenario === 'farm') {
     // The miller's strip. A v10 save gains a fallow field; E at a ridge works
     // it (tool in hand, the ridge redrawn, no pay yet); the last ridge

@@ -9,6 +9,7 @@
 // The realm is a picture only — the walkable world is the village, as ever.
 // Names live in CONFIG.realm; everything else here is fixed art.
 import { CONFIG } from '../state/config.js';
+import { hourWords } from '../scene/cartday.js';
 import { LAYOUT, NORTH, pathX, fieldToWorld, FIELD } from '../scene/layout.js';
 import { makeRng } from '../scene/meshUtils.js';
 import { HOUSES } from '../scene/houses/index.js';
@@ -134,7 +135,7 @@ function realmPlaces() {
     { id: 'kingsholt', name: 'Kingsholt', kind: 'city', x: 662, y: 292, lx: 0, ly: 20, big: true,
       note: 'Kingsholt — the royal seat, walled and towered. Somewhere within it a crown waits for one who earns it.' },
     { id: 'hollin', name: 'Hollin Cross', kind: 'town', x: 470, y: 402, lx: 0, ly: 19,
-      note: 'Hollin Cross — the market town nearest home, where the chapman fills his cart.' },
+      note: 'Hollin Cross — the market town nearest home, where the chapwoman fills her cart.' },
     { id: 'saltmouth', name: 'Saltmouth', kind: 'port', x: 818, y: 455, lx: -6, ly: 19,
       note: 'Saltmouth — a port at the mouth of the Wend: salt fish, wool bales, ships bound for far shores.' },
     { id: 'edricminster', name: 'Edricminster', kind: 'town', x: 582, y: 598, lx: 0, ly: 19,
@@ -422,7 +423,7 @@ function siteNotes() {
     exchequer: 'The Exchequer — the clerk keeps the Treasury and hears the monthly Reckoning.',
     granary: 'The granary — the miller’s store, and the rats that plague it.',
     dummy: 'The training dummy — honest sweat for a trickle of Athleticism.',
-    cart: 'The chapman’s spot — his cart stands here on market days.',
+    cart: `The chapwoman’s pitch — her cart stands here from ${hourWords(CONFIG.shop.opens)} till ${hourWords(CONFIG.shop.closes)}.`,
     field: `The miller’s strip — ${CONFIG.farm.rows} ridges of wheat, one job a day, paid in coin.`,
     bounds: 'The bounds of thy wandering. The wood beyond is thick, and the roads out are not yet open to thee.',
     you: 'Thou — and the way thou facest.',
@@ -574,7 +575,7 @@ function drawPlan(view, info) {
       label('exchequer', L.exchequer.x, L.exchequer.z, 'Exchequer', -40, 4) +
       label('granary', L.granary.x, L.granary.z, 'Granary', 44, 30) +
       label('dummy', L.dummy.x, L.dummy.z, 'Dummy', 0, 22) +
-      label('cart', L.cart.x, L.cart.z, info.market ? 'Chapman' : 'chapman’s spot', 10, info.market ? -14 : -4, info.market ? 'm-name m-small' : 'm-name m-small m-faint')
+      label('cart', L.cart.x, L.cart.z, info.market ? 'Chapwoman' : 'chapwoman’s pitch', 10, info.market ? -14 : -4, info.market ? 'm-name m-small' : 'm-name m-small m-faint')
     );
   } else {
     const wide = view === 'bounds';
