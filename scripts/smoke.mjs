@@ -1666,11 +1666,15 @@ try {
       const asked = !!q('[data-w-goal]') && !q('[data-w-current]') && !q('[data-log-open]');
       let pace = '';
       if (asked) {
-        q('[data-chip]').click(); // a suggested name fills the box
-        const chipped = q('[data-w-name]').value;
+        // no buttons to pick from: what he saves for is typed, and is required
+        const typed = !document.querySelector('#treasury-body [data-chip]') && q('[data-w-name]').type === 'text';
+        q('[data-w-goal]').value = '20000';
+        q('[data-w-next]').click(); // no name: refused, still on the first question
+        const unnamed = !!q('[data-w-goal]');
+        q('[data-w-goal]').value = '';
         q('[data-w-name]').value = 'The War Chest';
         q('[data-w-next]').click(); // no sum yet: refused, still on the first question
-        const held = !!q('[data-w-goal]');
+        const held = unnamed && !!q('[data-w-goal]');
         q('[data-w-name]').value = 'The War Chest';
         q('[data-w-goal]').value = '20000';
         q('[data-w-next]').click();
@@ -1700,7 +1704,7 @@ try {
         q('[data-count-set]').click();
         const t2 = window.__game.getState().treasury;
         return {
-          opened, asked, chipped, held, pace, sealed, shown,
+          opened, asked, typed, held, pace, sealed, shown,
           laidCurrent: laid.current, laid: laid.month, amountAfter: laid.amount,
           monthMeter: laid.meter.replace(/\s+/g, ' ').trim(), todayRows: laid.todayRows,
           recounted: t2.current, laidAfterRecount: window.__game.monthTally(month).saved,
@@ -1712,8 +1716,8 @@ try {
     if (!bank.opened) errors.push('exchequer: E at the counter did not open the Treasury');
     if (!bank.asked) errors.push('exchequer: an untouched ledger did not open on its first question');
     else {
-      if (!bank.chipped) errors.push('exchequer: a suggested goal name did not fill the box');
-      if (!bank.held) errors.push('exchequer: a goal with no sum was let past the first question');
+      if (!bank.typed) errors.push('exchequer: the goal is not typed into a text box (or preset buttons remain)');
+      if (!bank.held) errors.push('exchequer: a goal with no name or no sum was let past the first question');
       if (!bank.pace.includes('59 months')) errors.push(`exchequer: pace "${bank.pace}" does not reckon 17,500 at 300 a month`);
       const s0 = bank.sealed;
       if (s0.current !== 2500 || s0.goal !== 20000 || s0.pledge !== 300 || s0.name !== 'The War Chest')

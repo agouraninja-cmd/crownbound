@@ -260,8 +260,6 @@ function outcome(roll, t) {
 // what each opening question is about — the labels under the three bars
 const STEPS = ['The goal', 'Saved so far', 'Each month'];
 
-const CHIPS = ['A rainy-day fund', 'A great purchase', 'A lord’s fortune'];
-
 function renderSetup() {
   if (!setup) setup = { step: 1, name: '', goal: '', current: '', pledge: '' };
   const s = setup;
@@ -275,9 +273,8 @@ function renderSetup() {
   let question;
   if (s.step === 1) {
     question = `<h2>What art thou saving for?</h2>
-      <p class="muted">A goal with a name is a goal half won. Pick one, or write thy own.</p>
-      <div class="tr-chips">${CHIPS.map((c) => `<button type="button" data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-      ${field('data-w-name', 'Its name', 'what the money is for', esc(s.name), 'text', 'e.g. The War Chest')}
+      <p class="muted">A goal with a name is a goal half won. Write it in thine own words — a car, a trip, a business, a fund for hard days.</p>
+      ${field('data-w-name', 'Saving for', 'what the money is for, in thine own words', esc(s.name), 'text', 'e.g. a used car')}
       ${field('data-w-goal', 'The full sum to reach', 'the whole total thy savings must grow to — not a monthly amount (that is asked last)', s.goal, 'number', '10000')}`;
   } else if (s.step === 2) {
     question = `<h2>How much is in thy savings today?</h2>
@@ -311,12 +308,6 @@ function renderSetup() {
     <p class="muted tr-foot">Win the goal and thou earnest <b>${CONFIG.rewards.goalXp} Intelligence XP</b>. Game coins never enter here, and nothing else is paid.</p>`;
 
   const q = (sel) => body.querySelector(sel);
-  for (const chip of body.querySelectorAll('[data-chip]')) {
-    chip.addEventListener('click', () => {
-      q('[data-w-name]').value = chip.dataset.chip;
-      q('[data-w-goal]').focus();
-    });
-  }
   // the second question answers as it is typed: how far along the goal that puts him —
   // and, if it is already past the goal, that the goal was likely meant as a monthly sum
   const have = q('[data-w-have]');
@@ -354,12 +345,18 @@ function renderSetup() {
   });
   q('[data-w-next]').addEventListener('click', () => {
     if (s.step === 1) {
+      const name = q('[data-w-name]').value.trim();
+      if (!name) {
+        toast('Write what thou art saving for.', 'grim');
+        q('[data-w-name]').focus();
+        return;
+      }
       const goal = Number(q('[data-w-goal]').value);
       if (!Number.isFinite(goal) || goal < 1) {
         toast('A goal needs a sum to reach.', 'grim');
         return;
       }
-      s.name = q('[data-w-name]').value.trim();
+      s.name = name;
       s.goal = goal;
     } else if (s.step === 2) {
       const current = q('[data-w-current]').value.trim() === '' ? 0 : Number(q('[data-w-current]').value);
@@ -374,8 +371,8 @@ function renderSetup() {
         toast('The clerk squints — that is no figure.', 'grim');
         return;
       }
-      // a ledger is "opened" by its name, so an unnamed goal is given a plain one
-      setSummit(s.name || 'The Hoard', s.goal);
+      // the name is required at the first question (it is what marks a ledger as opened)
+      setSummit(s.name, s.goal);
       setTreasury(s.current, getState().treasury.goal);
       setPledge(pledge);
       setup = null;
@@ -512,7 +509,7 @@ function renderLedger(t) {
         <p class="muted">${
           t.conquered.length ? 'A goal is won. What is the next thing worth saving for?' : 'What art thou saving for, and how much does it need?'
         }</p>
-        ${field('data-s-name', 'Its name', 'what the money is for', '', 'text', 'e.g. The War Chest')}
+        ${field('data-s-name', 'Saving for', 'what the money is for, in thine own words', '', 'text', 'e.g. a used car')}
         ${field('data-s-goal', 'The full sum to reach', 'the whole total thy savings must grow to — not a monthly amount')}
         <div class="row right"><button type="button" class="primary" data-s-set>Raise the goal</button></div>
       </div>`;
@@ -754,12 +751,18 @@ function renderLedger(t) {
 
   // ---- the next goal, the plan ----
   q('[data-s-set]')?.addEventListener('click', () => {
+    const name = q('[data-s-name]').value.trim();
+    if (!name) {
+      toast('Write what thou art saving for.', 'grim');
+      q('[data-s-name]').focus();
+      return;
+    }
     const goal = Number(q('[data-s-goal]').value);
     if (!Number.isFinite(goal) || goal < 1) {
       toast('A goal needs a sum to reach.', 'grim');
       return;
     }
-    setSummit(q('[data-s-name]').value || 'The Hoard', goal);
+    setSummit(name, goal);
     shownPct = 0;
     toast('A new goal is raised. The climb resumes.', 'gold');
     renderTreasury();
