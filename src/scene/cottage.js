@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mesh, tone, makeRng, hull } from './meshUtils.js';
+import { mesh, tone, makeRng, hull, hash2 } from './meshUtils.js';
 import { WOOD_DARK, WOOD, WOOD_PALE, THATCH, THATCH_DARK, THATCH_PALE, STONE, STONE_DARK, DAUB, IRON, box, cyl, boards } from './kit.js';
 import { toftKit } from './toft.js';
 import { LAYOUT, houseToWorld } from './layout.js';
@@ -401,7 +401,14 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
       // the whole patch on the slope: a hipped roof narrows toward its ridge, and no patch may hang off the hip
       const room = ridgeHalf + cos * Math.min(Math.max(down - deep / 2, 0), uh) - long / 2 - 0.12;
       const reach = Math.max(0, Math.min(room, (ridgeHalf + cos * Math.min(down, uh)) * 0.75));
-      c.add(box(long, 0.03, deep), tone(MOSS, 0.85 + rng() * 0.3), { ...c.onRoof(side, where * reach, down, 0.012), shadow: false });
+      // a ragged pad, not a rectangle (its edge is cut by where it lies, drawing nothing more from chance)
+      const pad = [];
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2;
+        const r = 0.72 + 0.28 * hash2(k + i * 7, Math.round(long * 1000));
+        for (const y of [-0.015, 0.015]) pad.push([Math.cos(a) * r * long / 2, y, Math.sin(a) * r * deep / 2]);
+      }
+      c.add(hull(pad), tone(MOSS, 0.85 + rng() * 0.3), { ...c.onRoof(side, where * reach, down, 0.012), shadow: false });
     }
     return c;
   };

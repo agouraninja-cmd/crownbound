@@ -548,7 +548,12 @@ const PROPS = { barrel, tub, bucket, basket, pot, sack, trough, bench, stool, tr
 // what a garden bed can grow, each plant a few flat-shaded faces
 const CROPS = {
   // leeks and onions: the peasant's own vegetables, grown in rows
-  leeks: (put, rng, x, z) => put(cone(0.045, 0.34 + rng() * 0.1, 4), tone(0x6f9a66, 0.9 + rng() * 0.2), { x, y: 0.3, z }),
+  leeks: (put, rng, x, z) => {
+    const tall = 0.36 + rng() * 0.12;
+    const green = tone(0x6f9a66, 0.9 + rng() * 0.2);
+    // two flags leaning apart: a single thin cone is lost at a few paces
+    for (const s of [-1, 1]) put(cone(0.055, tall, 3), green, { x: x + s * 0.04, y: 0.1 + tall / 2, z, rz: -s * 0.28 }).scale.z = 0.4;
+  },
   onions: (put, rng, x, z) => put(cone(0.04, 0.2 + rng() * 0.08, 4), tone(0x7fa85a, 0.9 + rng() * 0.2), { x, y: 0.22, z }),
   garlic: (put, rng, x, z) => put(cone(0.03, 0.18 + rng() * 0.06, 3), tone(0x8aa870, 0.9 + rng() * 0.2), { x, y: 0.2, z }),
   // worts: colewort and kale, the pottage pot's greens — loose leaves on a
@@ -631,6 +636,15 @@ export function toftKit(c) {
           const m = mesh(lump(r), colour, { x: u + (rng() - 0.5) * 0.12, y: c.ground(u, v) + h * 0.42, z: v + (rng() - 0.5) * 0.12, ry: rng() * TAU });
           m.scale.y = (h / r) * 0.62;
           g.add(m);
+          if (kind === 'dead') {
+            // cut thorn, not boulders: a thinner heap with the brush's ends sticking up out of it
+            // (leaned by where it stands, not by chance — the stream of chance is as it was)
+            m.scale.x = m.scale.z = 0.72;
+            for (const s of [-1, 1]) {
+              const lean = Math.sin(u * 7.3 + v * 3.1 + s) * 0.45;
+              g.add(mesh(cone(0.035, h * 0.75, 3), tone(colour, 1.25), { x: u + s * 0.13, y: c.ground(u, v) + h * 0.74, z: v + lean * 0.2, rz: -s * 0.3 + lean * 0.4, rx: lean, shadow: false }));
+            }
+          }
           continue;
         }
         if (kind === 'pale') {

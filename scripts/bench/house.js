@@ -5,6 +5,7 @@
 //   &views=30,12,11;200,14,11      views as bearing,elevation,distance — bearing in degrees from the house's front
 //   &marks=1                       draw the yard's bounds and every collider on the ground
 //   &all=1                         stand the other houses round it too
+//   &man=0                         leave out the man who stands by the door for scale
 import * as THREE from 'three';
 import { createSky } from '../../src/scene/sky.js';
 import { terrainHeight, grassTint } from '../../src/scene/terrain.js';
@@ -127,8 +128,8 @@ if (q.get('all')) {
   }
 }
 
-// a man by the door, for scale
-{
+// a man by the door, for scale (man=0 leaves him out: he hides whatever a small yard keeps there)
+if (q.get('man') !== '0') {
   const man = buildPlayerMesh();
   const [wall, at] = plot.door;
   const out = 1.5;
