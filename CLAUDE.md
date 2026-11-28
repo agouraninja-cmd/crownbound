@@ -56,7 +56,7 @@ src/scene/particles.js  soft-puff particle pool (one Points draw call per pool):
 src/scene/sprites.js  the canvas-drawn soft dot texture + additive glow billboards
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cart.js     the chapman's cart: cart + mule + chapman, parked only on market days
-src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, fence + gate + hayrick + scarecrow; draw(looks) rebuilds the crop
+src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, fence + gate + hayrick + plough + harrow + scarecrow; draw(looks) rebuilds the crop; kick() throws earth/seed/chaff as he works
 src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
 src/scene/campfire.js campfire mesh, tongues of flame, sparks, smoke; scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight; update() drives the ambient scenery
@@ -189,7 +189,7 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
 - The miller's strip (the farming job): a fenced wheat field of 10 ridges (`CONFIG.farm.rows`),
-  each 12.8 long, out past the granary to the north-east at (27, 33), reached by a cart track
+  each 18.4 long and 1.4 wide, out past the granary to the north-east at (27, 33), reached by a cart track
   from the granary yard. One job per real local day, each in its
   turn — till, sow, tend (weed), reap — and a job is every ridge: E at a ridge → ~1.5s of work
   (hoe, sowing hand or sickle in place of the stick) → that ridge changes its look. The last
@@ -602,10 +602,41 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     layout.js, drawn in terrain.js `groundColor`; flora thins its middle after the draw).
     It is not a dirtPatch, for the same reason the field is not.
   - The bed's edge is ragged on purpose (its outer ring of points is pushed out unevenly and
-    sunk); ripe wheat is sown six lines to a ridge so the ridges close into one crop, in a
-    handful of golds; a stook is four sheaves leaned together. What grows on a ridge under a
-    look is built once and cached, so a redraw is ~4ms after the first (~19ms).
-    About 4 draw calls; ~20k triangles when the whole field stands in wheat.
+    sunk). What grows on a ridge under a look is built once and cached, and so are each
+    ridge's stooks; a redraw costs a few ms after the first.
+  - Twice the size and true to the year (2026-11-28, the owner: "make the farming look more
+    realistic. and make the farm twice as big"). What a future session must know:
+    - The ploughland doubled by making the ridges longer and broader (12.8 × 1.0 → 18.4 ×
+      1.4, `LAYOUT.field`), NOT by adding ridges: a day's job is still ten ridges and the
+      pay is unchanged (Claude's choice; 20 ridges a day was the other way). Same centre,
+      same turn. The nearest tree now stands ~1.3 outside the fence at the far (-u) end.
+      Broad ridges are the real thing: medieval ridge and furrow, the crown 0.26 up and the
+      furrow between nearly at ground level.
+    - Broadcast, not drilled: shoots, leaves and wheat are strewn across a ridge (`strew`,
+      thickest on the crown, shorter toward the furrows), never set in lines. Only the
+      stubble is in rows (the sickle's). Offsets are fractions of half a ridge (`HALF`), so
+      `spacing` can be re-tuned without re-placing anything.
+    - Each look has its realism: fresh furrows are lumpy (`ROUGH` per look, lit/shaded
+      plough slices) and strewn with clods, some turned sod showing grass; sown ridges are
+      harrowed fine, drying pale on the crown, small clods and a little seed; weeds come in
+      three kinds (dock, thistle, charlock); tended shoots have arching leaves (`leaf`); the
+      wheat is bearded and nods, a stretch of some ridges is laid flat by the wind, and
+      poppies and cornflowers stand in it (cupped `bloom`s); stooks are three or four pairs
+      of bound sheaves leaned head to head along the ridge; stubble has straw lying.
+    - Clods, seed and straw lying are in the growth mesh with sway 0. That mesh is lit as if
+      every face lay flat (upNormals), so clods carry their own hand shading against a fixed
+      light (`SHADE_LIGHT`) — keep that if adding solid things to it.
+    - Laid by outside the fence on the gate's other hand: a heavy wheeled plough (beam,
+      coulter, share, mouldboard, handles) and a harrow leaned on the fence, baked into the
+      yard; four more circle colliders (`buildTools`).
+    - Working throws things: `field.kick(kind, x, z, facing)` (a 64-puff pool in field.js,
+      `field.update` from world.update) — earth and dust off the hoe, a fan of seed from the
+      hand, chaff drifting off the sickle. main.js `onWorkStroke` calls it at the stroke's
+      landing spot, a step ahead of him. Looks only.
+    - About 5 draw calls. Triangles for the whole field in one look (yard included):
+      stubble ~25k, furrow ~19k, sown ~17k, weedy ~27k, tended ~38k, ripe ~56k, stook ~51k
+      (was ~20k in wheat). The village view measured ~290k in all with the fallow strip.
+      The first stook draw takes ~90ms in SwiftShader (each ridge's sheaves built once).
 - The Setting (2026-11-15), the owner's choice: Crownbound takes place in **England, around
   1250** — the High Middle Ages. Everything new should fit that year: watermills and windmills,
   smiths, longbows and crossbows, chainmail, timber-and-thatch, silver pennies, hand-copied
@@ -1321,6 +1352,19 @@ headlessly; everything else covered by the regression suite below.
   `proving` (on a re-run, after that fix), `chronicle`, `tome`, `guide` and the render pass
   (cloud container, headless Chromium, `SMOKE_WAIT=load`). Not yet seen on the owner's
   screen. Details: "Many Deeds, Many Virtues" under Noted decisions.
+
+- [x] Post-v1 — "Ridge and Furrow" (2026-11-28), the owner: "make the farming look more
+  realistic. and make the farm twice as big". The miller's strip is twice the ploughland —
+  the same ten ridges, now long and broad as real medieval ridge and furrow — so a day's job
+  and its pay are unchanged. Fresh ploughing is lumpy and strewn with clods and turned sod;
+  sown ridges are harrowed fine; the corn is broadcast, not in rows, with arching leaves;
+  dock, thistle and charlock among the shoots; bearded wheat that nods, a patch laid flat
+  by the wind, poppies and cornflowers in it; stooks of paired, bound sheaves; straw lying
+  on the stubble. A heavy wheeled plough and a harrow lie by the gate, and earth, seed and
+  chaff fly as he works. Looks only; no rule or save change. `farm`, `spent`, `map` and the
+  render pass (cloud container, headless Chromium, `SMOKE_WAIT=load`). Seen only in the
+  software renderer, not yet on the owner's screen. Details: "Twice the size and true to
+  the year" under "The Miller's Strip" in Noted decisions.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's

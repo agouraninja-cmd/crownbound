@@ -28,7 +28,7 @@ export const LAYOUT = {
   // gate toward the village. Its ridges run `length` along the field's own x,
   // side by side `spacing` apart along its z (how many: CONFIG.farm.rows);
   // `margin` is the grassy headland between the ploughland and the fence.
-  field: { x: 27, z: 33, rotY: 0.6, length: 12.8, spacing: 1.0, margin: 1.3 },
+  field: { x: 27, z: 33, rotY: 0.6, length: 18.4, spacing: 1.4, margin: 1.3 },
   fieldTrackEnd: { x: 13.6, z: 14.4 }, // where the cart track from the gate meets the granary yard
   // dirt wear circles painted onto the terrain: {x, z, radius}
   dirtPatches: [

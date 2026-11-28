@@ -340,6 +340,7 @@ export function buildWorld(scene, marketToday = false, skyClock) {
     windTime.value += dt;
     sky.update(dt, playerPos, camera);
     ambient.update(dt, camera);
+    field.update(dt); // what flies up from the work
   }
 
   // the village plan on the map draws the real trees and boulders

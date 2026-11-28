@@ -672,7 +672,14 @@ function workTheField() {
   }
   if (player.startWork(job, field.spot.x, field.spot.z)) workingRow = field.spot.row;
 }
-player.onWorkStroke = (kind) => (kind === 'sow' ? sfx.sow() : kind === 'reap' ? sfx.reap() : sfx.dig());
+player.onWorkStroke = (kind) => {
+  if (kind === 'sow') sfx.sow();
+  else if (kind === 'reap') sfx.reap();
+  else sfx.dig();
+  // where the stroke lands, a little ahead of him: earth, seed or chaff flies
+  const reach = kind === 'sow' ? 1.0 : 0.75;
+  field.kick(kind, player.pos.x + Math.sin(player.facing) * reach, player.pos.z + Math.cos(player.facing) * reach, player.facing);
+};
 player.onWorkDone = () => {
   const worked = workFarmRow(workingRow); // the strip redraws itself on the change
   if (worked?.done) {
