@@ -1730,18 +1730,6 @@ headlessly; everything else covered by the regression suite below.
   owner's screen; the frame rate on a real GPU is not measured, and night in the lanes wants
   his eye. CROWNBOUND-Guide.docx rebuilt. Details: "The Neighbours" under Noted decisions.
 
-- [x] Post-v1 — "The Chapwoman's Hours" (2026-11-28): the chapman is a chapwoman, and she
-  comes every day. A little before 8 AM she leads her mule and cart up the east road into the
-  village — wheels turning, the mule walking, her hand on his cheek-strap and her staff in the
-  other — pulls onto her pitch by the path, steps round to her wares, and the stall opens at 8.
-  At 5 PM she packs up and leads them on down the west road, past the Charter post and the
-  Tome, and out of sight a minute and a half later. If he is at her wares at five she waits
-  for him; if he stands in the road ahead of the mule she stops. Every in-game word (Charter,
-  map, shop, wares, test-world `market`) and CROWNBOUND-Guide.docx (rebuilt) give her hours;
-  market days are gone. No rule, reward or save change. New smoke scenario `cart`; RESULTS.
-  Seen only in the software renderer, not yet on the owner's screen; the walk was judged from
-  stills. Details: "The Chapwoman's Hours" under Noted decisions.
-
 - [x] Post-v1 — "The Tally of Blows" (2026-11-28), the owner: "Add a damage counter for each
   hit on the dummy." Each blow that lands on the dummy throws up its damage — a gold number
   ringed in ink that pops, rises about a unit and fades in under a second, a little scattered
@@ -1769,6 +1757,24 @@ headlessly; everything else covered by the regression suite below.
   frames of the software renderer. Seen only in the software renderer, not yet on the
   owner's screen.
   Details: "The Miller's Introduction" under Noted decisions.
+
+- [x] Post-v1 — "The Chapwoman's Hours" (2026-11-28): the chapman is a chapwoman, and she
+  comes every day. A little before 8 AM she leads her mule and cart up the east road into the
+  village — wheels turning, the mule walking, her hand on his cheek-strap and her staff in the
+  other — pulls onto her pitch by the path, steps round to her wares, and the stall opens at 8.
+  At 5 PM she packs up and leads them on down the west road, past the Charter post and the
+  Tome, and out of sight a minute and a half later. If he is at her wares at five she waits
+  for him; if he stands in the road ahead of the mule she stops. Every in-game word (Charter,
+  map, shop, wares, test-world `market`) and CROWNBOUND-Guide.docx (rebuilt) give her hours;
+  market days are gone. No rule, reward or save change. New smoke scenario `cart`. Cloud container, headless Chromium, `SMOKE_WAIT=load`: 26 of the 28
+  scenarios passed on the branch before `main` (The Miller's Introduction) was merged in; `cart`
+  then failed its new empty-pitch check (written after that build — fixed: no nod from an empty
+  pitch) and `combat` its damage-number check, which fails the same way on plain `main` in this
+  container (not this change's). On the merge, `cart`, `alive`, `miller`, `market`, `guide` and
+  the render pass. `promptOffered()` (smoke.mjs) now waits two frames and for a shown prompt: a
+  hidden prompt keeps its last words, and `alive` read the chapwoman's old prompt as the miller's.
+  Seen only in the software renderer, not yet on the owner's screen; the walk was judged from
+  stills. Details: "The Chapwoman's Hours" under Noted decisions.
 
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
