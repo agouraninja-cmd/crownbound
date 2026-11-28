@@ -518,6 +518,21 @@ export const COMMANDS = [
     },
   },
   {
+    name: 'newgame',
+    also: ['beginning', 'start'],
+    group: 'Starting over',
+    usage: 'newgame',
+    about: 'Begin the game from nothing, as a newcomer does: a blank test save, the real clock, and the opening from its title. Thy own commands are kept.',
+    run() {
+      wipeSave();
+      realClock();
+      const url = new URL(location.href);
+      url.searchParams.set('intro', '1'); // the opening, which the test world never owes by itself
+      reloadWith('A new game, begun from nothing.', url.toString());
+      return 'Back to the very beginning…';
+    },
+  },
+  {
     name: 'intro',
     also: ['opening'],
     group: 'Starting over',

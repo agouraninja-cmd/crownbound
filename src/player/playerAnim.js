@@ -622,7 +622,7 @@ export function createPlayerAnimator(m) {
     m.arms[1].fore.rotation.x = pose.elbow1;
     // the springs can carry the wrist a hair past its reach; the stick and
     // the hoe never go there (the sickle keeps its own line down the arm)
-    const held = m.weapon.visible || m.tools.hoe.visible;
+    const held = (m.weapon.visible && m.slot.visible) || m.tools.hoe.visible;
     m.grip.rotation.set(held ? clamp(pose.grip, WRIST.back, WRIST.snap) : pose.grip, pose.twist, 0);
     if (wGrasp > 0.001) graspShaft(wGrasp);
 

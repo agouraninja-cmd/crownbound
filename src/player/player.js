@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../state/config.js';
 import { terrainHeight } from '../scene/terrain.js';
-import { buildPlayerMesh } from './playerMesh.js';
+import { buildPlayerMesh, WEAPON_LOOKS } from './playerMesh.js';
 import { createPlayerAnimator } from './playerAnim.js';
 import { flash } from '../scene/meshUtils.js';
 
@@ -95,16 +95,17 @@ export function createPlayer(scene, spawn) {
     attackDamage: CONFIG.player.attackDamage,
     attackReach: CONFIG.player.attackRange,
     setWeaponTier(t) {
-      // 0 the trusty stick · 1 oaken cudgel · 2 ash quarterstaff
-      const tiers = [
-        { scale: [1, 1, 1], color: 0x7a5a35 },
-        { scale: [1.7, 1.08, 1.7], color: 0x5a4028 },
-        { scale: [1.3, 1.55, 1.3], color: 0x9a7a48 },
-      ];
-      const tier = tiers[t] ?? tiers[0];
+      const tier = WEAPON_LOOKS[t] ?? WEAPON_LOOKS[0];
       m.weapon.scale.set(...tier.scale);
       // fresh material — the cached one is shared with other meshes of its color
       m.weapon.material = new THREE.MeshLambertMaterial({ color: tier.color, flatShading: true });
+    },
+    // the weapon hung on the rack at home: empty hands, and no swing
+    unarmed: false,
+    onUnarmed: () => {},
+    setUnarmed(v) {
+      player.unarmed = v;
+      m.slot.visible = !v;
     },
     setEnabled(v) {
       enabled = v;
@@ -136,6 +137,10 @@ export function createPlayer(scene, spawn) {
       return;
     }
     if (player.mode !== 'normal' || player.sit01 > 0) return; // not while still getting up
+    if (player.unarmed) {
+      player.onUnarmed();
+      return;
+    }
     if (!player.trySpend(CONFIG.stamina.attackCost)) {
       player.onActionBlocked();
       return;

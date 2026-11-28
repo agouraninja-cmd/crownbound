@@ -85,7 +85,7 @@ export const CONFIG = {
     ],
   },
 
-  // The chest by the cot: the hand holds one weapon, the chest keeps the rest;
+  // The chest by the cot keeps the larder; the hand holds one weapon and the peg rack by the door the rest;
   // loaves bought from the chapman wait in its larder until eaten (a full
   // heal, wounded only). Still the sacred rule — bread mends HP, nothing more.
   chest: {

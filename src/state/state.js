@@ -622,7 +622,10 @@ export function buyItem(id) {
   if (state.coins < item.price) return { ok: false, why: 'coins' };
   state.coins -= item.price;
   if (item.once) state.shop.owned.push(id);
-  if (item.category === 'hand') state.chest.wielded = id; // new gear goes straight to hand
+  if (item.category === 'hand') {
+    state.chest.wielded = id; // new gear goes straight to hand
+    delete state.chest.hungUp; // ...off the rack, if the old one hung there
+  }
   if (id === 'loaf') state.chest.loaves += 1; // bread keeps in the chest's larder
   state.history.push({
     date: todayStr(),
@@ -647,13 +650,28 @@ export function wieldedWeapon() {
   return ownedWeapons().find((w) => w.id === state.chest.wielded) ?? CONFIG.chest.stick;
 }
 
-// take up a weapon from the chest; the one in hand goes back in
+// take up a weapon from the rack; the one in hand goes back on its pegs
 export function wieldWeapon(id) {
   if (!ownedWeapons().some((w) => w.id === id)) return false;
   state.chest.wielded = id;
+  delete state.chest.hungUp; // taken down from the rack, it is in hand; the one held goes on the rack
   save();
   emit('chest');
   return true;
+}
+
+// The peg rack by the door holds every weapon not in hand; `hungUp` puts
+// the one in hand there too (empty hands — no swing), until one is taken down. `chest.hungUp` is absent while it is in hand,
+// so no older save needs a migration.
+export function weaponHungUp() {
+  return !!state.chest.hungUp;
+}
+
+export function hangUpWeapon(hung) {
+  if (hung) state.chest.hungUp = true;
+  else delete state.chest.hungUp;
+  save();
+  emit('chest');
 }
 
 // one loaf out of the larder; the caller heals (state knows nothing of HP)

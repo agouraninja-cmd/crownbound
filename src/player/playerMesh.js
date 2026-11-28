@@ -10,6 +10,15 @@ const HOSE = 0x5d4f3d;
 const BOOT = 0x3d3127;
 const LEATHER = 0x6b3a26;
 const STICK = 0x7a5a35;
+
+// how each weapon looks, by tier: 0 the trusty stick · 1 oaken cudgel ·
+// 2 ash quarterstaff — the stick's mesh scaled (girth, length, girth) and
+// recoloured. The hand (player.js) and the rack at home (world.js) share it.
+export const WEAPON_LOOKS = [
+  { scale: [1, 1, 1], color: STICK },
+  { scale: [1.7, 1.08, 1.7], color: 0x5a4028 },
+  { scale: [1.3, 1.55, 1.3], color: 0x9a7a48 },
+];
 const IRON = 0x8b9097; // a worked edge, worn bright
 const EYE = 0x241a12;
 
@@ -157,10 +166,14 @@ export function buildPlayerMesh() {
   const hold = new THREE.Group();
   hold.rotation.x = -RIG.hold;
   grip.add(hold);
+  // `slot` holds the stick and nothing else: hidden while the weapon hangs on
+  // the rack at home (player.setUnarmed), whatever else shows or hides it
+  const slot = new THREE.Group();
+  hold.add(slot);
   const weapon = mesh(cyl(0.028, 0.036, 0.75), STICK, { y: -RIG.stickDrop, keep: true });
   // a leather wrap where the hand goes, showing either side of the fist
   weapon.add(mesh(cyl(0.039, 0.039, 0.17), LEATHER, { y: RIG.stickDrop }));
-  hold.add(weapon);
+  slot.add(weapon);
 
   // Tools for the miller's strip, held in the same fist: hidden until he
   // works a ridge, when player.js swaps one in for the stick. Each is its own
@@ -215,5 +228,5 @@ export function buildPlayerMesh() {
   head.add(mesh(box(0.062, 0.012, 0.02), 0x8a5a44, { y: 0.1, z: 0.153, shadow: false })); // mouth
 
   bake(group);
-  return { group, roller, hips, chest, head, legs, arms, grip, hold, weapon, tools: { hoe, sickle } };
+  return { group, roller, hips, chest, head, legs, arms, grip, hold, slot, weapon, tools: { hoe, sickle } };
 }

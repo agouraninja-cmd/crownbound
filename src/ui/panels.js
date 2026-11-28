@@ -1,4 +1,6 @@
 import {
+  weaponHungUp,
+  hangUpWeapon,
   getState,
   postDaily,
   completeDaily,
@@ -36,7 +38,7 @@ import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, mapPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody, mapBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, rackPanel, mapPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody, rackBody, mapBody;
 let open = null;
 let onOpenChange = () => {};
 let shopActions = { isWounded: () => false, onPurchase: () => {}, onEat: () => {}, onWield: () => {}, mapView: null }; // wired by main.js
@@ -743,19 +745,21 @@ function renderShop() {
   }
 }
 
-// ---------- The Chest (beside the cot) ----------
+// ---------- The Weapon Rack (by the door) ----------
+// Every weapon not in hand hangs here, the stick among them; the hand holds
+// one, or none while all of them are on their pegs.
 
-function renderChest() {
-  const s = getState();
+function renderRack() {
   const inHand = wieldedWeapon();
+  const hung = weaponHungUp(); // every weapon on the pegs, hands empty
   const damageOf = (w) => w.damage ?? CONFIG.player.attackDamage;
 
   const weapons = ownedWeapons()
     .map((w) => {
-      const action =
-        w.id === inHand.id
-          ? `<span class="deed-tag tag-gold">in hand</span>`
-          : `<button data-wield="${w.id}">Take up</button>`;
+      const held = w.id === inHand.id && !hung;
+      const action = held
+        ? `<span class="deed-tag tag-gold">in hand</span> <button data-hang>Hang up</button>`
+        : `<button data-wield="${w.id}">Take up</button>`;
       return `<div class="deed ware">
         ${warePic(w)}
         <span class="deed-text"><b>${w.name}</b> — <span class="muted">${w.flavor}</span>
@@ -766,17 +770,45 @@ function renderChest() {
     })
     .join('');
 
+  rackBody.innerHTML = `
+    <div class="sheet-section">
+      <div class="kv"><span>In thy hand</span><span class="v">${hung ? 'nothing' : inHand.name}</span></div>
+      <p class="muted">Thou carriest one weapon; the rest hang here on their pegs. Hang up the one
+        in hand to walk about empty-handed &#8212; but empty hands cannot swing.</p>
+    </div>
+    <div class="sheet-section">
+      <h2>Weapons</h2>
+      ${weapons}
+    </div>`;
+
+  for (const btn of rackBody.querySelectorAll('[data-wield]')) {
+    btn.addEventListener('click', () => {
+      if (wieldWeapon(btn.dataset.wield)) {
+        toast(`Thou takest down ${wieldedWeapon().name}.`, '');
+        shopActions.onWield();
+      }
+      renderRack();
+    });
+  }
+  rackBody.querySelector('[data-hang]')?.addEventListener('click', () => {
+    hangUpWeapon(true);
+    toast(`Thou hangest ${inHand.name} on its pegs.`, '');
+    shopActions.onWield();
+    renderRack();
+  });
+  bindWareToggles(rackBody, renderRack);
+}
+
+// ---------- The Chest (beside the cot) ----------
+
+function renderChest() {
+  const s = getState();
   const loaves = s.chest.loaves;
   const hale = !shopActions.isWounded();
   const loaf = CONFIG.shop.items.find((i) => i.id === 'loaf');
   chestBody.innerHTML = `
     <div class="sheet-section">
-      <div class="kv"><span>In thy hand</span><span class="v">${inHand.name}</span></div>
-      <p class="muted">Thou carriest one weapon; the chest keeps the rest.</p>
-    </div>
-    <div class="sheet-section">
-      <h2>Weapons</h2>
-      ${weapons}
+      <p class="muted">Thy weapons hang on the rack by the door.</p>
     </div>
     <div class="sheet-section">
       <h2>The Larder</h2>
@@ -799,15 +831,6 @@ function renderChest() {
       </div>
     </div>`;
 
-  for (const btn of chestBody.querySelectorAll('[data-wield]')) {
-    btn.addEventListener('click', () => {
-      if (wieldWeapon(btn.dataset.wield)) {
-        toast(`Thou takest up ${wieldedWeapon().name}.`, '');
-        shopActions.onWield();
-      }
-      renderChest();
-    });
-  }
   bindWareToggles(chestBody, renderChest);
   chestBody.querySelector('[data-eat]').addEventListener('click', () => {
     if (shopActions.isWounded() && eatLoaf()) {
@@ -839,6 +862,7 @@ function close() {
   shopPanel.classList.add('hidden');
   guidePanel.classList.add('hidden');
   chestPanel.classList.add('hidden');
+  rackPanel.classList.add('hidden');
   mapPanel.classList.add('hidden');
   onOpenChange(false);
 }
@@ -861,6 +885,7 @@ export function openPanel(id) {
   shopPanel.classList.toggle('hidden', id !== 'shop');
   guidePanel.classList.toggle('hidden', id !== 'guide');
   chestPanel.classList.toggle('hidden', id !== 'chest');
+  rackPanel.classList.toggle('hidden', id !== 'rack');
   mapPanel.classList.toggle('hidden', id !== 'map');
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
@@ -868,6 +893,7 @@ export function openPanel(id) {
   else if (id === 'shop') renderShop();
   else if (id === 'guide') renderGuide(guideBody);
   else if (id === 'chest') renderChest();
+  else if (id === 'rack') renderRack();
   else if (id === 'map') renderMap(mapBody, shopActions.mapView());
   else renderTome();
   onOpenChange(true);
@@ -888,6 +914,7 @@ export function initPanels(openChangeCallback, shopHooks) {
   shopPanel = document.getElementById('shop-panel');
   guidePanel = document.getElementById('guide-panel');
   chestPanel = document.getElementById('chest-panel');
+  rackPanel = document.getElementById('rack-panel');
   mapPanel = document.getElementById('map-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
@@ -896,6 +923,7 @@ export function initPanels(openChangeCallback, shopHooks) {
   shopBody = document.getElementById('shop-body');
   guideBody = document.getElementById('guide-body');
   chestBody = document.getElementById('chest-body');
+  rackBody = document.getElementById('rack-body');
   mapBody = document.getElementById('map-body');
 
   window.addEventListener('keydown', (e) => {

@@ -87,8 +87,9 @@ export function renderGuide(guideBody) {
         ${
           CONFIG.chest
             ? `<p class="muted">His bread keeps in the larder of the chest by thy cot — up to
-              ${CONFIG.chest.larderCap} loaves — and a loaf eaten there mends every wound. The chest
-              also keeps thy spare weapons: thou carriest one, and choosest which.</p>`
+              ${CONFIG.chest.larderCap} loaves — and a loaf eaten there mends every wound. Thy weapons
+              hang on the peg rack by thy door (E): thou carriest one and choosest which, or hangest
+              them all up to walk about empty-handed.</p>`
             : ''
         }
       </div>`
