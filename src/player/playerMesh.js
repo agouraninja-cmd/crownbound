@@ -205,9 +205,10 @@ export function buildPlayerMesh() {
   hold.add(hoe);
   grip.add(sickle);
 
-  // The seedlip, for sowing: a shallow wicker basket of seed slung at his left
-  // hip on a strap over the right shoulder, the off hand steadying its rim
-  // while the stick hand casts from it. It rides the chest, not a fist.
+  // The seedlip, for sowing: a shallow wicker basket of seed carried at his
+  // left hip, the off hand steadying its rim while the stick hand casts from
+  // it. It rides the chest, not a fist. (It has no shoulder strap: a straight
+  // band across a round chest read as a stick run through his stomach.)
   const seedlip = new THREE.Group();
   const WICKER = 0xa8864f;
   const basket = mesh(cyl(0.17, 0.13, 0.11, 10), WICKER, { x: -0.13, y: 0.0, z: 0.25, rx: 0.25 });
@@ -219,8 +220,6 @@ export function buildPlayerMesh() {
   const seed = mesh(cyl(0.16, 0.16, 0.02, 10), 0xd8c690, { x: -0.13, y: 0.05, z: 0.26, rx: 0.25 }); // the seed heaped in it
   seed.scale.set(1.12, 1, 0.78);
   seedlip.add(seed);
-  // the strap, from the basket's back up across the chest to the right shoulder
-  seedlip.add(mesh(box(0.05, 0.62, 0.02), LEATHER, { x: 0.06, y: 0.28, z: 0.205, rz: 0.62, rx: -0.05 }));
   seedlip.visible = false;
   chest.add(seedlip);
 
