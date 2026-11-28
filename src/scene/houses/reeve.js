@@ -3,14 +3,14 @@ import { span, cone } from '../toft.js';
 import { mesh, tone } from '../meshUtils.js';
 import { box, cyl, WOOD_DARK, WOOD_PALE, ROPE, INK } from '../kit.js';
 
-// The reeve's holding: the longest and best-kept house in the village, as
-// befits the man the villagers chose to answer for them — limewashed,
-// half-hipped, a louvre on the ridge where lesser roofs have only a hole. What
-// no other toft has is a barn of its own: it stands behind the house's far
-// end, gable to the fold yard, its wide doorway open on the dark; the yard
-// between the two is shut in with cleft pales and a pair of slip-poles, and a
-// pony stands tethered at the gate. By the door, the tools of his office:
-// sacks, the bushel measure and a bundle of tally sticks.
+// The reeve's holding: the best-kept house in the village, as befits the man
+// the villagers chose to answer for them — long, limewashed, half-hipped, a
+// louvre on the ridge where lesser roofs have only a hole. What no other toft
+// has is a barn of its own: it stands behind the house's far end, gable to
+// the fold yard, its wide doorway open on the dark; the yard between the two
+// is shut in with cleft pales and a pair of slip-poles, and a pony stands
+// tethered at the gate. By the door, the tools of his office: sacks, the
+// bushel measure and a bundle of tally sticks.
 //
 // The barn is smaller than a barn should be: the toft is only 2.5 deep behind
 // the house and 1.9 wide beyond its end, so it stands end-on, one bay long.
@@ -64,7 +64,7 @@ function tallies(wall, y) {
 export default {
   id: 'reeve',
   name: 'The reeve’s house',
-  note: 'The reeve’s house — the longest roof in the village and a barn of its own; by the door hang the tally sticks, lest any forget what is owed.',
+  note: 'The reeve’s house — the best-kept in the village, with a barn of its own; by the door hang the tally sticks, lest any forget what is owed.',
   build(c) {
     c.shell({ eave: 1.9, pitch: 49, walls: 'daub', wash: WASH.lime, frame: 'box', timber: TIMBER.grey, roof: 'halfhip', thatch: 'straw', barge: true });
     // opposed doors, a passage between them; the hall and its hearth lie to the right of it
@@ -107,6 +107,7 @@ export default {
     // near gatepost, which in the pony's own frame stands at (1.55, -0.1). A little hay is thrown down for it.
     const pony = c.beast(gate.u - gate.w / 2 + 0.85, gate.v - 1.3, { kind: 'pony', ry: -2.214, colour: DUN });
     pony.add(mesh(box(0.06, 0.235, 0.235), ROPE, { x: 0.95, y: 1.19, rz: -0.5, shadow: false }));
+    pony.add(mesh(box(0.16, 0.05, 0.14), tone(DUN, 0.55), { x: 0.82, y: 1.4, rz: -0.5, shadow: false })); // its forelock, in its eyes
     span(pony, [0.97, 1.08, 0], [1.5, 1.0, -0.1], 0.025, 0.025, ROPE, false);
     pony.add(mesh(cyl(0.09, 0.09, 0.07, 6), ROPE, { x: 1.55, y: 1.0, z: -0.1, shadow: false }));
     pony.add(mesh(cone(0.3, 0.2, 6), HAY, { x: 0.6, y: 0.08, z: -0.55 }));

@@ -84,9 +84,11 @@ function spinnersBench(c, at) {
   g.add(mesh(cyl(0.125, 0.13, 0.035, 6), MADDER, { x: -0.775, y: 1.05, z: 0.2 })); // the ribbon that binds it
 }
 
-// one tied bundle of pulled stalks: its butt on the ground `x` out along the
-// group's own x, leaned back over toward -x
-const bundle = (g, tall, lean, colour, x = 0) => g.add(mesh(cyl(0.04, 0.085, tall, 4), colour, { x: x - (Math.sin(lean) * tall) / 2, y: (Math.cos(lean) * tall) / 2 - 0.03, rz: lean }));
+// one tied bundle of pulled stalks, in group g: its butt on the ground `x` out
+// along g's own x, leaned back over toward -x
+function bundle(g, tall, lean, colour, x = 0) {
+  g.add(mesh(cyl(0.04, 0.085, tall, 4), colour, { x: x - (Math.sin(lean) * tall) / 2, y: (Math.cos(lean) * tall) / 2 - 0.03, rz: lean }));
+}
 
 // Pulled flax, stood to dry with the bundles' heads leaned together.
 function stook(c, u, v, tall = 0.95) {
@@ -118,6 +120,17 @@ function rettingPit(c, u, v) {
   c.block(u - 0.6, v - 0.44, u + 0.6, v + 0.44);
 }
 
+// a pad of moss to lie on the thatch, ragged at its edge as the kit's own are
+function mossPad(c, long, deep) {
+  const edge = [];
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * TAU;
+    const r = 0.72 + 0.28 * c.rng();
+    for (const y of [-0.015, 0.015]) edge.push([(Math.cos(a) * r * long) / 2, y, (Math.sin(a) * r * deep) / 2]);
+  }
+  return hull(edge);
+}
+
 // a clump of nettles, where nobody digs
 function nettles(c, u, v) {
   const g = c.at(u, v);
@@ -143,8 +156,7 @@ export default {
     // kept up, not kept new: a strip of the eave laid afresh last autumn, moss
     // gathering further along, a panel of the gable newly daubed
     c.add(box(1.05, 0.03, 1.0), THATCHES.new[1], c.onRoof(1, -1.2, 2.62, 0.02));
-    c.add(box(0.95, 0.03, 0.5), MOSS, c.onRoof(1, 2.2, 2.75, 0.012));
-    c.add(box(0.5, 0.03, 0.42), tone(MOSS, 1.14), c.onRoof(1, 1.55, 2.5, 0.018));
+    c.add(mossPad(c, 1.25, 0.62), MOSS, c.onRoof(1, 2.0, 2.68, 0.012));
     c.onWall('left', -0.45).add(mesh(box(0.6, 0.5, 0.02), tone(WASH.daub, 1.13), { y: 2.25, z: 0.011 }));
 
     // under the front eave: the yarn, and where it is spun
@@ -180,9 +192,9 @@ export default {
 
     // behind: the pit, and what has come out of it spread on the grass to dry
     rettingPit(c, -2.7, -2.52);
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 10; i++) {
       // laid out thin, a handful at a time, so the dew and the sun reach every stalk
-      c.at(-1.5 + i * 0.17, -2.5 + (c.rng() - 0.5) * 0.14, (c.rng() - 0.5) * 0.5).add(mesh(box(0.07, 0.035, 0.52 + c.rng() * 0.2), tone(RETTED, 0.88 + c.rng() * 0.24), { y: 0.01 + (i % 3) * 0.004 }));
+      c.at(-1.5 + i * 0.18, -2.5 + (c.rng() - 0.5) * 0.14, (c.rng() - 0.5) * 0.5).add(mesh(box(0.07, 0.035, 0.52 + c.rng() * 0.2), tone(RETTED, 0.88 + c.rng() * 0.24), { y: 0.01 + (i % 3) * 0.004 }));
     }
     nettles(c, 3.7, -2.55);
   },

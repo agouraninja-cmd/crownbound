@@ -4,7 +4,7 @@ import { mesh, tone } from '../meshUtils.js';
 import { box, cyl, WOOD_DARK, WOOD_PALE, ROPE } from '../kit.js';
 
 // The thatcher’s cottage: a small plain house, and the neatest in the village
-// — no moss on its thatch, the straw stacked square, the leeks in a straight
+// — no moss on its thatch, the straw stacked tidily, the leeks in a straight
 // row. What sets it apart is that he has at last got to his own roof: the
 // front slope is half new-laid, gold straw from the track end as far as the
 // ladder and the old grey-gold beyond it, with the yealms waiting at the wall
@@ -43,6 +43,7 @@ function frontSlope(c) {
 // out to nothing where it tucks under the course above, a hand thick at its
 // butt, and the eave course cut off square below the old ragged fringe.
 function layNewThatch(c, { run, verge, at, thatch }) {
+  // The three lie over the kit's own three, each reaching a little lower so its butt hides the old course's edge.
   // eave course first — top: where it tucks under · butt: where it ends · on: a spot on the old course it covers · face: how deep the butt is cut
   const courses = [
     { top: run * 0.565, butt: run + 0.1, on: run * 0.8, face: 0.26 },
@@ -58,6 +59,7 @@ function layNewThatch(c, { run, verge, at, thatch }) {
       const pts = [];
       for (const u of [u0, u1]) {
         const lip = at(u, end, skin + PROUD);
+        // its feathered top and the underside sunk in the old straw below that, its lip, the foot of its cut face
         pts.push(at(u, top, skin), at(u, top, skin - 0.2), lip, [u, lip[1] - face, lip[2]]);
       }
       c.add(hull(pts), tone(NEW[i], 0.99 + k * 0.02 + c.rng() * 0.03)); // the last strake laid is the brightest
@@ -82,9 +84,9 @@ function layLadder(c, { run, apex, verge, at, thatch }) {
   const head = 0.22;
   const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
   const rails = [-1, 1].map((side) => [at(u + side * 0.23, foot, up), at(u + side * 0.17, head, up)]);
-  for (const [a, b] of rails) span(c.g, a, b, 0.05, 0.05, tone(WOOD_PALE, 1.1 + c.rng() * 0.1));
+  for (const [a, b] of rails) span(c.g, a, b, 0.055, 0.055, tone(WOOD_PALE, 1.26 + c.rng() * 0.1)); // ash, and kept under cover: paler than the house's oak
   const rung = (t) => [mix(...rails[0], t), mix(...rails[1], t)];
-  for (let i = 0; i < 8; i++) span(c.g, ...rung((i + 0.5) / 8), 0.035, 0.035, WOOD_PALE);
+  for (let i = 0; i < 8; i++) span(c.g, ...rung((i + 0.5) / 8), 0.04, 0.04, tone(WOOD_PALE, 1.12));
 
   const tie = mix(...rung(15 / 16), 0.5); // the top rung's middle
   const over = [u, apex + 0.17, 0]; // the ridge roll's back
@@ -124,6 +126,7 @@ function hangBurden(c, { run, verge, at, thatch }) {
     const [x, y, z] = at(u + shift, down, rest + 0.13);
     yealm(c.g, c.rng, { x, y, z, len: 0.7 });
   }
+  // the two spars, driven into the old straw below it
   for (const side of [-1, 1]) {
     const [x, y, z] = at(u + side * 0.2, 1.47, rest + 0.08);
     c.add(box(0.03, 0.3, 0.03), HAZEL, { x, y, z, rx: c.pitch });
@@ -159,7 +162,7 @@ function strawBed(g, rng) {
 export default {
   id: 'thatcher',
   name: 'The thatcher’s cottage',
-  note: 'The thatcher’s cottage — he has got to his own roof at last: half of it new gold straw, the ladder lying where he left off.',
+  note: 'The thatcher’s cottage — he has got to his own roof at last: new gold straw half-way along, the ladder lying where he left off.',
   build(c) {
     c.shell({ eave: 1.55, pitch: 52, walls: 'daub', wash: WASH.daub, frame: 'box', timber: TIMBER.grey, roof: 'gable', thatch: 'straw' });
     c.door(...c.plot.door, { open: 0.5 });
@@ -178,7 +181,7 @@ export default {
     const stack = c.at(-1.6, 1.98);
     for (const [z, y, ry] of [[-0.15, 0.12, 0.02], [0.15, 0.12, -0.03], [0.01, 0.35, 0.05]]) yealm(stack, c.rng, { y, z, ry });
     c.block(-2.08, c.hz, -1.12, 2.3);
-    c.beast(-1.46, 1.99, { kind: 'cat', lift: 0.48, ry: 0.4 }); // asleep on the warm straw
+    c.beast(-1.46, 1.99, { kind: 'cat', lift: 0.45, ry: 0.4 }); // asleep on the warm straw
     // the rake he combs the new coat down with, the spars and the stool he points them on, and two yealms stood out of the way
     c.tool(0.5, c.hz + 0.37, { kind: 'rake', lean: 0.22 });
     sparHeap(c.at(0.98, c.hz + 0.38), c.rng);
@@ -188,8 +191,8 @@ export default {
       c.solid(u, c.hz + 0.3, 0.2);
     }
     // what has dropped from today's work, not yet swept up
-    for (const [u, v] of [[-0.72, 2.04], [-0.3, 2.2], [0.08, 1.97], [0.42, 2.16], [-1.0, 2.2]]) {
-      c.at(u, v, c.rng() * Math.PI).add(mesh(box(0.2 + c.rng() * 0.16, 0.02, 0.035), tone(NEW[2], 0.92 + c.rng() * 0.12), { y: 0.012, shadow: false }));
+    for (const [u, v, ry] of [[-0.72, 2.04, 2.6], [-0.28, 2.2, 0.17], [0.1, 1.95, 1.39], [0.44, 2.14, 0.52], [-1.02, 2.18, 1.92]]) {
+      c.at(u, v, ry).add(mesh(box(0.2 + c.rng() * 0.16, 0.02, 0.035), tone(NEW[2], 0.92 + c.rng() * 0.12), { y: 0.012, shadow: false }));
     }
     // his short ladder, put by against the gable
     c.ladder(c.hx + 0.27, -0.55, { len: 2.1, lean: 0.105, ry: Math.PI / 2 });
@@ -205,6 +208,7 @@ export default {
     c.bucket(-0.02, -1.88);
     strawBed(c.at(1.45, -1.97), c.rng);
     c.block(0.8, -2.28, 2.1, -c.hz);
+    // the dung heap, kept small, and the leeks it goes on, along the end wall
     c.midden(-2.55, -2.0, { r: 0.36 });
     c.bed(-2.95, -1.5, -2.42, 0.1, { crop: 'leeks' });
   },

@@ -22,8 +22,8 @@ const ASH = 0xddd0a6; // the felloes' wood: it bends before it breaks
 const FLAKE = hull([[-0.09, 0, -0.03], [0.1, 0, -0.045], [0.02, 0, 0.05], [0, 0.04, 0.005]]);
 
 // Chips thrown about a spot where he works: n of them, thickest at (u, v) and
-// thinning out to `reach` each way. None fall under the house or its doorstep,
-// or out of the yard.
+// thinning out to `reach` each way. None fall under the house, under the
+// doorstep before its front door, or out of the yard.
 function chips(c, u, v, reach, n) {
   const [u0, v0, u1, v1] = c.plot.yard;
   for (let i = 0; i < n; i++) {
@@ -96,33 +96,47 @@ function beam(c, from, to) {
 const RIM = 0.62; // the wheel's radius...
 const RIM_IN = 0.52; // ...and its felloes' inner edge
 
-// one length of the rim, a twelfth of the way round from angle a (0 is the
-// top) about a middle cy high; a felloe is two of these, cut from one piece of ash
-function rimPiece(a, cy) {
-  const pts = [];
-  for (const r of [RIM, RIM_IN]) {
-    for (const b of [a, a + Math.PI / 6]) for (const z of [-0.035, 0.035]) pts.push([-r * Math.sin(b), cy + r * Math.cos(b), z]);
+// A felloe: a sixth of the rim, from angle a (0 is the top, turning toward
+// -x) about a middle cy high. Cut from one piece of ash, and built as one
+// piece too: the village's bake lets nothing small throw a shadow, and a
+// wheel whose rim threw none would look wrong against the wall.
+function felloe(a, cy) {
+  const half = 0.035; // half its thickness
+  const at = (r, b, z) => [-r * Math.sin(b), cy + r * Math.cos(b), z];
+  const soup = [];
+  const quad = (p, q, r, s) => soup.push(...p, ...q, ...r, ...p, ...r, ...s);
+  for (let j = 0; j < 2; j++) {
+    const b0 = a + (j * Math.PI) / 6;
+    const b1 = b0 + Math.PI / 6;
+    quad(at(RIM_IN, b0, half), at(RIM, b0, half), at(RIM, b1, half), at(RIM_IN, b1, half)); // its face
+    quad(at(RIM_IN, b0, -half), at(RIM_IN, b1, -half), at(RIM, b1, -half), at(RIM, b0, -half)); // its back
+    quad(at(RIM, b0, half), at(RIM, b0, -half), at(RIM, b1, -half), at(RIM, b1, half)); // the tread
+    quad(at(RIM_IN, b0, half), at(RIM_IN, b1, half), at(RIM_IN, b1, -half), at(RIM_IN, b0, -half)); // the inside
   }
-  return hull(pts);
+  const end = a + Math.PI / 3;
+  quad(at(RIM_IN, a, half), at(RIM_IN, a, -half), at(RIM, a, -half), at(RIM, a, half)); // the two cut ends
+  quad(at(RIM_IN, end, half), at(RIM, end, half), at(RIM, end, -half), at(RIM_IN, end, -half));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(soup, 3));
+  return geo;
 }
 
 // A cart wheel half made, its rim standing at (u, v) and leaned back on the
-// wall behind: the nave, all twelve spokes, and four of its six felloes
-// fitted — the last four spokes stand bare. No tyre yet.
+// front wall: the nave, all twelve spokes, and four of its six felloes fitted
+// — the last four spokes stand bare. No tyre yet.
 function wheel(c, u, v) {
   const g = c.at(u, v);
-  g.rotation.x = -0.22;
+  g.rotation.x = -0.22; // far enough over that the nave's back clears the wall
   const put = (geo, colour, opts) => g.add(mesh(geo, colour, opts));
+  // the nave, narrower toward the linchpin end, and the axle's hole through it
   put(cyl(0.1, 0.14, 0.28, 8), ELM, { y: RIM, z: 0.04, rx: Math.PI / 2 });
-  put(new THREE.CircleGeometry(0.05, 6), 0x2a1f16, { y: RIM, z: 0.183, shadow: false }); // the axle's hole
+  put(new THREE.CircleGeometry(0.05, 6), 0x2a1f16, { y: RIM, z: 0.183, shadow: false });
+  // the spokes, two to a felloe, driven well into the nave
   for (let i = 0; i < 12; i++) {
     const a = ((i + 0.5) / 12) * Math.PI * 2;
-    put(box(0.05, 0.46, 0.04), tone(HEWN, 0.88 + c.rng() * 0.14), { x: -Math.sin(a) * 0.33, y: RIM + Math.cos(a) * 0.33, rz: a });
+    put(box(0.05, 0.5, 0.04), tone(HEWN, 0.88 + c.rng() * 0.14), { x: -Math.sin(a) * 0.31, y: RIM + Math.cos(a) * 0.31, rz: a });
   }
-  for (let k = 0; k < 4; k++) {
-    const colour = tone(ASH, 0.88 + c.rng() * 0.14);
-    for (const half of [0, 1]) put(rimPiece(((k * 2 + half) * Math.PI) / 6, RIM), colour);
-  }
+  for (let k = 0; k < 4; k++) put(felloe((k * Math.PI) / 3, RIM), tone(ASH, 0.88 + c.rng() * 0.14));
   for (const s of [-1, 1]) c.solid(u + s * 0.3, v - 0.12, 0.24);
 }
 
@@ -132,8 +146,7 @@ function looseFelloes(c, u, v, ry) {
   const lay = (spot) => {
     const flat = new THREE.Group();
     flat.rotation.x = -Math.PI / 2; // the wheel's own plane, laid on the ground
-    const colour = tone(ASH, 0.9 + c.rng() * 0.12);
-    for (const half of [-1, 0]) flat.add(mesh(rimPiece((half * Math.PI) / 6, -(RIM + RIM_IN) / 2), colour));
+    flat.add(mesh(felloe(-Math.PI / 6, -(RIM + RIM_IN) / 2), tone(ASH, 0.9 + c.rng() * 0.12)));
     spot.add(flat);
   };
   lay(c.at(u, v, ry, 0.035));
@@ -264,19 +277,19 @@ export default {
       const foot = -c.hx - 0.08 - len * Math.sin(lean);
       c.at(foot, -1.5 + i * 0.25, -Math.PI / 2).add(mesh(box(0.2, len, 0.04), tone(HEWN, 0.84 + c.rng() * 0.2), { y: (len / 2) * Math.cos(lean), z: (-len / 2) * Math.sin(lean), rx: -lean, rz: (c.rng() - 0.5) * 0.04 }));
     }
-    c.solid(-2.86, -1.25, 0.4);
+    c.solid(-2.86, -1.25, 0.4); // no way through them
 
-    // his hovel along the back, where the planks season: open to the yard and
-    // the lane, boarded at the far end and half way along from it
-    const shed = { length: 2.8, depth: 1.35, high: 1.65, low: 1.25 };
-    const hovel = c.leanTo('back', -1.1, { ...shed, walls: 'open', roof: 'board' });
+    // his lean-to along the back, where the planks season: open to the yard
+    // and the lane, boarded at the far end and half way along from it
+    const size = { length: 2.8, depth: 1.35, high: 1.65, low: 1.25 };
+    const shed = c.leanTo('back', -1.1, { ...size, walls: 'open', roof: 'board' });
     const board = () => tone(WOOD, 0.86 + c.rng() * 0.26);
     for (let i = 0; i < 5; i++) {
       const z = 0.04 + (i + 0.5) * 0.26;
-      const top = shed.high - ((shed.high - shed.low) / shed.depth) * z - 0.02; // up to the pent roof
-      hovel.add(mesh(box(0.04, top + 0.6, 0.245), board(), { x: -shed.length / 2, y: (top - 0.6) / 2, z }));
+      const top = size.high - ((size.high - size.low) / size.depth) * z - 0.02; // up to the pent roof
+      shed.add(mesh(box(0.04, top + 0.6, 0.245), board(), { x: -size.length / 2, y: (top - 0.6) / 2, z }));
     }
-    for (let i = 0; i < 4; i++) hovel.add(mesh(box(0.25, shed.low + 0.58, 0.04), board(), { x: -shed.length / 2 + 0.02 + (i + 0.5) * 0.265, y: (shed.low - 0.62) / 2, z: shed.depth }));
+    for (let i = 0; i < 4; i++) shed.add(mesh(box(0.25, size.low + 0.58, 0.04), board(), { x: -size.length / 2 + 0.02 + (i + 0.5) * 0.265, y: (size.low - 0.62) / 2, z: size.depth }));
     const stackTop = plankStack(c, -1.4, -2.38, 0);
     c.beast(-1.1, -2.5, { kind: 'cat', lift: stackTop, ry: 2.4 }); // asleep on the top course
     chips(c, -1.2, -3.0, [1.6, 0.3], 10);

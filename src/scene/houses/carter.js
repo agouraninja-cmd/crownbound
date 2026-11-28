@@ -61,9 +61,9 @@ function cart(g, rng, tilt) {
     put(box(1.46, 0.045, 0.045), pale(), { y: 0.53, z });
     for (let i = 0; i < 5; i++) put(box(0.035, 0.42, 0.035), pale(), { x: -0.6 + i * 0.3, y: 0.31, z });
   }
-  // the fore-ladder that keeps the load off the pony's rump, and the bar across the tail
-  for (const y of [0.31, 0.53]) put(box(0.04, 0.04, 0.5), pale(), { x: 0.66, y });
-  put(box(0.055, 0.065, 0.52), tone(WOOD, 0.85), { x: -0.66, y: 0.085 });
+  // the fore-ladder that keeps the load off the pony's rump, rung to the foremost staves, and the bar across the tail
+  for (const y of [0.31, 0.53]) put(box(0.04, 0.04, 0.5), pale(), { x: 0.6, y });
+  put(box(0.055, 0.07, 0.52), tone(WOOD, 0.85), { x: -0.66, y: 0.08 });
 }
 
 // THE CART HOVEL, against the gable that faces the road: two posts, a plate
@@ -77,13 +77,13 @@ function cartHovel(c) {
   const low = 1.5;
   const sub = c.leanTo('right', 0, { length, depth, high, low, walls: 'open', roof: 'board' });
   const put = (geo, colour, opts) => sub.add(mesh(geo, colour, opts));
+  const post = length / 2 - 0.08; // where its posts stand along the wall (this wall's own +x runs toward the back of the house)
 
   // each end is framed back to the house: a tie at the plate, and under it a
   // rail for the brace to stand on — high enough for the cart to pass beneath
   for (const s of [-1, 1]) {
-    const x = s * (length / 2 - 0.08);
-    put(box(0.06, 0.08, depth - 0.16), tone(WOOD_DARK, 0.95 + rng() * 0.2), { x, y: low - 0.02, z: (depth - 0.12) / 2 });
-    put(box(0.06, 0.07, depth - 0.1), tone(WOOD_DARK, 0.95 + rng() * 0.2), { x, y: low - 0.47, z: (depth - 0.08) / 2 });
+    put(box(0.06, 0.08, depth - 0.16), tone(WOOD_DARK, 0.95 + rng() * 0.2), { x: s * post, y: low - 0.02, z: (depth - 0.12) / 2 });
+    put(box(0.06, 0.07, depth - 0.1), tone(WOOD_DARK, 0.95 + rng() * 0.2), { x: s * post, y: low - 0.47, z: (depth - 0.08) / 2 });
   }
 
   // the boards of the pent, cleft and weathered grey, under the battens that hold them down
@@ -99,8 +99,7 @@ function cartHovel(c) {
     });
   }
 
-  // the cart-rope, coiled on a peg in the far post
-  const post = length / 2 - 0.08;
+  // the cart-rope, coiled on a peg in the back post
   put(box(0.03, 0.03, 0.14), WOOD_PALE, { x: post, y: 1.2, z: depth - 0.02 });
   const coil = mesh(new THREE.TorusGeometry(0.13, 0.032, 4, 8), ROPE, { x: post, y: 1.07, z: depth + 0.01 });
   coil.scale.set(0.75, 1.15, 1);
@@ -111,11 +110,12 @@ function cartHovel(c) {
   const u = c.hx + 0.55;
   const v = 0.5;
   cart(c.at(u, v, -Math.PI / 2, c.ground(u + 0.32, v) - c.ground(u, v)), rng, 0.68);
-  c.haycock(u - 0.02, -0.82, { r: 0.4, h: 0.5, solid: false }); // fodder kept in the dry
-  c.hurdle(c.hx + 0.46, -length / 2 + 0.08, { len: 0.82, h: 1.07, solid: false }); // a hurdle across the weather end
   c.solid(u, 1.6, 0.3); // the shafts, where they stand out past the hovel's own footprint
+  c.haycock(u - 0.02, -0.82, { r: 0.4, h: 0.5, solid: false }); // fodder kept in the dry
+  c.hurdle(c.hx + depth / 2 - 0.04, -post, { len: 0.82, h: 1.07, solid: false }); // a hurdle across the weather end
 
-  // what the pony leaves is heaped behind the hovel till a garden wants it
+  // What the pony leaves is heaped behind the hovel till a garden wants it — a
+  // barrowful, not the midden of a yard with beasts and room for one.
   const muck = c.at(u + 0.05, -1.82);
   muck.add(mesh(cone(0.34, 0.3, 7), DUNG, { y: 0.11, ry: rng() }));
   muck.add(mesh(cone(0.2, 0.2, 6), tone(DUNG, 1.15), { x: 0.14, y: 0.08, z: 0.12, ry: rng() }));
@@ -139,14 +139,14 @@ function spareWheel(c) {
 function harness(c) {
   const sub = c.onWall('front', -0.42);
   const put = (geo, colour, opts) => sub.add(mesh(geo, colour, opts));
-  put(box(0.74, 0.08, 0.035), tone(TIMBER.grey, 1.05), { y: 1.38, z: 0.03 });
+  put(box(0.74, 0.08, 0.035), tone(TIMBER.grey, 1.05), { y: 1.38, z: 0.03 }); // the peg board
   for (const x of [-0.17, 0.2]) put(box(0.035, 0.035, 0.16), WOOD_DARK, { x, y: 1.39, z: 0.11, rx: -0.2 });
   const collar = mesh(new THREE.TorusGeometry(0.15, 0.055, 5, 10), LEATHER, { x: -0.17, y: 1.25, z: 0.13 });
-  collar.scale.y = 1.3;
+  collar.scale.y = 1.3; // a collar is longer than it is wide, like the neck it sits on
   sub.add(collar);
-  for (const s of [-1, 1]) put(box(0.035, 0.5, 0.04), WOOD_PALE, { x: -0.17 + s * 0.17, y: 1.27, z: 0.17, rz: s * 0.1 });
-  for (const s of [-1, 1]) put(box(0.025, 0.55, 0.02), tone(LEATHER, 0.8), { x: 0.2 + s * 0.05, y: 1.1, z: 0.14, rz: s * 0.05 });
-  put(box(0.14, 0.03, 0.03), IRON, { x: 0.2, y: 0.82, z: 0.14 }); // the bit
+  for (const s of [-1, 1]) put(box(0.035, 0.5, 0.04), WOOD_PALE, { x: -0.17 + s * 0.17, y: 1.27, z: 0.17, rz: s * 0.1 }); // the hames
+  for (const s of [-1, 1]) put(box(0.025, 0.55, 0.02), tone(LEATHER, 0.8), { x: 0.2 + s * 0.05, y: 1.1, z: 0.14, rz: s * 0.05 }); // the reins, looped over their peg
+  put(box(0.14, 0.03, 0.03), IRON, { x: 0.2, y: 0.82, z: 0.14 }); // ...and the bit at the bottom of the loop
 }
 
 // the pony, haltered and tied to a ring in the wall post, with hay in a log trough under its nose
@@ -154,7 +154,8 @@ function pony(c) {
   const [u, v] = [-1.75, 2.55];
   const sub = c.beast(u, v, { kind: 'pony' });
   const ring = [0.88, 1.0 - c.ground(u, v), c.hz + 0.07 - v]; // on the house, so measured from its floor
-  sub.add(mesh(box(0.045, 0.23, 0.23), HEMP, { x: 0.93, y: 1.2, rz: -0.5 }));
+  sub.add(mesh(box(0.045, 0.23, 0.23), HEMP, { x: 0.93, y: 1.2, rz: -0.5 })); // the halter's noseband
+  // the tether, hanging slack between its chin and the ring
   span(sub, [0.92, 1.08, 0], [0.9, 0.74, -0.42], 0.025, 0.025, HEMP);
   span(sub, [0.9, 0.74, -0.42], ring, 0.025, 0.025, HEMP);
   sub.add(mesh(box(0.06, 0.06, 0.04), IRON, { x: ring[0], y: ring[1], z: ring[2] }));
@@ -179,7 +180,7 @@ export default {
     // the thatcher has been: one patch of new straw, low on the front slope
     for (let i = 0; i < 3; i++) {
       const len = 0.65 + rng() * 0.25;
-      c.add(box(0.42, 0.045, len), tone(THATCHES.new[1], 0.94 + rng() * 0.1), c.onRoof(1, -1.95 + i * 0.41, 2.0 + len / 2, 0.02));
+      c.add(box(0.42, 0.045, len), tone(THATCHES.new[1], 0.94 + rng() * 0.1), c.onRoof(1, -1.95 + i * 0.42, 2.0 + len / 2, 0.02));
     }
 
     // ...and the daubers: a panel of the far gable made good with clay from another pit
@@ -193,9 +194,9 @@ export default {
     // spare shaft-poles of ash, seasoning under the back eave
     const poles = c.onWall('back', 1.3);
     for (let i = 0; i < 3; i++) span(poles, [-0.3 + i * 0.25, -0.45, 0.34], [-0.2 + i * 0.2, 1.52, 0.09], 0.05, 0.05, tone(WOOD_PALE, 0.85 + rng() * 0.25));
-    c.solid(1.35, -c.hz - 0.22, 0.22);
+    c.solid(1.35, -c.hz - 0.22, 0.22); // he walks round them
     // nettles, where nobody treads
-    c.bush(-1.9, -c.hz - 0.27, { r: 0.2 });
-    c.bush(0.25, -c.hz - 0.25, { r: 0.17 });
+    c.bush(-1.9, -c.hz - 0.23, { r: 0.2 });
+    c.bush(0.25, -c.hz - 0.22, { r: 0.17 });
   },
 };
