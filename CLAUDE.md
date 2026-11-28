@@ -1686,7 +1686,10 @@ headlessly; everything else covered by the regression suite below.
   it is said once a save (`met.miller`, no saveVersion bump — older saves are introduced
   once too). The test world's `reset miller` plays it again. Fixed with it: the miller's
   E-prompt now truly follows him on his rounds. CROWNBOUND-Guide.docx rebuilt. New smoke
-  scenario `miller`. Seen only in the software renderer, not yet on the owner's screen.
+  scenario `miller`; it, `alive`, `combat`, `intro`, `proving`, `guide`, `spent` and the
+  render pass (cloud container, headless Chromium, `SMOKE_WAIT=load`; `miller` failed once
+  before the prompt fix, on E beside the walking miller). Seen only in the software
+  renderer, not yet on the owner's screen.
   Details: "The Miller's Introduction" under Noted decisions.
 
 ### Session notes
