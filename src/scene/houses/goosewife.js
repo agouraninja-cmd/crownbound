@@ -3,7 +3,7 @@ import { ball, cone } from '../toft.js';
 import { mesh, tone } from '../meshUtils.js';
 import { box, cyl, STRAW } from '../kit.js';
 
-// The goose-wife's cot: a small hipped cot behind the hovel, its limewash a
+// The goose-wife's cottage: a small hipped house behind the hovel, its limewash a
 // few winters old. What sets it apart is the flock — a long muddy pond between
 // the door and the lane, geese on it and about it, the low wattle pen they are
 // shut in at night, and her washing spread on the hedge to dry.
@@ -40,7 +40,7 @@ function goose(g, colour, pose) {
   if (pose !== 'settled') for (const s of [-1, 1]) put(box(0.02, 0.12, 0.02), BILL, { x: 0.02, y: 0.06, z: s * 0.05, shadow: false });
 }
 
-// The pond: the pit this cot's daub was dug from, long since filled with rain.
+// The pond: the pit this house's daub was dug from, long since filled with rain.
 // The kit's round pond will not go between the wall and the lane, so this one
 // is the house's own — long and narrow, in the same mud and water.
 // Returns mud(u, v): how far the top of its mud lies above the real ground
@@ -93,8 +93,8 @@ function digPond(c, cu, cv) {
 
 export default {
   id: 'goosewife',
-  name: 'The goose-wife’s cot',
-  note: 'The goose-wife’s cot — a muddy pond, a gaggle that hisses at every stranger, and her washing spread on the hedge.',
+  name: 'The goose-wife’s cottage',
+  note: 'The goose-wife’s cottage — a muddy pond, a gaggle that hisses at every stranger, and her washing spread on the hedge.',
   build(c) {
     c.shell({ eave: 1.5, pitch: 50, walls: 'daub', wash: WASH.limeOld, frame: 'post', timber: TIMBER.old, roof: 'hip', thatch: 'straw' });
     c.door(...c.plot.door, { open: 0.55 });
@@ -127,7 +127,7 @@ export default {
     c.washing(2.33, 2.55, { len: 1.9, h: 0.85, cloths: [0xddd5bf, 0x6b7f9a, 0xddd5bf] });
 
     // --- the night pen, under the eave at the end toward the green: wattle
-    //     on three sides, the cot's own wall the fourth ---
+    //     on three sides, the house's own wall the fourth ---
     c.fence([[2.44, -1.25], [3.26, -1.25], [3.26, 0.85], [2.98, 0.85]], { kind: 'wattle', h: 0.5 });
     c.hurdle(2.54, 1.17, { len: 0.6, h: 0.5, lean: 0.28, ry: Math.PI / 2 }); // what shuts it at dusk, leaned on the wall by day
     const pen = c.at(2.8, -0.2);

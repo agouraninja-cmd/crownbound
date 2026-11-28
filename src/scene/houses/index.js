@@ -8,7 +8,7 @@ import smith from './smith.js';
 import potter from './potter.js';
 import flaxwife from './flaxwife.js';
 import wright from './wright.js';
-import turfcot from './turfcot.js';
+import turfhut from './turfhut.js';
 import wellhouse from './wellhouse.js';
 import newhouse from './newhouse.js';
 import goosewife from './goosewife.js';
@@ -27,4 +27,4 @@ import hayward from './hayward.js';
 import collier from './collier.js';
 import woodward from './woodward.js';
 
-export const HOUSES = { reeve, alewife, smith, potter, flaxwife, wright, turfcot, wellhouse, newhouse, goosewife, oxhouse, cruckhouse, dairy, cottar, beekeeper, shepherd, carter, widow, ovenwife, swineherd, thatcher, hayward, collier, woodward };
+export const HOUSES = { reeve, alewife, smith, potter, flaxwife, wright, turfhut, wellhouse, newhouse, goosewife, oxhouse, cruckhouse, dairy, cottar, beekeeper, shepherd, carter, widow, ovenwife, swineherd, thatcher, hayward, collier, woodward };

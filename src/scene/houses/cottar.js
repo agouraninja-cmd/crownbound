@@ -3,7 +3,7 @@ import { ball, cone, lump } from '../toft.js';
 import { mesh, tone } from '../meshUtils.js';
 import { box, WOOD_PALE, ROPE } from '../kit.js';
 
-// The cottar's cot: the poorest holding in the village and the only one of
+// The cottar's croft: the poorest holding in the village and the only one of
 // cob — earth walls with rounded corners under a hipped roof of bracken and
 // ling. He has no strip in the fields, so the whole toft is his garth: leeks,
 // kale on its stalks and a row of beans behind a low wattle fence, the hens
@@ -145,8 +145,8 @@ function bracken(c, u, v, ry) {
 
 export default {
   id: 'cottar',
-  name: 'The cottar’s cot',
-  note: 'The cottar’s cot — walls of earth under a bracken roof, onions strung beneath the eaves, and every foot of the yard dug for leeks and kale.',
+  name: 'The cottar’s croft',
+  note: 'The cottar’s croft — walls of earth under a bracken roof, onions strung beneath the eaves, and every foot of the yard dug for leeks and kale.',
   build(c) {
     const { rng } = c;
     // eaves 0.37 deep and no deeper: the yard is only 0.4 wide at the +u end, and the hip's fringe must stay inside it

@@ -70,7 +70,7 @@ function bank(c, ring) {
 }
 
 export default {
-  id: 'turfcot',
+  id: 'turfhut',
   name: 'The turf hut',
   note: 'The turf hut — sods for walls, sods for a roof and a hurdle for a door: a green hummock with a goat tethered before it.',
   build(c) {

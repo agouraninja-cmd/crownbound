@@ -4,7 +4,7 @@ import { span, lump } from '../toft.js';
 import { mesh, tone } from '../meshUtils.js';
 import { box, cyl, WOOD_DARK, WOOD_PALE, LEATHER } from '../kit.js';
 
-// The hayward’s cot: the least sort of house, limewashed some winters back and
+// The hayward’s cottage: the least sort of house, limewashed some winters back and
 // hipped at both ends, shut up by day — he is out round the corn. What sets it
 // apart is the pinfold beside it, the village pound: a ring of stout stakes
 // and wattle where a beast taken straying waits until its owner pays the
@@ -17,8 +17,8 @@ const DUNG = 0x3f3122;
 const HAY = 0xc8ab5c;
 
 // The pinfold: a ten-sided ring as far toward +u as the yard runs, which
-// leaves a man's width between it and the cot's end wall. Corner k stands
-// (k + ½) tenths of a turn round from +u, so a flat side faces the cot and
+// leaves a man's width between it and the house's end wall. Corner k stands
+// (k + ½) tenths of a turn round from +u, so a flat side faces the house and
 // another the yard's far bound; the side from corner `gate` to the next is
 // left open for the slip-poles, and looks out toward the door and the road.
 const POUND = { u: 4.97, v: 0.25, r: 1.95, sides: 10, gate: 2 };
@@ -101,8 +101,8 @@ function hangHorn(wall, x, y) {
 
 export default {
   id: 'hayward',
-  name: 'The hayward’s cot',
-  note: 'The hayward’s cot — his horn hangs by the door, and a stray cow waits in the pinfold until her owner pays the fine.',
+  name: 'The hayward’s cottage',
+  note: 'The hayward’s cottage — his horn hangs by the door, and a stray cow waits in the pinfold until her owner pays the fine.',
   build(c) {
     c.shell({ eave: 1.6, pitch: 50, walls: 'daub', wash: WASH.limeOld, frame: 'box', timber: TIMBER.grey, roof: 'hip', thatch: 'straw' });
     c.door(...c.plot.door);

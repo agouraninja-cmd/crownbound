@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mesh, tone, makeRng, hull, hash2 } from './meshUtils.js';
 import { WOOD_DARK, WOOD, WOOD_PALE, THATCH, THATCH_DARK, THATCH_PALE, STONE, STONE_DARK, DAUB, IRON, box, cyl, boards } from './kit.js';
 import { toftKit } from './toft.js';
-import { LAYOUT, houseToWorld } from './layout.js';
+import { houseToWorld } from './layout.js';
 
 // The cottage kit: what every neighbour's house in the village is raised from.
 // A house is put together by its own file in src/scene/houses/ — it calls
@@ -57,6 +57,20 @@ const MOSS = 0x66773f;
 const SOOT = 0x2a211a;
 
 // the walls, by name: which way each faces (x, z) and which way `at` runs along it
+// The thatch is laid in three courses: each reaches less far down the slope
+// than the one beneath it (`reach`, a share of the run), stands a little
+// prouder of the rafters (`lift`) and is drawn in a little at the hips
+// (`shrink`). The roof is built from this and onRoof() reads it, so a thing
+// laid on the roof lies on the course that shows there.
+const COURSES = [
+  { reach: 1, lift: 0, shrink: 0 },
+  { reach: 0.64, lift: 0.05, shrink: 0.03 },
+  { reach: 0.34, lift: 0.1, shrink: 0.06 },
+];
+// how far out from an eave-side wall a man is stopped: the thatch hangs to
+// chest height there, and his head would go up through it
+const DRIP = 0.2;
+
 const WALLS = {
   front: { nx: 0, nz: 1, ry: 0 },
   back: { nx: 0, nz: -1, ry: Math.PI },
@@ -190,9 +204,11 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
   //   roof    'gable' · 'hip' (sloped at both ends too) · 'halfhip' (the gable's top clipped back)
   //   thatch  a THATCHES name, or [eave, middle, ridge] colours
   //   ridge   'roll' (straw wrapped over and pinned with crossed spars) · 'turf' (capped with sods) · 'none'
+  //           (a cruck frame wants a gable roof: under a half-hip its blades would stop short)
   //   over    how far the eaves overhang, down the slope · hip: the share of the slope a half-hip covers
   //   barge   true boards the gable verges (the better houses); otherwise the straw is swept over them
   //   moss    patches of moss on the slopes · bay: about how far apart the frame's posts stand
+  //   thick   how deep the thatch lies (0.17 straw, 0.2 old or heather, 0.24 turf, unless given)
   c.shell = ({
     eave = 1.65, pitch: degrees = 50, walls = 'daub', wash = WASH.daub, frame = walls === 'daub' ? 'box' : 'none', timber = TIMBER.grey,
     roof = 'gable', thatch = 'straw', ridge = 'roll', over = 0.36, hip = 0.42, barge = false, moss = 0, bay = 1.7, thick,
@@ -211,8 +227,10 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
     const uh = roof === 'hip' ? run : roof === 'halfhip' ? run * hip : 0;
     const ridgeHalf = Math.max(0.25, roof === 'hip' ? hx - hz : hx + gableOver - cos * uh);
     const skin = walls === 'stone' ? 0.04 : walls === 'turf' ? 0.03 : walls === 'plank' ? 0.045 : walls === 'wattle' ? 0.05 : 0;
-    S = { eave, rise, peak, pitch, sin, cos, run, over, deep, uh, ridgeHalf, skin, walls, wash, frame, timber, roof, bay, palette };
-    Object.assign(c, { eave, peak, pitch, open: walls === 'open' });
+    const top = peak + deep + 0.12; // the ridge's own height, over the thatch
+    S = { eave, rise, peak, pitch, sin, cos, run, over, deep, uh, ridgeHalf, top, ridge, skin, walls, wash, frame, timber, roof, bay, palette };
+    // drip: how far beyond its walls the house stops a man — under the eaves, which a hip has at its ends too
+    Object.assign(c, { eave, peak, pitch, open: walls === 'open', drip: { u: roof === 'hip' ? DRIP : 0, v: DRIP } });
 
     // --- the body: one closed block (see the note at the top) ---
     const bodyH = eave + DEEP;
@@ -318,9 +336,7 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
         }
       }
     };
-    course(run, 0, 0, tone(palette[0], 0.95 + rng() * 0.1));
-    course(run * 0.64, 0.05, 0.03, tone(palette[1], 0.95 + rng() * 0.1));
-    course(run * 0.34, 0.1, 0.06, tone(palette[2], 0.94 + rng() * 0.08));
+    COURSES.forEach((k, i) => course(run * k.reach, k.lift, k.shrink, tone(palette[i], i < 2 ? 0.95 + rng() * 0.1 : 0.94 + rng() * 0.08)));
 
     // the ragged fringe along every eave
     const fringeTone = () => tone(palette[0], 0.84 + rng() * 0.22);
@@ -365,7 +381,6 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
     }
 
     // the ridge
-    const top = peak + deep + 0.12;
     if (ridge === 'roll') {
       c.add(cyl(0.16, 0.16, ridgeHalf * 2 + 0.08, 6), tone(palette[2], 1.03), { y: top - 0.03, rz: Math.PI / 2 });
       const spars = Math.max(1, Math.round((ridgeHalf * 2) / 0.8));
@@ -397,16 +412,16 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
       const down = run * (0.4 + rng() * 0.5);
       const where = (rng() - 0.5) * 2; // along the slope, end to end
       const long = 0.4 + rng() * 0.6;
-      const deep = 0.3 + rng() * 0.45;
+      const padDeep = 0.3 + rng() * 0.45; // down the slope
       // the whole patch on the slope: a hipped roof narrows toward its ridge, and no patch may hang off the hip
-      const room = ridgeHalf + cos * Math.min(Math.max(down - deep / 2, 0), uh) - long / 2 - 0.12;
+      const room = ridgeHalf + cos * Math.min(Math.max(down - padDeep / 2, 0), uh) - long / 2 - 0.12;
       const reach = Math.max(0, Math.min(room, (ridgeHalf + cos * Math.min(down, uh)) * 0.75));
       // a ragged pad, not a rectangle (its edge is cut by where it lies, drawing nothing more from chance)
       const pad = [];
       for (let k = 0; k < 7; k++) {
         const a = (k / 7) * Math.PI * 2;
         const r = 0.72 + 0.28 * hash2(k + i * 7, Math.round(long * 1000));
-        for (const y of [-0.015, 0.015]) pad.push([Math.cos(a) * r * long / 2, y, Math.sin(a) * r * deep / 2]);
+        for (const y of [-0.015, 0.015]) pad.push([Math.cos(a) * r * long / 2, y, Math.sin(a) * r * padDeep / 2]);
       }
       c.add(hull(pad), tone(MOSS, 0.85 + rng() * 0.3), { ...c.onRoof(side, where * reach, down, 0.012), shadow: false });
     }
@@ -418,8 +433,10 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
   // lifts off the surface. Returns { x, y, z, rx } — spread it into add()'s
   // opts and a flat piece lies on the roof.
   c.onRoof = (side, along, down, above = 0) => {
-    const lift = S.deep + (down < S.run * 0.34 ? 0.1 : down < S.run * 0.64 ? 0.05 : 0);
-    return { x: along, y: S.peak - S.sin * down + lift + S.cos * above, z: side * (S.cos * down + S.sin * above), rx: side * S.pitch };
+    // the course that shows here: the topmost one that reaches this far down
+    let lift = 0;
+    for (const k of COURSES) if (down < S.run * k.reach) lift = k.lift;
+    return { x: along, y: S.peak - S.sin * down + S.deep + lift + S.cos * above, z: side * (S.cos * down + S.sin * above), rx: side * S.pitch };
   };
 
   // rubble walling: courses of rough stones over every face, bigger at the corners
@@ -457,6 +474,7 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
   // ajar). kind 'plank' is a ledged door; 'hurdle' a wattle hurdle across the
   // foot of an open doorway (a byre's). hinge ±1: which jamb it hangs on.
   // lit: how the hearth shows through it after dark (an open door only).
+  // w, h: the doorway's size · colour: the leaf's · step: false for no doorstep.
   c.door = (wall, at = 0, { w = 0.86, h = Math.min(1.55, S.eave - 0.18), open = 0, hinge = 1, kind = 'plank', colour = WOOD, lit = 0.7, step = true } = {}) => {
     const sub = c.onWall(wall, at);
     const put = (geo, col, opts) => sub.add(mesh(geo, col, opts));
@@ -544,7 +562,7 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
   // at: where along the ridge. lit: true sends smoke up from it (village.js);
   // false leaves the hearth cold.
   c.smoke = (kind = 'hole', at = 0, { lit = true, side = 1 } = {}) => {
-    const top = S.peak + S.deep + 0.12;
+    const top = S.top;
     let out = { u: at, y: top + 0.1, v: 0 };
     if (kind === 'hole') {
       const hole = c.onRoof(side, at, 0.34, 0.01);
@@ -565,10 +583,13 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
       const end = at < 0 ? -1 : 1;
       const x0 = end * (S.ridgeHalf - 0.3);
       const x1 = end * (S.ridgeHalf + 0.36);
-      const apex = S.peak + S.deep + 0.17;
-      const base = apex - 0.4;
       const half = 0.36;
+      // its own ridge level with the house's; its skirts down in the top course of thatch, not hung over it
+      const apex = top + (S.ridge === 'roll' ? 0.13 : 0.05);
+      const base = S.peak + S.deep + COURSES[2].lift - (S.sin / S.cos) * half - 0.04;
       c.add(hull([[x0, apex, 0], [x1, apex, 0], [x0, base, half], [x1, base, half], [x0, base, -half], [x1, base, -half]]), tone(S.palette[2], 1.0));
+      // ...and the ridge roll carried on over it to its face
+      if (S.ridge === 'roll') c.add(cyl(0.16, 0.16, 0.34, 6), tone(S.palette[2], 1.03), { x: end * (S.ridgeHalf + 0.19), y: top - 0.03, rz: Math.PI / 2 });
       const tri = new THREE.BufferGeometry();
       const xf = x1 + end * 0.012;
       const pts = end > 0 ? [xf, base + 0.07, half - 0.11, xf, base + 0.07, -half + 0.11, xf, apex - 0.08, 0] : [xf, base + 0.07, -half + 0.11, xf, base + 0.07, half - 0.11, xf, apex - 0.08, 0];
@@ -577,8 +598,11 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
       out = { u: x1 + end * 0.1, y: apex, v: 0 };
     } else {
       // no hole at all: the smoke soaks out through the straw and blackens it
-      c.add(box(1.1 + rng() * 0.4, 0.02, 0.62), tone(S.palette[1], 0.62), { ...c.onRoof(side, at, 0.36, 0.01), shadow: false });
-      c.add(box(0.6 + rng() * 0.2, 0.02, 0.4), tone(S.palette[1], 0.45), { ...c.onRoof(side, at + 0.08, 0.3, 0.016), shadow: false });
+      // (a hip is narrow up there: the stain keeps to the slope. Heather and turf are dark already: soot barely shows on them)
+      const room = S.uh > 0 ? 2 * (S.ridgeHalf + S.cos * 0.3) - 0.3 : Infinity;
+      const dark = ((S.palette[1] >> 16) & 255) < 0x70;
+      c.add(box(Math.min(1.1 + rng() * 0.4, room), 0.02, 0.62), tone(S.palette[1], dark ? 0.78 : 0.62), { ...c.onRoof(side, at, 0.36, 0.01), shadow: false });
+      c.add(box(Math.min(0.6 + rng() * 0.2, room - 0.2), 0.02, 0.4), tone(S.palette[1], dark ? 0.62 : 0.45), { ...c.onRoof(side, at + 0.08, 0.3, 0.016), shadow: false });
       out = { u: at, y: top + 0.05, v: 0 };
     }
     if (lit) c.smokes.push(out);
@@ -608,7 +632,7 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
     } else {
       // a closed solid: front wall `low` high, climbing to the house wall
       const colour = walls === 'wattle' ? 0x7d6238 : wash;
-      sub.add(mesh(hull([[-hl, -DEEP, 0], [hl, -DEEP, 0], [-hl, -DEEP, depth], [hl, -DEEP, depth], [-hl, y1 - 0.06, 0], [hl, y1 - 0.06, 0], [-hl, low - 0.04, depth], [hl, low - 0.04, depth]]), colour));
+      sub.add(mesh(hull([[-hl, -DEEP, 0], [hl, -DEEP, 0], [-hl, -DEEP, depth], [hl, -DEEP, depth], [-hl, y1, 0], [hl, y1, 0], [-hl, low, depth], [hl, low, depth]]), colour)); // up to the roof's underside: no slit to see through
       if (walls === 'wattle') {
         wattle(sub, length - 0.04, low - 0.06, 0, 0, depth + 0.02);
       } else if (walls === 'plank') {
@@ -784,7 +808,11 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
           sub.add(mesh(cyl(0.07, 0.09, top + DEEP * 0.5, 6), timber(), { x: s * 0.985, y: (top - DEEP * 0.5) / 2, z: 0.03, rz: (rng() - 0.5) * 0.05 }));
         }
         sub.add(mesh(cyl(0.06, 0.06, span * 2 + 0.2, 6), timber(), { y: top - 0.05, z: 0.05, rz: Math.PI / 2 }));
-        if (end && S.roof !== 'hip') sub.add(mesh(cyl(0.07, 0.09, S.peak - 0.3, 6), timber(), { y: (S.peak - 0.3) / 2, z: 0.03 })); // the ridge post
+        if (end && S.roof !== 'hip') {
+          // the ridge post: to the ridge on a gable, to where the hip comes down on a half-hip
+          const head = S.roof === 'halfhip' ? S.peak - S.sin * S.uh - 0.1 : S.peak - 0.3;
+          sub.add(mesh(cyl(0.07, 0.09, head, 6), timber(), { y: head / 2, z: 0.03 }));
+        }
       });
     }
 
@@ -841,8 +869,7 @@ export function raiseHouse(plot, house, terrainHeight) {
     const p = houseToWorld(plot, u, v);
     return terrainHeight(p.x, p.z) - floor;
   };
-  const index = LAYOUT.houses.indexOf(plot);
-  const c = raiseCottage(plot, { ground, seed: 7001 + index * 131 });
+  const c = raiseCottage(plot, { ground, seed: plot.seed });
   house.build(c);
   c.finish();
   c.g.position.set(plot.x, floor, plot.z);
@@ -858,7 +885,8 @@ export function turnedRect(x, z, halfX, halfZ, rotY) {
 
 // a cottage's colliders, carried out of its own frame into the world
 export function houseColliders(plot, c) {
-  const out = [turnedRect(plot.x, plot.z, plot.length / 2, plot.width / 2, plot.rotY)];
+  // the house itself: its walls, and the strip under its eaves (c.drip)
+  const out = [turnedRect(plot.x, plot.z, plot.length / 2 + (c.drip?.u ?? 0), plot.width / 2 + (c.drip?.v ?? 0), plot.rotY)];
   for (const k of c.colliders) {
     if (k.r !== undefined) {
       const p = houseToWorld(plot, k.u, k.v);

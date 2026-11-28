@@ -38,37 +38,40 @@ export const LAYOUT = {
   // it. `yard` is [u0, v0, u1, v1] in the house's own frame (u along the
   // ridge, v out of the front): everything in its toft stands inside that.
   // `row` is the handful of neighbours it is drawn with, in one batch.
+  // `seed` is the house's own stream of chance — its weathering, its footing
+  // stones, where its hens stand. Each house was built and looked at with the
+  // number it has: change one and that house is re-rolled.
   houses: [
     // north of the green, on the knoll, and west along the road
-    { id: 'reeve', row: 'north', x: 16.2, z: -3.4, rotY: -1.449, length: 7.4, width: 3.8, door: ['front', -0.9], yard: [-4.0, -4.4, 5.6, 3.0] },
-    { id: 'alewife', row: 'north', x: 10.8, z: -11.8, rotY: -1.99, length: 5.2, width: 3.4, door: ['front', 0.5], yard: [-3.4, -2.6, 3.2, 3.4] },
-    { id: 'smith', row: 'north', x: 7.6, z: -19.8, rotY: -1.71, length: 5.2, width: 3.4, door: ['front', 0.7], yard: [-4.4, -2.6, 3.2, 4.4] },
-    { id: 'potter', row: 'north', x: 15.5, z: -37.0, rotY: 0.14, length: 4.2, width: 3.0, door: ['front', 0.4], yard: [-3.6, -4.6, 4.0, 3.0] },
+    { id: 'reeve', row: 'north', seed: 7001, x: 16.2, z: -3.4, rotY: -1.449, length: 7.4, width: 3.8, door: ['front', -0.9], yard: [-4.0, -4.4, 5.6, 3.0] },
+    { id: 'alewife', row: 'north', seed: 7132, x: 10.8, z: -11.8, rotY: -1.99, length: 5.2, width: 3.4, door: ['front', 0.5], yard: [-3.4, -2.6, 3.2, 3.4] },
+    { id: 'smith', row: 'north', seed: 7263, x: 7.6, z: -19.8, rotY: -1.71, length: 5.2, width: 3.4, door: ['front', 0.7], yard: [-4.4, -2.6, 3.2, 4.4] },
+    { id: 'potter', row: 'north', seed: 7394, x: 15.5, z: -37.0, rotY: 0.14, length: 4.2, width: 3.0, door: ['front', 0.4], yard: [-3.6, -4.6, 4.0, 3.0] },
     // south-west, about the birches
-    { id: 'flaxwife', row: 'west', x: -15.8, z: -7.8, rotY: 1.466, length: 6.4, width: 3.5, door: ['front', 0.8], yard: [-4.4, -3.0, 4.2, 1.9] },
-    { id: 'wright', row: 'west', x: -14.0, z: -18.5, rotY: 1.658, length: 5.2, width: 3.4, door: ['front', -0.5], yard: [-3.8, -3.4, 4.0, 3.2] },
-    { id: 'turfcot', row: 'west', x: -25.5, z: -18.0, rotY: 0.14, length: 4.2, width: 3.0, door: ['front', 0.3], yard: [-3.2, -3.0, 3.2, 3.0] },
-    { id: 'wellhouse', row: 'west', x: -22.8, z: -10.2, rotY: 3.246, length: 5.2, width: 3.4, door: ['front', -0.4], yard: [-3.6, -3.0, 3.8, 3.6] },
-    { id: 'newhouse', row: 'west', x: -32.0, z: -10.6, rotY: 1.571, length: 5.2, width: 3.4, door: ['front', 0.5], yard: [-3.6, -2.0, 3.6, 3.0] },
+    { id: 'flaxwife', row: 'west', seed: 7525, x: -15.8, z: -7.8, rotY: 1.466, length: 6.4, width: 3.5, door: ['front', 0.8], yard: [-4.4, -3.0, 4.2, 1.9] },
+    { id: 'wright', row: 'west', seed: 7656, x: -14.0, z: -18.5, rotY: 1.658, length: 5.2, width: 3.4, door: ['front', -0.5], yard: [-3.8, -3.4, 4.0, 3.2] },
+    { id: 'turfhut', row: 'west', seed: 7787, x: -25.5, z: -18.0, rotY: 0.14, length: 4.2, width: 3.0, door: ['front', 0.3], yard: [-3.2, -3.0, 3.2, 3.0] },
+    { id: 'wellhouse', row: 'west', seed: 7918, x: -22.8, z: -10.2, rotY: 3.246, length: 5.2, width: 3.4, door: ['front', -0.4], yard: [-3.6, -3.0, 3.8, 3.6] },
+    { id: 'newhouse', row: 'west', seed: 8049, x: -32.0, z: -10.6, rotY: 1.571, length: 5.2, width: 3.4, door: ['front', 0.5], yard: [-3.6, -2.0, 3.6, 3.0] },
     // south, down the oak lane
-    { id: 'goosewife', row: 'south', x: -20.2, z: -0.6, rotY: -0.087, length: 4.6, width: 3.2, door: ['front', 0.6], yard: [-3.4, -2.8, 3.4, 3.0] },
-    { id: 'oxhouse', row: 'south', x: -30.2, z: -0.6, rotY: 0.07, length: 8.6, width: 3.6, door: ['front', -0.6], yard: [-5.4, -3.4, 5.4, 3.6] },
-    { id: 'cruckhouse', row: 'south', x: -22.4, z: 11.4, rotY: 1.71, length: 7.0, width: 3.6, door: ['front', 0.7], yard: [-4.2, -3.0, 4.2, 4.2] },
-    { id: 'dairy', row: 'south', x: -32.6, z: 12.6, rotY: 3.072, length: 8.2, width: 3.6, door: ['front', 0.8], yard: [-5.2, -3.6, 5.2, 3.4] },
-    { id: 'cottar', row: 'south', x: -39.6, z: -9.6, rotY: 0.349, length: 4.4, width: 3.2, door: ['front', -0.3], yard: [-3.4, -3.0, 2.6, 3.2] },
+    { id: 'goosewife', row: 'south', seed: 8180, x: -20.2, z: -0.6, rotY: -0.087, length: 4.6, width: 3.2, door: ['front', 0.6], yard: [-3.4, -2.8, 3.4, 3.0] },
+    { id: 'oxhouse', row: 'south', seed: 8311, x: -30.2, z: -0.6, rotY: 0.07, length: 8.6, width: 3.6, door: ['front', -0.6], yard: [-5.4, -3.4, 5.4, 3.6] },
+    { id: 'cruckhouse', row: 'south', seed: 8442, x: -22.4, z: 11.4, rotY: 1.71, length: 7.0, width: 3.6, door: ['front', 0.7], yard: [-4.2, -3.0, 4.2, 4.2] },
+    { id: 'dairy', row: 'south', seed: 8573, x: -32.6, z: 12.6, rotY: 3.072, length: 8.2, width: 3.6, door: ['front', 0.8], yard: [-5.2, -3.6, 5.2, 3.4] },
+    { id: 'cottar', row: 'south', seed: 8704, x: -39.6, z: -9.6, rotY: 0.349, length: 4.4, width: 3.2, door: ['front', -0.3], yard: [-3.4, -3.0, 2.6, 3.2] },
     // east, between the green and the wood
-    { id: 'beekeeper', row: 'east', x: -12.0, z: 18.2, rotY: 1.815, length: 5.2, width: 3.4, door: ['front', -0.7], yard: [-3.0, -3.4, 3.2, 2.2] },
-    { id: 'shepherd', row: 'east', x: -19.5, z: 19.6, rotY: 3.351, length: 5.2, width: 3.4, door: ['front', 0.5], yard: [-3.8, -3.8, 3.8, 2.8] },
-    { id: 'carter', row: 'east', x: -5.3, z: 25.0, rotY: 0.175, length: 5.2, width: 3.4, door: ['front', 0.6], yard: [-3.0, -2.2, 3.8, 3.2] },
-    { id: 'widow', row: 'east', x: -13.5, z: 30.5, rotY: 1.361, length: 4.2, width: 3.0, door: ['front', 0.3], yard: [-3.4, -3.2, 3.4, 3.4] },
-    { id: 'ovenwife', row: 'east', x: -4.8, z: 33.6, rotY: 1.536, length: 5.2, width: 3.4, door: ['front', -0.6], yard: [-3.6, -3.4, 3.6, 3.0] },
-    { id: 'swineherd', row: 'east', x: -5.8, z: 42.0, rotY: 1.484, length: 5.2, width: 3.4, door: ['front', -0.5], yard: [-4.0, -4.2, 4.0, 3.0] },
+    { id: 'beekeeper', row: 'east', seed: 8835, x: -12.0, z: 18.2, rotY: 1.815, length: 5.2, width: 3.4, door: ['front', -0.7], yard: [-3.0, -3.4, 3.2, 2.2] },
+    { id: 'shepherd', row: 'east', seed: 8966, x: -19.5, z: 19.6, rotY: 3.351, length: 5.2, width: 3.4, door: ['front', 0.5], yard: [-3.8, -3.8, 3.8, 2.8] },
+    { id: 'carter', row: 'east', seed: 9097, x: -5.3, z: 25.0, rotY: 0.175, length: 5.2, width: 3.4, door: ['front', 0.6], yard: [-3.0, -2.2, 3.8, 3.2] },
+    { id: 'widow', row: 'east', seed: 9228, x: -13.5, z: 30.5, rotY: 1.361, length: 4.2, width: 3.0, door: ['front', 0.3], yard: [-3.4, -3.2, 3.4, 3.4] },
+    { id: 'ovenwife', row: 'east', seed: 9359, x: -4.8, z: 33.6, rotY: 1.536, length: 5.2, width: 3.4, door: ['front', -0.6], yard: [-3.6, -3.4, 3.6, 3.0] },
+    { id: 'swineherd', row: 'east', seed: 9490, x: -5.8, z: 42.0, rotY: 1.484, length: 5.2, width: 3.4, door: ['front', -0.5], yard: [-4.0, -4.2, 4.0, 3.0] },
     // by the field lane and the east road
-    { id: 'thatcher', row: 'lane', x: 14.4, z: 24.6, rotY: 0.611, length: 4.2, width: 3.0, door: ['front', -0.4], yard: [-3.0, -2.4, 2.4, 2.4] },
-    { id: 'hayward', row: 'lane', x: 11.8, z: 39.4, rotY: -1.466, length: 4.2, width: 3.0, door: ['front', 0.4], yard: [-2.8, -2.2, 7.0, 3.0] },
+    { id: 'thatcher', row: 'lane', seed: 9621, x: 14.4, z: 24.6, rotY: 0.611, length: 4.2, width: 3.0, door: ['front', -0.4], yard: [-3.0, -2.4, 2.4, 2.4] },
+    { id: 'hayward', row: 'lane', seed: 9752, x: 11.8, z: 39.4, rotY: -1.466, length: 4.2, width: 3.0, door: ['front', 0.4], yard: [-2.8, -2.2, 7.0, 3.0] },
     // up on the hill, at the wood's edge
-    { id: 'collier', row: 'hill', x: 39.0, z: -12.0, rotY: -1.309, length: 4.2, width: 3.0, door: ['front', -0.3], yard: [-5.6, -3.4, 3.0, 3.2] },
-    { id: 'woodward', row: 'hill', x: 38.5, z: -3.5, rotY: -1.71, length: 5.2, width: 3.4, door: ['front', 0.6], yard: [-3.6, -3.4, 4.0, 3.2] },
+    { id: 'collier', row: 'hill', seed: 9883, x: 39.0, z: -12.0, rotY: -1.309, length: 4.2, width: 3.0, door: ['front', -0.3], yard: [-5.6, -3.4, 3.0, 3.2] },
+    { id: 'woodward', row: 'hill', seed: 10014, x: 38.5, z: -3.5, rotY: -1.71, length: 5.2, width: 3.4, door: ['front', 0.6], yard: [-3.6, -3.4, 4.0, 3.2] },
   ],
   // The lanes between the houses, worn by feet: each a line of [x, z] points.
   // Paint only (terrain.js) — nothing collides, and the grass is thinned off
@@ -86,7 +89,7 @@ export const LAYOUT = {
     [[4.9, -19.5], [2.6, -17.6]], // smith
     [[-13.1, -8.3], [-10.8, -7.5]], // flaxwife
     [[-11.4, -18.2], [-10, -14.6]], // wright
-    [[-24.9, -15.7], [-24.5, -14.1]], // turfcot
+    [[-24.9, -15.7], [-24.5, -14.1]], // turfhut
     [[-22.7, -12.8], [-22.6, -14]], // wellhouse
     [[-29.4, -11.1], [-29.4, -13]], // newhouse
     [[-19.8, 1.9], [-20.1, 4.3]], // goosewife

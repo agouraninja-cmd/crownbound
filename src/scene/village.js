@@ -70,7 +70,7 @@ export function buildVillage(terrainHeight) {
     gather(c.embers, embers, (m) => m.material.color.clone());
     colliders.push(...houseColliders(plot, c));
     // what the eye may not pass: the house itself (its yard is low enough to see over)
-    blocks.push({ ...turnedRect(plot.x, plot.z, plot.length / 2 + EAVE, plot.width / 2 + EAVE, plot.rotY), eave: floor + c.eave + 0.5, top: floor + c.peak + 0.45 });
+    blocks.push({ ...turnedRect(plot.x, plot.z, plot.length / 2 + EAVE, plot.width / 2 + EAVE, plot.rotY), wallX: plot.length / 2, wallZ: plot.width / 2, eave: floor + c.eave + 0.5, top: floor + c.peak + 0.45 });
     for (const s of c.smokes) {
       const p = houseToWorld(plot, s.u, s.v);
       smokes.push({ x: p.x, y: floor + s.y, z: p.z });
@@ -131,19 +131,28 @@ export function buildVillage(terrainHeight) {
       const pw = ox * b.sin + oz * b.cos;
       const du = dx * b.cos - dz * b.sin;
       const dw = dx * b.sin + dz * b.cos;
-      let enter = 0;
-      let leave = clear;
-      for (const [p, d, half] of [[pu, du, b.halfX], [pw, dw, b.halfZ]]) {
-        if (Math.abs(d) < 1e-6) {
-          if (Math.abs(p) > half) enter = Infinity;
-          continue;
+      // where the line enters an upright rect of these half-sizes about the house's middle
+      // (Infinity: it misses; 0: it starts inside)
+      const meets = (halfX, halfZ) => {
+        let enter = 0;
+        let leave = clear;
+        for (const [p, d, half] of [[pu, du, halfX], [pw, dw, halfZ]]) {
+          if (Math.abs(d) < 1e-6) {
+            if (Math.abs(p) > half) return Infinity;
+            continue;
+          }
+          const t0 = (-half - p) / d;
+          const t1 = (half - p) / d;
+          enter = Math.max(enter, Math.min(t0, t1));
+          leave = Math.min(leave, Math.max(t0, t1));
         }
-        const t0 = (-half - p) / d;
-        const t1 = (half - p) / d;
-        enter = Math.max(enter, Math.min(t0, t1));
-        leave = Math.min(leave, Math.max(t0, t1));
-      }
-      if (enter >= leave) continue; // it misses this house
+        return enter >= leave ? Infinity : enter;
+      };
+      let enter = meets(b.halfX, b.halfZ); // the house out to its eaves
+      // a head already under the eaves (he is hard by the wall, or the pivot has cut a corner):
+      // only the wall itself is in the way then, and only of a line that runs on into it
+      if (enter === 0) enter = meets(b.wallX, b.wallZ);
+      if (enter === Infinity) continue; // it misses this house
       const at = y + dy * enter; // how high the line is where it meets the eaves' line
       if (at > b.top || (at > b.eave && climb > STEEP)) continue;
       clear = enter;

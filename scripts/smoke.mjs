@@ -3725,16 +3725,24 @@ try {
         }
         return pts;
       };
-      const settle = (x, z) => {
+      const settle = (x, z, colliders = g.colliders) => {
         p.respawn(x, z);
-        for (let i = 0; i < 4; i++) p.update(1 / 60, 0, g.colliders);
+        for (let i = 0; i < 4; i++) p.update(1 / 60, 0, colliders);
         return { x: p.pos.x, z: p.pos.z };
       };
 
-      // 1) solid: a man set just inside each wall, or in the middle, is put out of doors
+      // 1) solid: each house has its own turned rect among the colliders, and a man set just
+      //    inside each wall, or in the middle, is put out of doors by it (by it alone: what
+      //    stands against a wall in the yard would only push him back at it)
       for (const h of L.houses) {
+        // (its collider is its walls and a little more: it stops him under the eaves, where the thatch hangs to his chest)
+        const walls = g.colliders.find((c) => c.cos !== undefined && Math.abs(c.x - h.x) < 0.01 && Math.abs(c.z - h.z) < 0.01 && c.halfX - h.length / 2 > -0.01 && c.halfX - h.length / 2 < 0.4 && c.halfZ - h.width / 2 > -0.01 && c.halfZ - h.width / 2 < 0.4);
+        if (!walls) {
+          problems.push(`${h.id}: its walls stop no one (no collider of its size on its plot)`);
+          continue;
+        }
         for (const [u, w] of [[0, h.width / 2 - 0.25], [0, -h.width / 2 + 0.25], [h.length / 2 - 0.25, 0], [-h.length / 2 + 0.25, 0], [0, 0]]) {
-          const at = settle(...world(h, u, w));
+          const at = settle(...world(h, u, w), [walls]);
           if (gap(h, at.x, at.z) < 0.3) problems.push(`${h.id}: a man set inside it at (${u.toFixed(1)}, ${w.toFixed(1)}) was left inside`);
         }
       }

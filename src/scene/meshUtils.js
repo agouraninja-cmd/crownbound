@@ -197,6 +197,15 @@ export function bakeDeep(root, { smallBelow = 0 } = {}) {
     merged.receiveShadow = true;
     root.add(merged);
   }
+  // the Groups it was all hung on are empty now: a whole row of houses leaves a
+  // thousand of them, each walked by the renderer every frame for nothing
+  for (const child of [...root.children]) {
+    let live = false;
+    child.traverse((o) => {
+      if (!o.isGroup) live = true;
+    });
+    if (!live) root.remove(child);
+  }
   return root;
 }
 

@@ -782,6 +782,8 @@ function step(dt) {
   world.miller.update(dt, player.pos);
   world.cart?.update(dt, player.pos);
   orbitCam.update(dt, player.pos);
+  // his back to a neighbour's wall, the eye has nowhere to stand but in the back of his head: he is not drawn then
+  player.mesh.group.visible = !orbitCam.crowded();
   world.update(dt, player.pos, camera);
 }
 

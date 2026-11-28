@@ -26,7 +26,7 @@ const CUT = 0xd4c08e; // wood fresh off the axe
 const CUT_OLD = 0xa39781; // ...and a cut that has stood a winter
 const BILLET = 0x6b5a45; // the bark on cordwood
 const RIND = 0x6a5e50; // oak bark, outside
-const BAST = 0xb5713b; // ...and inside, rust-red where the air has got at it
+const BAST = 0xa8683a; // ...and inside, rust-red where the air has got at it
 
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const toward = (a, b) => new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]).normalize();

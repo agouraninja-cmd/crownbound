@@ -3,8 +3,8 @@ import { cone, lump } from '../toft.js';
 import { mesh, tone } from '../meshUtils.js';
 import { box, cyl, STONE, WOOD_DARK } from '../kit.js';
 
-// The widow's cot: the oldest roof in the village and the poorest. Its posts
-// stand in the ground, the old way, and they have rotted there: the whole cot
+// The widow's cottage: the oldest roof in the village and the poorest. Its posts
+// stand in the ground, the old way, and they have rotted there: the whole house
 // has gone over downhill and is held by three poles raked against its low
 // gable. Nothing else is kept up but the herb plot by the door.
 
@@ -70,7 +70,7 @@ function tuft(g, rng, x, y, z, tall, colour) {
   return top;
 }
 
-// Shored up: three poles raked against the gable the cot leans toward, each
+// Shored up: three poles raked against the gable the house leans toward, each
 // bearing on a pad of board and footed on a flat stone with a chock behind it.
 function shores(c) {
   const { hx, rng } = c;
@@ -186,8 +186,8 @@ function mossyRoof(c) {
 
 export default {
   id: 'widow',
-  name: 'The widow’s cot',
-  note: 'The widow’s cot — three poles hold it up and the moss holds it together; herbs dry under the eaves and the cat keeps the bench.',
+  name: 'The widow’s cottage',
+  note: 'The widow’s cottage — three poles hold it up and the moss holds it together; herbs dry under the eaves and the cat keeps the bench.',
   build(c) {
     const { hx, hz } = c;
     // low smoke-brown walls under thatch laid coat upon coat, thicker than any roof in the village
