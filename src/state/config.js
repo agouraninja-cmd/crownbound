@@ -8,7 +8,7 @@ export const CONFIG = {
     village: 'Brackenley', // the Chronicler is told to name it in every entry
     lake: 'Lake Laney', // the great lake at the kingdom's heart
   },
-  saveVersion: 13, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip; v13 the daily money book
+  saveVersion: 14, // v2 monthly; v3 sleep; v4 sleep ledger; v5 shop; v6 the earned Coronation; v7 the reckoning; v8 the chronicle; v9 the chest; v10 the virtues renamed; v11 Intelligence starts at level 1; v12 the miller's strip; v13 the daily money book; v14 several deeds a day
 
   xpPerLevel: 100, // next level costs 100 × current level
 
@@ -29,9 +29,13 @@ export const CONFIG = {
     goalXp: 300,
   },
 
+  quests: {
+    dailyMax: 5, // deeds the board will take in one day; each pays the daily reward in full
+  },
+
   stamina: {
     baseCap: 240,
-    questCap: 480, // cap for the rest of the day once the daily quest is done
+    questCap: 480, // cap for the rest of the day once the day's first deed is done
     attackCost: 5,
     dodgeCost: 8,
     // the legs draw on the pool too, per second of moving on the ground

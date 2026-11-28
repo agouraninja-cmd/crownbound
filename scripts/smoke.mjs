@@ -296,6 +296,7 @@ try {
         const deed = String(req.messages?.[0]?.content ?? '');
         let verdict = 'wis';
         if (deed.includes('tennis')) verdict = 'ath';
+        if (deed.includes('client')) verdict = 'ath inf';
         if (deed.includes('garble')) verdict = 'the moon knows no virtue';
         return new Response(
           JSON.stringify({
@@ -403,8 +404,8 @@ try {
     const s1 = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
-        dailyText: st.quests.daily.text,
-        dailyDone: st.quests.daily.completed,
+        dailyText: (st.quests.daily.deeds[0]?.text ?? ''),
+        dailyDone: st.quests.daily.deeds.some((d) => d.completed),
         weeklyText: st.quests.weekly.text,
         monthlyText: st.quests.monthly.text,
         monthlyDone: st.quests.monthly.completed,
@@ -442,7 +443,7 @@ try {
     await new Promise((r) => setTimeout(r, 2000));
     const s2 = await page.evaluate(() => {
       const st = window.__game.getState();
-      return { text: st.quests.daily.text, done: st.quests.daily.completed, coins: st.coins };
+      return { text: (st.quests.daily.deeds[0]?.text ?? ''), done: st.quests.daily.deeds.some((d) => d.completed), coins: st.coins };
     });
     console.log('after reload:', JSON.stringify(s2));
     if (s2.text !== 'Morning run') errors.push(`roundtrip: daily text "${s2.text}"`);
@@ -480,13 +481,14 @@ try {
     await page.click('[data-post]');
     await page.click('[data-complete]');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     const s = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
         coins: st.coins,
         athXp: st.stats.ath.xp,
         streak: st.streak.current,
-        done: st.quests.daily.completed,
+        done: st.quests.daily.deeds.some((d) => d.completed),
         stamina: st.stamina.current,
         history: st.history.length,
         gutter: window.__game.campfire.getGutter(),
@@ -503,10 +505,11 @@ try {
     if (s.history !== 1) errors.push(`quests: history ${s.history} != 1`);
 
     // weekly bounty: post, complete, train Wisdom (+100 XP -> level 2 with 0 spare)
-    await page.type('[data-input]', 'Ship the Felmark proposal');
-    await page.click('[data-post]');
-    await page.click('[data-complete]');
+    await page.type('.quest-block[data-kind="weekly"] [data-input]', 'Ship the Felmark proposal');
+    await page.click('.quest-block[data-kind="weekly"] [data-post]');
+    await page.click('.quest-block[data-kind="weekly"] [data-complete]');
     await page.click('[data-pick="wis"]');
+    await page.click('[data-pick-done]');
     const w = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
@@ -525,10 +528,11 @@ try {
     if (w.history !== 2) errors.push(`weekly: history ${w.history} != 2`);
 
     // monthly campaign: post, complete, train Influence (+300 XP -> level 3 with 0 spare)
-    await page.type('[data-input]', 'Land the first paying client');
-    await page.click('[data-post]');
-    await page.click('[data-complete]');
+    await page.type('.quest-block[data-kind="monthly"] [data-input]', 'Land the first paying client');
+    await page.click('.quest-block[data-kind="monthly"] [data-post]');
+    await page.click('.quest-block[data-kind="monthly"] [data-complete]');
     await page.click('[data-pick="inf"]');
+    await page.click('[data-pick-done]');
     const m = await page.evaluate(() => {
       const st = window.__game.getState();
       return {
@@ -546,6 +550,100 @@ try {
     if (!m.done) errors.push('monthly: not completed');
     if (m.history !== 3) errors.push(`monthly: history ${m.history} != 3`);
     if (m.type !== 'monthly') errors.push(`monthly: history type ${m.type} != monthly`);
+
+    // a second deed the same day, of two virtues: the XP is shared (13 + 12), the
+    // coins paid in full, and the day — streak, stamina — is not claimed twice
+    const board = () =>
+      page.evaluate(() => {
+        const st = window.__game.getState();
+        const daily = document.querySelector('.quest-block[data-kind="daily"]');
+        return {
+          deeds: st.quests.daily.deeds,
+          coins: st.coins,
+          ath: st.stats.ath.xp,
+          inf: st.stats.inf.xp,
+          wis: st.stats.wis.xp,
+          streak: st.streak.current,
+          stamina: st.stamina.current,
+          last: st.history.at(-1),
+          history: st.history.length,
+          input: !!daily.querySelector('[data-input]'),
+          claim: daily.querySelector('[data-pick-done]')?.disabled,
+          share: daily.querySelector('[data-pick-share]')?.textContent,
+          text: daily.textContent,
+        };
+      });
+    await page.evaluate(() => window.__game.spendStamina(30)); // 480 -> 450
+    await page.type('.quest-block[data-kind="daily"] [data-input]', 'Tennis with a client');
+    await page.click('.quest-block[data-kind="daily"] [data-post]');
+    await page.click('[data-slot="daily:1"] [data-complete]');
+    let d = await board();
+    if (d.claim !== true) errors.push('deeds: the reward could be claimed with no virtue chosen');
+    await page.click('[data-pick="ath"]');
+    await page.click('[data-pick="inf"]');
+    d = await board();
+    console.log('two virtues chosen:', JSON.stringify({ claim: d.claim, share: d.share }));
+    if (d.claim !== false || d.share !== 'Athleticism +13 · Influence +12') errors.push(`deeds: the share shown is "${d.share}"`);
+    await page.click('[data-pick-done]');
+    d = await board();
+    console.log('second deed:', JSON.stringify({ ...d, text: undefined }));
+    if (d.ath !== 38 || d.inf !== 12) errors.push(`deeds: the XP was not shared 13 + 12 (ath ${d.ath}, inf ${d.inf})`);
+    if (d.coins !== 220) errors.push(`deeds: coins ${d.coins} != 220`);
+    if (d.streak !== 1) errors.push(`deeds: the second deed moved the streak to ${d.streak}`);
+    if (d.stamina !== 450) errors.push(`deeds: the second deed refilled stamina (${d.stamina})`);
+    if (d.last.statTrained !== 'ath' || d.last.virtues?.join() !== 'ath,inf' || d.last.type !== 'daily')
+      errors.push(`deeds: the history deed ${JSON.stringify(d.last)}`);
+    if (d.deeds.length !== 2 || !d.deeds[1].completed || d.deeds[1].virtues?.join() !== 'ath,inf')
+      errors.push(`deeds: today's list ${JSON.stringify(d.deeds)}`);
+    if (!d.text.includes('Done · Athleticism · Influence')) errors.push('deeds: the done deed does not name its virtues');
+
+    // a virtue ticked twice is unticked; a deed posted in error is taken down
+    await page.type('.quest-block[data-kind="daily"] [data-input]', 'A slip of the quill');
+    await page.click('.quest-block[data-kind="daily"] [data-post]');
+    await page.click('[data-slot="daily:2"] [data-complete]');
+    await page.click('[data-pick="wis"]');
+    await page.click('[data-pick="wis"]');
+    d = await board();
+    if (d.claim !== true) errors.push('deeds: a virtue unticked still left the reward to claim');
+    await page.keyboard.press('Escape'); // closing the board forgets the half-made choice
+    await new Promise((r) => setTimeout(r, 200));
+    await page.evaluate(() => window.__game.openPanel('board'));
+    await page.click('[data-slot="daily:2"] [data-strike]');
+    d = await board();
+    if (d.deeds.length !== 2 || d.history !== 4 || d.text.includes('A slip of the quill')) errors.push(`deeds: the deed was not taken down (${JSON.stringify(d.deeds)})`);
+
+    // the board takes five deeds a day and no more; three virtues share 9 + 8 + 8
+    for (const text of ['Read a chapter', 'Call home', 'Plan the week']) {
+      await page.type('.quest-block[data-kind="daily"] [data-input]', text);
+      await page.click('.quest-block[data-kind="daily"] [data-post]');
+    }
+    d = await board();
+    if (d.deeds.length !== 5 || d.input) errors.push(`deeds: the board took ${d.deeds.length} deeds, box ${d.input ? 'still there' : 'gone'}`);
+    await page.click('[data-slot="daily:4"] [data-complete]');
+    for (const k of ['int', 'wis', 'inf']) await page.click(`[data-pick="${k}"]`);
+    await page.click('[data-pick-done]');
+    d = await board();
+    console.log('three virtues:', JSON.stringify({ wis: d.wis, inf: d.inf, coins: d.coins, last: d.last }));
+    if (d.wis !== 8 || d.inf !== 20 || d.coins !== 230) errors.push(`deeds: three virtues did not share 9 + 8 + 8 (wis ${d.wis}, inf ${d.inf}, coins ${d.coins})`);
+    await page.screenshot({ path: 'scripts/smoke-quests.png' });
+
+    // tomorrow the list is bare again, and yesterday's deed keeps the streak
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('crownbound_save'));
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const ymd = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+      s.quests.daily.date = s.lastQuestDate = s.stamina.date = s.counters.date = ymd;
+      localStorage.setItem('crownbound_save', JSON.stringify(s));
+    });
+    await page.reload({ waitUntil: WAIT });
+    await new Promise((r) => setTimeout(r, 2000));
+    const morrow = await page.evaluate(() => {
+      const st = window.__game.getState();
+      return { deeds: st.quests.daily.deeds, streak: st.streak.current, stamina: st.stamina.current };
+    });
+    console.log('the morrow:', JSON.stringify(morrow));
+    if (morrow.deeds.length !== 0 || morrow.streak !== 1 || morrow.stamina !== 240) errors.push(`deeds: the morrow ${JSON.stringify(morrow)}`);
   } else if (scenario === 'tome') {
     // the Scribe: export a copy, doctor it, restore it, expect it back after reload
     const trip = await page.evaluate(() => {
@@ -2169,7 +2267,7 @@ try {
       daily = await page.evaluate(() => {
         const st = window.__game.getState();
         return {
-          done: st.quests.daily.completed,
+          done: st.quests.daily.deeds.some((d) => d.completed),
           athXp: st.stats.ath.xp,
           picker: !!document.querySelector('[data-pick]'),
           toast: document.getElementById('toasts').textContent,
@@ -2182,10 +2280,33 @@ try {
     if (daily.picker) errors.push('sage: picker shown despite a verdict');
     if (!daily.toast.includes('sage')) errors.push(`sage: no verdict toast ("${daily.toast}")`);
 
+    // 1b) a deed of two virtues: he names both, and the XP is shared between them
+    await page.type('.quest-block[data-kind="daily"] [data-input]', 'A hard set with a client');
+    await page.click('.quest-block[data-kind="daily"] [data-post]');
+    await page.click('[data-slot="daily:1"] [data-complete]');
+    let two = null;
+    for (let i = 0; i < 20 && !two?.done; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      two = await page.evaluate(() => {
+        const st = window.__game.getState();
+        return {
+          done: !!st.quests.daily.deeds[1]?.completed,
+          ath: st.stats.ath.xp,
+          inf: st.stats.inf.xp,
+          virtues: st.history.at(-1).virtues,
+          toast: document.getElementById('toasts').textContent,
+        };
+      });
+    }
+    console.log('sage, two virtues:', JSON.stringify(two));
+    if (!two.done || two.ath !== 38 || two.inf !== 12 || two.virtues?.join() !== 'ath,inf')
+      errors.push(`sage: two virtues not shared 13 + 12 (${JSON.stringify(two)})`);
+    if (!two.toast.includes('Athleticism and Influence')) errors.push('sage: the verdict toast does not name both virtues');
+
     // 2) an off-list answer falls back to the manual picker
-    await page.type('[data-input]', 'A deed of pure garble');
-    await page.click('[data-post]');
-    await page.click('[data-complete]');
+    await page.type('.quest-block[data-kind="weekly"] [data-input]', 'A deed of pure garble');
+    await page.click('.quest-block[data-kind="weekly"] [data-post]');
+    await page.click('.quest-block[data-kind="weekly"] [data-complete]');
     let fallback = null;
     for (let i = 0; i < 20 && !fallback?.picker; i++) {
       await new Promise((r) => setTimeout(r, 200));
@@ -2197,6 +2318,7 @@ try {
     console.log('sage fallback:', JSON.stringify(fallback));
     if (!fallback.picker) errors.push('sage: no picker after a nonsense verdict');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     const weeklyDone = await page.evaluate(() => window.__game.getState().quests.weekly.completed);
     if (!weeklyDone) errors.push('sage: manual fallback did not complete the weekly');
     await page.screenshot({ path: 'scripts/smoke-sage.png' });
@@ -2754,6 +2876,7 @@ try {
     await page.click('[data-post]');
     await page.click('[data-complete]');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     await new Promise((r) => setTimeout(r, 400));
     const crowned = await page.evaluate(() => {
       const st = window.__game.getState();
@@ -2784,6 +2907,7 @@ try {
     await page.click('.quest-block[data-kind="weekly"] [data-post]');
     await page.click('.quest-block[data-kind="weekly"] [data-complete]');
     await page.click('.quest-block[data-kind="weekly"] [data-pick="wis"]');
+    await page.click('[data-pick-done]');
     await new Promise((r) => setTimeout(r, 300));
     const still = await page.evaluate(() => ({
       at: window.__game.getState().coronationAt,
@@ -2850,12 +2974,13 @@ try {
     await page.click('[data-post]');
     await page.click('[data-complete]');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     await page.keyboard.press('Escape');
     await wait(600);
     const deed = await page.evaluate(() => {
       const g = window.__game;
       const st = g.getState();
-      return { done: st.quests.daily.completed, streak: st.streak.current, xp: st.stats.ath.xp, stamina: st.stamina.current, flag: !!st.stamina.spent, ...g.spent(), mode: g.player.mode, enabled: g.player.isEnabled(), abedClass: document.body.classList.contains('abed') };
+      return { done: st.quests.daily.deeds.some((d) => d.completed), streak: st.streak.current, xp: st.stats.ath.xp, stamina: st.stamina.current, flag: !!st.stamina.spent, ...g.spent(), mode: g.player.mode, enabled: g.player.isEnabled(), abedClass: document.body.classList.contains('abed') };
     });
     const card2 = await restCard();
     console.log('deed from bed:', JSON.stringify(deed));
@@ -2957,8 +3082,8 @@ try {
           caption: cap.classList.contains('hidden') ? '' : cap.textContent,
           toasts: document.getElementById('toasts').textContent,
           epic: s.quests.epic.text,
-          daily: s.quests.daily.text,
-          dailyDone: s.quests.daily.completed,
+          daily: (s.quests.daily.deeds[0]?.text ?? ''),
+          dailyDone: s.quests.daily.deeds.some((d) => d.completed),
           coins: s.coins,
           fireCold: g.intro.fireCold(),
           url: location.href,
@@ -3087,6 +3212,7 @@ try {
     // 9) the first deed lights the fire
     await page.click('[data-complete]');
     await page.click('[data-pick="ath"]');
+    await page.click('[data-pick-done]');
     await until(() => document.getElementById('toasts').textContent.includes('The fire catches'), null, 5000);
     v = await look();
     const lit = await page.evaluate(() => ({ gutter: window.__game.campfire.getGutter(), streak: window.__game.getState().streak.current }));
@@ -3132,7 +3258,7 @@ try {
       const s = JSON.parse(localStorage.getItem('crownbound_save'));
       s.history = [];
       s.streak = { current: 0, best: 0 };
-      s.quests.daily.completed = false;
+      s.quests.daily.deeds.forEach((d) => (d.completed = false));
       s.lastQuestDate = null;
       localStorage.setItem('crownbound_save', JSON.stringify(s));
     });
@@ -3310,11 +3436,16 @@ try {
     const daily = await cmd('daily wis');
     s = await st();
     console.log('daily:', JSON.stringify(daily));
-    want(s.quests.daily.completed && s.stats.wis.xp === 25 && s.streak.current === 9 && s.stamina.current === 480, `daily wis: ${JSON.stringify({ q: s.quests.daily, wis: s.stats.wis, streak: s.streak, st: s.stamina })}`);
-    want((await cmd('daily')).bad, 'a second daily was not refused');
+    want(s.quests.daily.deeds.some((d) => d.completed) && s.stats.wis.xp === 25 && s.streak.current === 9 && s.stamina.current === 480, `daily wis: ${JSON.stringify({ q: s.quests.daily, wis: s.stats.wis, streak: s.streak, st: s.stamina })}`);
+    // a second deed the same day: two virtues share the XP, and the day is not claimed twice
+    await cmd('daily ath inf');
+    s = await st();
+    want(s.quests.daily.deeds.length === 2 && s.stats.ath.xp === 13 && s.stats.inf.xp === 12 && s.streak.current === 9, `daily ath inf: ${JSON.stringify({ q: s.quests.daily, ath: s.stats.ath, inf: s.stats.inf, streak: s.streak })}`);
+    for (let i = 0; i < 3; i++) await cmd('daily');
+    want((await cmd('daily')).bad, 'a sixth daily deed was not refused');
     await cmd('reset daily');
     s = await st();
-    want(!s.quests.daily.completed && s.quests.daily.text === '' && s.stamina.current === 240, 'reset daily did not empty the slot');
+    want(s.quests.daily.deeds.length === 0 && s.stamina.current === 240, 'reset daily did not clear the board');
 
     // 8) wares
     await cmd('give cudgel');
@@ -3404,7 +3535,7 @@ try {
     const night = await page.evaluate(() => ({ h: new Date().getHours(), log: document.querySelector('#proving-console .pc-log').textContent }));
     console.log('next day:', JSON.stringify({ date: s.counters.date, days: s.daysPlayed, streak: s.streak, daily: s.quests.daily, stamina: s.stamina, h: night.h }));
     want(s.counters.date === dstr(1), `nextday: the game's day is ${s.counters.date}, not ${dstr(1)}`);
-    want(!s.quests.daily.completed && s.streak.current === 5 && s.stamina.current === 240, 'nextday: no new day (daily, streak or stamina)');
+    want(!s.quests.daily.deeds.some((d) => d.completed) && s.streak.current === 5 && s.stamina.current === 240, 'nextday: no new day (daily, streak or stamina)');
     want(night.h === 21 && night.log.includes('A night passes'), 'nextday: the hour moved, or nothing was said');
     await cmd('fresh');
     want((await st()).coins === 1000, 'an own command did not outlast a reload');

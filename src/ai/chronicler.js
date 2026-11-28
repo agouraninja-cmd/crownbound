@@ -6,7 +6,7 @@
 // a later load. He works quietly after boot; the game never waits on him.
 import Anthropic from '@anthropic-ai/sdk';
 import { CONFIG } from '../state/config.js';
-import { STAT_NAMES, getState, addChronicleEntry } from '../state/state.js';
+import { STAT_NAMES, deedVirtues, getState, addChronicleEntry } from '../state/state.js';
 import { sageKey } from './sage.js';
 import { todayStr, weekStartStr } from '../state/dates.js';
 
@@ -49,7 +49,8 @@ export function weekMaterial(state, weekStart) {
 
 function ledgerText(m) {
   const lines = m.deeds.map((h) => {
-    const virtue = h.statTrained ? ` (trained ${STAT_NAMES[h.statTrained]})` : '';
+    const trained = deedVirtues(h).map((k) => STAT_NAMES[k]).join(' and ');
+    const virtue = trained ? ` (trained ${trained})` : '';
     const pct = h.type === 'epic' ? ` — the great work stands at ${h.progressPct}%` : '';
     return `- ${h.date} [${h.type}] ${h.questText}${virtue}${pct}`;
   });

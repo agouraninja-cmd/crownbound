@@ -17,8 +17,7 @@
 // world — lying him down, getting him up, handing over the keys — is done by
 // the handle main.js gives initIntro.
 import { CONFIG } from '../state/config.js';
-import { getState, setEpicText, postDaily } from '../state/state.js';
-import { todayStr } from '../state/dates.js';
+import { getState, setEpicText, postDaily, dailyDeeds } from '../state/state.js';
 import { sfx, wakeAudio } from './audio.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -136,8 +135,8 @@ function drawOath() {
   const s = getState();
   const r = CONFIG.rewards.daily;
   const crown = CONFIG.ranks.find((k) => k.title === 'King').totalLevels;
-  const daily = s.quests.daily;
-  const posted = daily.text && daily.date === todayStr(); // the opening played again on a day already begun
+  const daily = dailyDeeds()[0]; // today's first deed, if the opening is played again on a day already begun
+  const posted = !!daily;
 
   const asked =
     oathStep === 'epic'
@@ -154,8 +153,9 @@ function drawOath() {
            <p class="muted">${daily.completed ? 'Today’s deed is done already.' : 'Today’s deed is posted already. Do it, then mark it done at the Quest Board.'}</p>
            <div class="row right"><button class="primary" data-oath-later>Onward</button></div>`
         : `<h2>And what wilt thou do this day?</h2>
-           <p class="muted">Thy Daily Quest — one real deed, small enough to finish today. Do it out in the world,
-             then mark it done at the Quest Board: +${r.xp} XP, +${r.coins} coins, and thy fire is lit.</p>
+           <p class="muted">Thy first Daily Quest — one real deed, small enough to finish today. Do it out in the world,
+             then mark it done at the Quest Board: +${r.xp} XP, +${r.coins} coins, and thy fire is lit.
+             The board takes more deeds than one, when the day holds them.</p>
            <div class="row">
              <input type="text" class="grow" data-oath-input maxlength="120"
                placeholder="Lift, learn, build, reach out..." />

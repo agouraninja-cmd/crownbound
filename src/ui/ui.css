@@ -394,6 +394,22 @@ body.abed #vignette {
   line-height: 1.35;
 }
 
+/* today's deeds: one row each inside the Daily Quests block */
+.deed-slot {
+  padding: 8px 0 4px;
+  border-top: 1px dashed var(--parchment-edge);
+}
+.deed-slot:first-of-type { border-top: none; padding-top: 0; }
+.deed-slot.done { display: flex; align-items: baseline; gap: 12px; }
+.deed-slot.done .quest-text { flex: 1; margin: 2px 0 6px; color: var(--ink-faded); }
+.deed-done {
+  color: var(--wax);
+  font-size: 13px;
+  font-variant: small-caps;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
 .stamp {
   position: absolute;
   top: 10px;
