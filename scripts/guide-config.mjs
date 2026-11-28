@@ -1,6 +1,7 @@
 // Prints the numbers the player's guide quotes, read from the game's own
 // config, as JSON — scripts/build-guide.py writes them into the document.
 import { CONFIG } from '../src/state/config.js';
+import { LAYOUT } from '../src/scene/layout.js';
 
 // walk the dummy's diminishing-returns curve: [{ upTo, xp }], ending where it pays nothing
 const dummy = [];
@@ -14,4 +15,4 @@ for (let h = 1; h <= 500 && xp > 0; h++) {
 }
 
 const { realm, xpPerLevel, ranks, rewards, quests, stamina, sleep, shop, chest, player, rats, farm, campfireTiers } = CONFIG;
-console.log(JSON.stringify({ realm, xpPerLevel, ranks, rewards, quests, stamina, sleep, shop, chest, player, rats, farm, campfireTiers, dummy }));
+console.log(JSON.stringify({ realm, xpPerLevel, ranks, rewards, quests, stamina, sleep, shop, chest, player, rats, farm, campfireTiers, dummy, houses: LAYOUT.houses.length }));

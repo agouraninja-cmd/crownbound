@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { makeRng, makeBatch, soup, roughen, tintFaces, tintVerts, setSway, raggedCone, smoothstep, fbm2, hash2 } from './meshUtils.js';
 import { terrainHeight, dirtAmount, grassTint } from './terrain.js';
-import { LAYOUT, fieldGap, trackGap } from './layout.js';
+import { LAYOUT, fieldGap, trackGap, houseGap, yardGap, doorGap, laneGap } from './layout.js';
 import { withWind } from './wind.js';
 
 // Everything that grows low: grass tufts, tall meadow grass, wildflowers,
@@ -239,6 +239,12 @@ export function buildFlora(scatter) {
   // rest of the meadow stands exactly where it stood before there was a field.
   const ploughed = (x, z) => fieldGap(x, z) < 0.4;
   const rutted = (x, z) => trackGap(x, z) < 0.55; // the cart track's middle is worn bare of grass
+  // ...and nothing wild under a neighbour's house, hard by its walls, on its
+  // doorstep or in the middle of a lane — weeded out the same way, after the draw
+  // (a whole yard counts: it is trodden, dug and grazed, and what stands in it
+  // — a pond, a bed of leeks, a heap of chips — must not have meadow growing through)
+  const built = (x, z, pad = 0) => houseGap(x, z) < 0.5 + pad || yardGap(x, z) < 0.1 + pad;
+  const trodden = (x, z) => doorGap(x, z) < 0.9 || laneGap(x, z) < 0.5;
 
   // thin blades are lit as if they lay flat like the ground (see wind.js)
   const bladeMat = withWind(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.11, { upNormals: true });
@@ -264,7 +270,7 @@ export function buildFlora(scatter) {
       tone: 0.9 + rng() * 0.2,
     });
   }
-  const wild = (list) => list.filter((s) => !ploughed(s.x, s.z) && !rutted(s.x, s.z));
+  const wild = (list) => list.filter((s) => !ploughed(s.x, s.z) && !rutted(s.x, s.z) && !built(s.x, s.z) && !trodden(s.x, s.z));
   group.add(plantTufts(tuftGeometry(rng, { blades: 5, height: 0.34, width: 0.05, splay: 0.42 }), bladeMat, wild(tufts)));
 
   // tall meadow grass, gone to seed: drifts of it out beyond the village
@@ -293,7 +299,7 @@ export function buildFlora(scatter) {
       const s = 0.85 + rng() * 0.6;
       const bloom = flowerGeometry(rng, FLOWERS[kind]);
       const ry = rng() * Math.PI * 2;
-      if (!ploughed(x, z)) blooms.add(bloom, { x, y: terrainHeight(x, z), z, ry, s });
+      if (!ploughed(x, z) && !built(x, z) && !trodden(x, z)) blooms.add(bloom, { x, y: terrainHeight(x, z), z, ry, s });
     }
   };
   const patches = []; // where the flowers stand thick — the butterflies keep to these
@@ -303,7 +309,7 @@ export function buildFlora(scatter) {
     const px = Math.cos(ang) * rad;
     const pz = Math.sin(ang) * rad;
     patch(px, pz, Math.floor(rng() * FLOWERS.length), 7 + Math.floor(rng() * 12), 1.0 + rng() * 1.8);
-    if (dirtAmount(px, pz) < 0.1 && !blocked(px, pz, 1) && !ploughed(px, pz)) patches.push({ x: px, z: pz });
+    if (dirtAmount(px, pz) < 0.1 && !blocked(px, pz, 1) && !ploughed(px, pz) && !built(px, pz, 1)) patches.push({ x: px, z: pz });
   }
   group.userData.patches = patches;
   // a scatter of daisies and buttercups through the village green itself
@@ -316,6 +322,8 @@ export function buildFlora(scatter) {
 
   // undergrowth: bushes and ferns gathered at the feet of trees and boulders
   const under = makeBatch({ sway: true });
+  const scrap = makeBatch({ sway: true }); // what would have grown where a house now stands: drawn (the stream must not shift), never built
+  const bed = (x, z) => (built(x, z, 0.3) ? scrap : under);
   for (const t of scatter.trees) {
     const reach = 0.45 * t.s + 0.5;
     if (rng() < 0.5) {
@@ -323,7 +331,7 @@ export function buildFlora(scatter) {
       const d = reach + rng() * 0.9;
       const x = t.x + Math.cos(a) * d;
       const z = t.z + Math.sin(a) * d;
-      if (dirtAmount(x, z) < 0.2) addBush(under, rng, x, z, 0.42 + rng() * 0.3);
+      if (dirtAmount(x, z) < 0.2) addBush(bed(x, z), rng, x, z, 0.42 + rng() * 0.3);
     }
     const ferns = Math.floor(rng() * 4);
     for (let i = 0; i < ferns; i++) {
@@ -331,14 +339,16 @@ export function buildFlora(scatter) {
       const d = reach + rng() * 1.6;
       const x = t.x + Math.cos(a) * d;
       const z = t.z + Math.sin(a) * d;
-      if (dirtAmount(x, z) < 0.2 && !blocked(x, z)) addFern(under, rng, x, z, 0.32 + rng() * 0.25);
+      if (dirtAmount(x, z) < 0.2 && !blocked(x, z)) addFern(bed(x, z), rng, x, z, 0.32 + rng() * 0.25);
     }
   }
   for (const r of scatter.rocks) {
     if (rng() < 0.55) {
       const a = rng() * Math.PI * 2;
       const d = r.s * 1.05 + 0.2;
-      addFern(under, rng, r.x + Math.cos(a) * d, r.z + Math.sin(a) * d, 0.3 + rng() * 0.2);
+      const fx = r.x + Math.cos(a) * d;
+      const fz = r.z + Math.sin(a) * d;
+      addFern(bed(fx, fz), rng, fx, fz, 0.3 + rng() * 0.2);
     }
   }
   const undergrowth = under.build(leafMat);

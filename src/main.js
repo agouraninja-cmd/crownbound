@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import './ui/ui.css';
 import { buildWorld } from './scene/world.js';
 import { skyAt, clockHour, compass } from './scene/daylight.js';
-import { LAYOUT } from './scene/layout.js';
+import { LAYOUT, pathX, fieldGap, trackGap, doorstep } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { WEAPON_LOOKS } from './player/playerMesh.js';
 import { createOrbitCamera } from './player/camera.js';
@@ -314,6 +314,7 @@ function stepSpent(dt) {
 const isUiOpen = isPanelOpen;
 const orbitCam = createOrbitCamera(camera, renderer.domElement, () => isPanelOpen() || resting || introPlaying());
 orbitCam.setInterior(world.hovelInterior);
+orbitCam.setGuard(world.village.sight); // the eye stops at a neighbour's wall rather than pass behind it
 // where pointer lock is refused, a plain click on the scene is the swing
 orbitCam.setOnTap(() => {
   if (player.isEnabled()) player.attack();
@@ -795,7 +796,7 @@ if (PROVING) {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, village: world.village, mapMarks: world.mapMarks, planPath, layout: { LAYOUT, pathX, fieldGap, trackGap, doorstep }, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -832,6 +833,8 @@ function step(dt) {
   world.miller.update(dt, player.pos);
   world.cart?.update(dt, player.pos);
   orbitCam.update(dt, player.pos);
+  // his back to a neighbour's wall, the eye has nowhere to stand but in the back of his head: he is not drawn then
+  player.mesh.group.visible = !orbitCam.crowded();
   world.update(dt, player.pos, camera);
 }
 
