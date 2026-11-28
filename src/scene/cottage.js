@@ -497,7 +497,8 @@ export function raiseCottage(plot, { ground = () => 0, seed = 1 } = {}) {
   c.window = (wall, at = 0, { h = 0.36, w = 0.4, y = S.eave - 0.2 - h / 2, shutter = 'none', hinge = 1, bars = 2, lit = 0.85 } = {}) => {
     const sub = c.onWall(wall, at);
     const put = (geo, col, opts) => sub.add(mesh(geo, col, opts));
-    holes.push({ wall, s0: at - w / 2 - 0.08, s1: at + w / 2 + 0.08, y0: y - h / 2 - 0.1, y1: y + h / 2 + 0.1 });
+    // the frame keeps clear of the window and its own lintel and sill — and no further, or a window at the usual height would cut the wall plate above it
+    holes.push({ wall, s0: at - w / 2 - 0.08, s1: at + w / 2 + 0.08, y0: y - h / 2 - 0.1, y1: y + h / 2 + 0.075 });
     if (shutter !== 'shut') opening(sub, w, h, 0, y, lit);
     const timber = () => tone(S.timber, 0.9 + rng() * 0.2);
     put(box(w + 0.16, 0.07, 0.07), timber(), { y: y + h / 2 + 0.035, z: 0.03 });

@@ -156,18 +156,20 @@ export function bake(root) {
 // and whatever turns and offsets they carry — is folded into root's own few
 // meshes. For scenery the game never moves again (a whole row of houses): the
 // Groups it was put together from cost nothing once it is done. Meshes bake()
-// would leave alone are left alone here too.
+// would leave alone are left alone here too. Two meshes at most: what throws
+// a shadow, and what only takes one. Unlike bake(), a piece made with
+// shadow: false still TAKES shadow here — moss on a roof's dark side and a
+// pond in a house's shade must not shine as if the sun were on them.
 //   smallBelow  pieces whose longest side is under this (a hen, a leek, a
 //               peg) are shaded by what stands over them but throw no shadow
-//               of their own: one more mesh, and far less for the sun to draw
+//               of their own: far less for the sun to draw
 export function bakeDeep(root, { smallBelow = 0 } = {}) {
   root.updateMatrixWorld(true);
   const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const m4 = new THREE.Matrix4();
   const size = new THREE.Vector3();
   const cast = [];
-  const shaded = []; // receives shadow, casts none
-  const plain = [];
+  const shaded = []; // takes shadow, throws none: pieces made with shadow: false, and the small ones
   const folded = [];
   root.traverse((o) => {
     if (o === root || !bakeable(o)) return;
@@ -178,7 +180,7 @@ export function bakeDeep(root, { smallBelow = 0 } = {}) {
       if (name !== 'position' && name !== 'normal') geo.deleteAttribute(name);
     }
     paint(geo, o.material.color);
-    let bucket = o.castShadow ? cast : plain;
+    let bucket = o.castShadow ? cast : shaded;
     if (o.castShadow && smallBelow) {
       geo.computeBoundingBox();
       geo.boundingBox.getSize(size);
@@ -188,11 +190,11 @@ export function bakeDeep(root, { smallBelow = 0 } = {}) {
     folded.push(o);
   });
   for (const o of folded) o.parent.remove(o);
-  for (const [geos, casts, receives] of [[cast, true, true], [shaded, false, true], [plain, false, false]]) {
+  for (const [geos, casts] of [[cast, true], [shaded, false]]) {
     if (!geos.length) continue;
     const merged = new THREE.Mesh(mergeGeometries(geos, false), BAKED);
     merged.castShadow = casts;
-    merged.receiveShadow = receives;
+    merged.receiveShadow = true;
     root.add(merged);
   }
   return root;
