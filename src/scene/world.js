@@ -257,7 +257,7 @@ export function buildWorld(scene, market = 'clock', skyClock, cartClock = () => 
     { id: 'board', label: 'the Quest Board', x: LAYOUT.questBoard.x, z: LAYOUT.questBoard.z, radius: 2.7 },
     { id: 'tome', label: 'the Tome', x: LAYOUT.tome.x, z: LAYOUT.tome.z, radius: 2.4 },
     { id: 'guide', label: 'the Village Charter', x: LAYOUT.charter.x, z: LAYOUT.charter.z, radius: 2.2 },
-    { id: 'miller', label: 'the miller', x: LAYOUT.miller.x, z: LAYOUT.miller.z, radius: 2.0 },
+    millerSpot, // follows him on his rounds (moved live by the stroll's onMove)
     // insideOnly: don't offer these through the walls
     { id: 'bed', label: 'your straw cot', x: hx + H.bedReach.x, z: hz + H.bedReach.z, radius: H.bedReach.radius, insideOnly: true },
     { id: 'ledger', label: 'the sleep ledger', x: hx + H.ledger.x, z: hz + H.ledger.z, radius: 1.5, insideOnly: true },

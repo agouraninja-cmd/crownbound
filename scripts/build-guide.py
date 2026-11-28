@@ -120,7 +120,7 @@ fill(tour, [
     ["The neighbours’ houses", "Two dozen thatched houses about the green and down the lanes — the reeve’s, the smithy, the alewife’s and the rest — no two alike, each in its own yard: a forge, a pinfold, an orchard, bee skeps, a well. They are scenery: solid, lit from within after dark, but their doors do not open to you. The map (M) tells whose each one is."],
     ["The campfire", f"The living face of your streak. It swells and shrinks with your discipline — see The Streak below. Stand still beside it for {WORDS.get(PL['sitDelay'], PL['sitDelay'])} seconds and he sits down to warm his hands."],
     ["The training dummy", "Whack it for a trickle of Athleticism XP, with sharply diminishing returns each day."],
-    ["The granary and the miller", f"{WORDS[C['rats']['count']].capitalize()} rats prowl the yard, and the miller walks his rounds there. He pays a bounty per tail; E beside him tells the day’s tally."],
+    ["The granary and the miller", f"{WORDS[C['rats']['count']].capitalize()} rats prowl the yard, and the miller walks his rounds there. The first time you come near him he introduces himself — who he is, the bounty he pays per tail, and the wage for work on his strip. After that, E beside him tells the day’s tally."],
     ["The miller’s strip", "A fenced wheat field out past the granary to the north-east, at the end of a cart track. One job a day — see The Miller’s Strip."],
     ["The Exchequer", "A money-changer’s booth by the path — checkered counting cloth, scales, and a clerk. E at the counter opens the Treasury, where your real savings are tracked."],
     ["The chapwoman’s cart", f"A mule cart by the path every day from {OPENS} to {CLOSES}. E opens the shop."],

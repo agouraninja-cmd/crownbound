@@ -33,13 +33,14 @@ import { PROVING, worldUrl } from '../proving/proving.js';
 import { todayStr } from '../state/dates.js';
 import { renderGuide } from './guide.js';
 import { renderMap } from './map.js';
+import { renderMiller } from './miller.js';
 import { renderTreasury, resetTreasury } from './treasury.js';
 import { warePicture, wareLore, hasWareLore } from './wares.js';
 import { judgeDeed, sageEnabled, setSageKey } from '../ai/sage.js';
 import { toast } from './toasts.js';
 import { sfx } from './audio.js';
 
-let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, rackPanel, mapPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody, rackBody, mapBody;
+let overlay, boardPanel, tomePanel, ledgerPanel, treasuryPanel, shopPanel, guidePanel, chestPanel, rackPanel, mapPanel, millerPanel, boardBody, tomeBody, ledgerBody, treasuryBody, shopBody, guideBody, chestBody, rackBody, mapBody, millerBody;
 let open = null;
 let onOpenChange = () => {};
 let shopActions = { isWounded: () => false, onPurchase: () => {}, onEat: () => {}, onWield: () => {}, mapView: null }; // wired by main.js
@@ -865,6 +866,7 @@ function close() {
   chestPanel.classList.add('hidden');
   rackPanel.classList.add('hidden');
   mapPanel.classList.add('hidden');
+  millerPanel.classList.add('hidden');
   onOpenChange(false);
 }
 
@@ -888,6 +890,7 @@ export function openPanel(id) {
   chestPanel.classList.toggle('hidden', id !== 'chest');
   rackPanel.classList.toggle('hidden', id !== 'rack');
   mapPanel.classList.toggle('hidden', id !== 'map');
+  millerPanel.classList.toggle('hidden', id !== 'miller');
   if (id === 'board') renderBoard();
   else if (id === 'ledger') renderLedger();
   else if (id === 'treasury') renderTreasury(treasuryBody);
@@ -896,6 +899,7 @@ export function openPanel(id) {
   else if (id === 'chest') renderChest();
   else if (id === 'rack') renderRack();
   else if (id === 'map') renderMap(mapBody, shopActions.mapView());
+  else if (id === 'miller') renderMiller(millerBody, close);
   else renderTome();
   onOpenChange(true);
 }
@@ -917,6 +921,7 @@ export function initPanels(openChangeCallback, shopHooks) {
   chestPanel = document.getElementById('chest-panel');
   rackPanel = document.getElementById('rack-panel');
   mapPanel = document.getElementById('map-panel');
+  millerPanel = document.getElementById('miller-panel');
   boardBody = document.getElementById('quest-body');
   tomeBody = document.getElementById('tome-body');
   ledgerBody = document.getElementById('ledger-body');
@@ -926,9 +931,12 @@ export function initPanels(openChangeCallback, shopHooks) {
   chestBody = document.getElementById('chest-body');
   rackBody = document.getElementById('rack-body');
   mapBody = document.getElementById('map-body');
+  millerBody = document.getElementById('miller-body');
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && open) close();
+    // the miller's introduction is a thing said, not a ledger: Enter answers it
+    else if (e.key === 'Enter' && open === 'miller') close();
   });
   overlay.addEventListener('mousedown', (e) => {
     if (e.target === overlay) close();
