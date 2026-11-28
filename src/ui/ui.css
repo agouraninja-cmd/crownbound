@@ -837,19 +837,6 @@ button.tr-quiet:hover { background: rgba(43, 32, 20, 0.07); color: var(--ink); }
 .tr-pip.done span::after { content: ' ✓'; font-style: normal; color: var(--wax); }
 .tr-pip.now { opacity: 1; color: var(--ink); font-style: normal; }
 .tr-pip.now i { background: var(--wax); }
-.tr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
-.tr-chips button {
-  font-variant: normal;
-  letter-spacing: 0;
-  font-size: 14.5px;
-  font-style: italic;
-  padding: 3px 12px;
-  border: 1px solid var(--ink-faded);
-  border-radius: 12px;
-  background: rgba(255, 250, 232, 0.5);
-  box-shadow: none;
-}
-.tr-chips button:hover { border-color: var(--gold); background: rgba(201, 162, 39, 0.2); }
 .tr-prize { margin: 4px 0 0; font-size: 14px; font-style: italic; color: var(--ink-faded); }
 .tr-pace { margin: 6px 0 2px; font-size: 15px; font-style: italic; min-height: 1.3em; }
 .tr-pace.warn { color: var(--wax); font-style: normal; }

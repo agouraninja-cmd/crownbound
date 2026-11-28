@@ -416,8 +416,10 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     everywhere: pledge kept / no ground lost / ground lost. A bled month is answered with a
     next step (cut one cost, post it as a quest), never a scolding.
   - An untouched ledger (no rolls, no conquests, nothing saved, no pledge, no name) opens on
-    three questions, one at a time; sealing them names an unnamed goal "The Hoard", because
-    the name is what marks a ledger as opened.
+    three questions, one at a time. What the goal is for is TYPED by the player and required
+    (2026-11-28, the owner: "have the user type what they are saving for") — the preset chips
+    are gone, and Next / "Raise the goal" refuse a blank name. The name is what marks a ledger
+    as opened.
   - Inputs are never focused when the panel opens (the E that opened it would be typed into
     the box) — only after a click inside it. Esc closes the panel from inside a box.
   - The `data-*` hooks the smoke suite drives (`data-w-*` the questions, `data-lay-*`,
@@ -1366,6 +1368,13 @@ headlessly; everything else covered by the regression suite below.
   software renderer, not yet on the owner's screen. Details: "Twice the size and true to
   the year" under "The Miller's Strip" in Noted decisions.
 
+- [x] Post-v1 — "Thine Own Words" (2026-11-28), the owner: "in the what are you saving for
+  part have the user type what they are saving for". The opening question's three preset
+  buttons (A rainy-day fund / A great purchase / A lord's fortune) are gone; the player
+  writes the goal in a "Saving for" box, and it is required there and when naming the next
+  goal (no more silent "The Hoard"). No save change. `exchequer` and `reckoning` pass
+  (cloud container, headless Chromium, `SMOKE_WAIT=load`).
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1403,7 +1412,7 @@ headlessly; everything else covered by the regression suite below.
   `tome` save export/import round-trip + chronicle deed list + screenshot ·
   `house` door collider open/close + the peg rack (E opens its panel, all three weapons listed, Hang up empties the hands — no swing, no stamina, saved — and Take up the cudgel puts it in hand) + chest E opens lid + panel, Esc lowers it + cot sleep/heal (mid-nap pose screenshot → scripts/smoke-sleep.png)
   + dawn-verdict clock rules + Well-Rested boon + sleep-ledger log append & panel render +
-  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (chip fills the name, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + money put into savings from the Today card (savings, the month's saving, pledge kept, today's entry listed) + a recount leaves the month's saving + booth screenshot ·
+  interior screenshot · `exchequer` counter prompt + E-open + an untouched ledger's three questions (no preset chips, a goal with no name refused, a goal with no sum refused, the pace line, sealed) + coffer/figure/track shown + money put into savings from the Today card (savings, the month's saving, pledge kept, today's entry listed) + a recount leaves the month's saving + booth screenshot ·
   `market` cart presence/absence via ?market=1|0 + prompt + every ware's picture and read-more
   (the cudgel's unfolds with its config damage and folds again; the chest's three pictures and
   a chest read-more without the buying talk checked later; shop panel →
