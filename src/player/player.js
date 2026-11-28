@@ -279,7 +279,7 @@ export function createPlayer(scene, spawn) {
   // of the hoe (tilling, weeding), a cast of the sowing hand or a cut of the
   // sickle (reaping), then a step on, and again, to the ridge's end. The tool
   // for the job takes the stick's place in the fist until it is done.
-  const TOOL_FOR = { till: 'hoe', tend: 'hoe', reap: 'sickle' }; // seed is cast by hand
+  const TOOL_FOR = { till: 'hoe', tend: 'hoe', reap: 'sickle', sow: 'seedlip' }; // seed is cast by hand, from the basket at his hip
   function takeUp(kind) {
     m.weapon.visible = kind === null; // null: the stick again
     for (const [name, tool] of Object.entries(m.tools)) tool.visible = TOOL_FOR[kind] === name;
