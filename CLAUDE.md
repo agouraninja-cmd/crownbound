@@ -1695,8 +1695,8 @@ headlessly; everything else covered by the regression suite below.
   hoe's time on a ridge; the same job, the same wage; the hoe still works for empty hands.
   Left anywhere, it stands there (solid) until the game is next opened. The gate now stands
   wider open, off the first ridge. No rule, reward or save changed; Charter and
-  CROWNBOUND-Guide.docx (rebuilt) tell of it. New smoke scenario `plough`; it passes (cloud container, headless Chromium,
-  `SMOKE_WAIT=load`). The rest of the suite was still being run when this was written.
+  CROWNBOUND-Guide.docx (rebuilt) tell of it. New smoke scenario `plough`. All 27 scenarios pass, first time (cloud container, headless
+  Chromium, `SMOKE_WAIT=load`); `plough` and `farm` again on the final build.
   Seen only in the software renderer, not yet on the owner's screen; a real touch at the
   keys — how the steering feels — wants his hand. No oxen draw it (a build of its own).
   Details: "The Plough" under "The Miller's Strip" in Noted decisions.
