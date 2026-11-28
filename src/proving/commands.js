@@ -22,7 +22,7 @@ import { LAYOUT } from '../scene/layout.js';
 import { todayStr, yesterdayStr, weekStartStr, monthStartStr } from '../state/dates.js';
 import {
   getState, commit, wipeSave, copyTrueSave, STAT_NAMES, addXp, totalLevels,
-  staminaCap, drainStamina, dailyDoneToday,
+  staminaCap, drainStamina, dailyDoneToday, dailyDeeds,
   postDaily, completeDaily, postWeekly, completeWeekly, postMonthly, completeMonthly,
   FARM_JOBS, farmJob, workFarmRow,
 } from '../state/state.js';
@@ -88,19 +88,32 @@ function recountRank() {
 const POST = { daily: postDaily, weekly: postWeekly, monthly: postMonthly };
 const COMPLETE = { daily: completeDaily, weekly: completeWeekly, monthly: completeMonthly };
 
-// a quest posted (if the slot is empty) and completed by the game's own rule
+// A quest posted (if none is waiting) and completed by the game's own rule.
+// Several virtues may be named — the XP is shared among them. The daily takes
+// the first of today's deeds still waiting, and posts another if none is.
 function completeQuest(kind, args) {
-  const key = args[0] ? virtueKey(args[0]) : 'ath';
-  const quest = getState().quests[kind];
-  if (quest.completed) fail(`The ${kind} is already done. “reset ${kind}” makes it new again.`);
-  if (!quest.text) POST[kind]('A test deed');
-  const won = COMPLETE[kind](key);
-  const ups = won.levelUps.length ? ` ${STAT_NAMES[key]} is now level ${won.levelUps.at(-1)}.` : '';
-  return `The ${kind} is done: +${won.xp} ${STAT_NAMES[key]} XP, +${won.coins} coins.${ups}`;
+  const keys = args.length ? args.map(virtueKey) : ['ath'];
+  if (kind === 'daily') {
+    if (!dailyDeeds().some((d) => !d.completed) && !postDaily('A test deed')) {
+      fail(`All ${CONFIG.quests.dailyMax} of today’s deeds are done. “reset daily” clears the board.`);
+    }
+  } else {
+    const quest = getState().quests[kind];
+    if (quest.completed) fail(`The ${kind} is already done. “reset ${kind}” makes it new again.`);
+    if (!quest.text) POST[kind]('A test deed');
+  }
+  const won = COMPLETE[kind](keys);
+  const xp = won.gains.map((g) => `+${g.xp} ${STAT_NAMES[g.stat]} XP`).join(', ');
+  const ups = won.gains
+    .filter((g) => g.levelUps.length)
+    .map((g) => ` ${STAT_NAMES[g.stat]} is now level ${g.levelUps.at(-1)}.`)
+    .join('');
+  const which = kind === 'daily' ? `A daily deed is done (${dailyDeeds().filter((d) => d.completed).length} today)` : `The ${kind} is done`;
+  return `${which}: ${xp}, +${won.coins} coins.${ups}`;
 }
 
 const freshQuest = {
-  daily: () => ({ text: '', completed: false, date: todayStr() }),
+  daily: () => ({ date: todayStr(), deeds: [] }),
   weekly: () => ({ text: '', completed: false, weekStart: weekStartStr() }),
   monthly: () => ({ text: '', completed: false, monthStart: monthStartStr() }),
 };
@@ -286,8 +299,8 @@ export const COMMANDS = [
   {
     name: 'daily',
     group: 'Quests',
-    usage: 'daily [virtue]',
-    about: 'Complete today’s daily quest (posting a test deed if the slot is empty).',
+    usage: 'daily [virtue …]',
+    about: 'Complete one of today’s daily deeds (posting a test deed if none is waiting). Name two virtues to share the XP.',
     run: (args) => completeQuest('daily', args),
   },
   {
@@ -465,7 +478,7 @@ export const COMMANDS = [
         case 'weekly':
         case 'monthly':
           resetQuests([word]);
-          return `The ${word} slot is empty again.`;
+          return word === 'daily' ? 'Today’s deeds are taken down — the board is bare.' : `The ${word} slot is empty again.`;
         case 'quests':
           resetQuests(['daily', 'weekly', 'monthly']);
           return 'The daily, weekly and monthly slots are empty again.';

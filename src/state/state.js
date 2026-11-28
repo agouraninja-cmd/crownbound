@@ -88,7 +88,7 @@ function defaultState(now = new Date()) {
     treasury: { name: '', current: 0, goal: 10000, pledge: 0, log: [], rolls: [], conquered: [] },
     streak: { current: 0, best: 0 },
     quests: {
-      daily: { text: '', completed: false, date: today },
+      daily: { date: today, deeds: [] }, // today's deeds, each { text, completed, virtues? }
       weekly: { text: '', completed: false, weekStart: weekStartStr(now) },
       monthly: { text: '', completed: false, monthStart: monthStartStr(now) },
       epic: { text: '', progressPct: 0 },
@@ -165,7 +165,16 @@ function migrate(s) {
       .map(([month, amount]) => ({ date: `${month}-01`, kind: 'save', amount, note: 'laid in' }));
     delete t.laid;
   }
+  if (s.saveVersion === 13) {
+    s.saveVersion = 14; // v14: several deeds a day — the one daily slot becomes the day's list
+    const d = s.quests.daily ?? {};
+    s.quests.daily = {
+      date: d.date ?? todayStr(),
+      deeds: d.text ? [{ text: d.text, completed: !!d.completed }] : [],
+    };
+  }
   // hand-edited or restored saves may miss fields regardless of version
+  if (!Array.isArray(s.quests.daily?.deeds)) s.quests.daily = { date: todayStr(), deeds: [] };
   if (!s.farm) s.farm = { stage: 0, done: [], workedOn: null };
   if (!s.sleep) s.sleep = { retiredAt: null, lastRewardDate: null, wellRestedDate: null };
   if (!s.sleep.log) s.sleep.log = [];
@@ -240,7 +249,7 @@ function rollover() {
   }
 
   if (state.quests.daily.date !== today) {
-    state.quests.daily = { text: '', completed: false, date: today };
+    state.quests.daily = { date: today, deeds: [] }; // yesterday's deeds, done or not, come down
   }
 
   const ws = weekStartStr();
@@ -396,9 +405,16 @@ export function addCoins(n) {
 
 // ---------- stamina ----------
 
+// today's deeds on the board (none, once the day has turned under an open game)
+export function dailyDeeds() {
+  const d = state.quests.daily;
+  return d.date === todayStr() ? d.deeds : [];
+}
+
+// the day is claimed by its FIRST deed done: the streak, the fire and the
+// stamina refill hang on this — the day's further deeds pay XP and coins only
 export function dailyDoneToday() {
-  const q = state.quests.daily;
-  return q.completed && q.date === todayStr();
+  return dailyDeeds().some((q) => q.completed);
 }
 
 export function staminaCap() {
@@ -440,33 +456,87 @@ export function spendStamina(cost) {
 
 // ---------- quests ----------
 
-export function postDaily(text) {
-  const t = text.trim();
-  if (!t) return;
-  state.quests.daily = { text: t, completed: false, date: todayStr() };
-  save();
-  emit('quests');
+// A deed may train more than one virtue — a tennis match with a client is
+// Athleticism and Influence both. Its XP is shared evenly among the virtues
+// named (the odd points to those named first), so naming more never pays more.
+export function shareXp(total, keys) {
+  const each = Math.floor(total / keys.length);
+  const odd = total - each * keys.length;
+  return keys.map((stat, i) => ({ stat, xp: each + (i < odd ? 1 : 0) }));
 }
 
-export function completeDaily(statKey) {
-  const q = state.quests.daily;
-  if (!q.text || q.completed) return null;
-  const today = todayStr();
-  q.completed = true;
+// one key or a list → the virtues named, each once, in the order given
+function virtueList(virtues) {
+  const keys = [].concat(virtues ?? []).filter((k) => k in STAT_NAMES);
+  return [...new Set(keys)];
+}
 
-  if (state.lastQuestDate === yesterdayStr()) state.streak.current += 1;
-  else if (state.lastQuestDate !== today) state.streak.current = 1;
-  state.streak.best = Math.max(state.streak.best, state.streak.current);
-  state.lastQuestDate = today;
+// the virtues a deed in the history trained (older deeds name only one)
+export function deedVirtues(h) {
+  return h.virtues ?? (h.statTrained ? [h.statTrained] : []);
+}
 
-  state.coins += CONFIG.rewards.daily.coins;
-  // the refill (with any Well-Rested bonus) — even from the cot, spent: the
-  // deed gets him up again (a fresh pool carries no `spent` flag)
-  state.stamina = { current: staminaCap(), date: today };
-  state.history.push({ date: today, questText: q.text, statTrained: statKey, type: 'daily' });
-  const levelUps = addXp(statKey, CONFIG.rewards.daily.xp); // addXp saves + emits
+// The reward of a quest done: its deed written in the history, its coins, and
+// its XP shared among the virtues. Returns { xp, coins, gains }, gains being
+// one { stat, xp, levelUps } per virtue.
+function rewardQuest(type, text, keys, reward) {
+  state.coins += reward.coins;
+  state.history.push({
+    date: todayStr(),
+    questText: text,
+    statTrained: keys[0], // the virtue named first
+    ...(keys.length > 1 ? { virtues: keys } : {}),
+    type,
+  });
+  const gains = shareXp(reward.xp, keys).map((g) => ({ ...g, levelUps: addXp(g.stat, g.xp) })); // addXp saves + emits
   emit('quests');
-  return { levelUps, xp: CONFIG.rewards.daily.xp, coins: CONFIG.rewards.daily.coins };
+  return { xp: reward.xp, coins: reward.coins, gains };
+}
+
+// another deed for today's list; false once the board is full for the day
+export function postDaily(text) {
+  const t = text.trim();
+  if (!t) return false;
+  const today = todayStr();
+  if (state.quests.daily.date !== today) state.quests.daily = { date: today, deeds: [] };
+  const deeds = state.quests.daily.deeds;
+  if (deeds.length >= CONFIG.quests.dailyMax) return false;
+  deeds.push({ text: t, completed: false });
+  save();
+  emit('quests');
+  return true;
+}
+
+// a deed posted in error is taken down — never one already done
+export function removeDaily(index) {
+  const deeds = dailyDeeds();
+  if (!deeds[index] || deeds[index].completed) return false;
+  deeds.splice(index, 1);
+  save();
+  emit('quests');
+  return true;
+}
+
+// `index` picks the deed; left out, the first one still waiting
+export function completeDaily(virtues, index = dailyDeeds().findIndex((d) => !d.completed)) {
+  const keys = virtueList(virtues);
+  const q = dailyDeeds()[index];
+  if (!q || q.completed || !keys.length) return null;
+  const today = todayStr();
+  const first = !dailyDoneToday(); // the deed that claims the day
+  q.completed = true;
+  q.virtues = keys;
+
+  if (first) {
+    if (state.lastQuestDate === yesterdayStr()) state.streak.current += 1;
+    else if (state.lastQuestDate !== today) state.streak.current = 1;
+    state.streak.best = Math.max(state.streak.best, state.streak.current);
+    state.lastQuestDate = today;
+    // the refill (with any Well-Rested bonus) — even from the cot, spent: the
+    // deed gets him up again (a fresh pool carries no `spent` flag)
+    state.stamina = { current: staminaCap(), date: today };
+  }
+  return { ...rewardQuest('daily', q.text, keys, CONFIG.rewards.daily), first };
 }
 
 export function postWeekly(text) {
@@ -477,20 +547,12 @@ export function postWeekly(text) {
   emit('quests');
 }
 
-export function completeWeekly(statKey) {
+export function completeWeekly(virtues) {
+  const keys = virtueList(virtues);
   const q = state.quests.weekly;
-  if (!q.text || q.completed) return null;
+  if (!q.text || q.completed || !keys.length) return null;
   q.completed = true;
-  state.coins += CONFIG.rewards.weekly.coins;
-  state.history.push({
-    date: todayStr(),
-    questText: q.text,
-    statTrained: statKey,
-    type: 'weekly',
-  });
-  const levelUps = addXp(statKey, CONFIG.rewards.weekly.xp);
-  emit('quests');
-  return { levelUps, xp: CONFIG.rewards.weekly.xp, coins: CONFIG.rewards.weekly.coins };
+  return rewardQuest('weekly', q.text, keys, CONFIG.rewards.weekly);
 }
 
 export function postMonthly(text) {
@@ -501,20 +563,12 @@ export function postMonthly(text) {
   emit('quests');
 }
 
-export function completeMonthly(statKey) {
+export function completeMonthly(virtues) {
+  const keys = virtueList(virtues);
   const q = state.quests.monthly;
-  if (!q.text || q.completed) return null;
+  if (!q.text || q.completed || !keys.length) return null;
   q.completed = true;
-  state.coins += CONFIG.rewards.monthly.coins;
-  state.history.push({
-    date: todayStr(),
-    questText: q.text,
-    statTrained: statKey,
-    type: 'monthly',
-  });
-  const levelUps = addXp(statKey, CONFIG.rewards.monthly.xp);
-  emit('quests');
-  return { levelUps, xp: CONFIG.rewards.monthly.xp, coins: CONFIG.rewards.monthly.coins };
+  return rewardQuest('monthly', q.text, keys, CONFIG.rewards.monthly);
 }
 
 export function setEpicText(text) {

@@ -122,10 +122,10 @@ fill(tour, [
 ])
 
 # ---- quests ----
-set_text(P[11], "Quests are written in your own words — the game never invents tasks for you. Post a quest, do the real thing, then return and mark it complete. On completion you choose which virtue the deed trained, and the reward lands there — or, if you have appointed the Sage (see The Sage & the Chronicler), he names the virtue for you.")
+set_text(P[11], f"Quests are written in your own words — the game never invents tasks for you. Post a quest, do the real thing, then return and mark it complete. On completion you choose which virtue the deed trained, and the reward lands there — or, if you have appointed the Sage (see The Sage & the Chronicler), he names the virtue for you. A deed that truly trained more than one virtue (a tennis match with a client) may name each: the XP is **shared evenly** among them, so naming more never pays more. The board takes **up to {C['quests']['dailyMax']} daily deeds a day**, each paid in full. Only the **first** one done claims the day — it refills stamina and feeds the streak; the rest pay their XP and coins and nothing more. A deed posted by mistake can be taken down before it is done.")
 fill(quests, [
     ["Quest", "Reward", "Resets"],
-    ["Daily Quest", f"+{R['daily']['xp']} XP, +{R['daily']['coins']} coins, refills stamina and raises its cap for the day, feeds the streak", "Every day (local midnight, on next load)"],
+    ["Daily Quests", f"+{R['daily']['xp']} XP, +{R['daily']['coins']} coins each (up to {C['quests']['dailyMax']} a day); the day’s first refills stamina, raises its cap for the day and feeds the streak", "Every day (local midnight, on next load)"],
     ["Weekly Bounty", f"+{R['weekly']['xp']} XP, +{R['weekly']['coins']} coins", "Every Monday"],
     ["Monthly Campaign", f"+{R['monthly']['xp']} XP, +{R['monthly']['coins']} coins", "The 1st of each month"],
     ["The Epic Quest", "Progress is a percentage you update by hand; every update is written into the Chronicle", "Never — it has no deadline"],
@@ -156,10 +156,10 @@ for i, t in enumerate(tiers):
 fill(fire, fire_rows)
 
 # ---- stamina ----
-set_text(P[19], f"Stamina is a daily pool. Fighting draws on it — **{ST['attackCost']} per attack, {ST['dodgeCost']} per dodge-roll** — and so do the legs: **{plain(ST['walkDrain'])} a second walking** (crouched included) and **{plain(ST['sprintDrain'])} a second sprinting**. Jumping and standing still are free. The base cap is **{ST['baseCap']}**; completing the daily quest refills the pool and raises the cap to **{ST['questCap']}** for the rest of the day. Rising well-rested (see Sleep) adds another +{SL['staminaBonus']}. With too little left for a swing or a roll, combat is refused — “Your arms are spent. Earn your strength — the board awaits.”")
+set_text(P[19], f"Stamina is a daily pool. Fighting draws on it — **{ST['attackCost']} per attack, {ST['dodgeCost']} per dodge-roll** — and so do the legs: **{plain(ST['walkDrain'])} a second walking** (crouched included) and **{plain(ST['sprintDrain'])} a second sprinting**. Jumping and standing still are free. The base cap is **{ST['baseCap']}**; completing the day’s first daily deed refills the pool and raises the cap to **{ST['questCap']}** for the rest of the day. Rising well-rested (see Sleep) adds another +{SL['staminaBonus']}. With too little left for a swing or a roll, combat is refused — “Your arms are spent. Earn your strength — the board awaits.”")
 h = para_after(P[19], H3, "Spent for the day")
 s1 = para_after(h, BODY, "The moment stamina reaches zero, the day’s play is over. He lets go of the keys and walks himself home — round every obstacle, through the door, onto the cot — and a card tells you play resumes tomorrow, with a line he says to himself. Press E to hurry the walk.")
-s2 = para_after(s1, BODY, "From bed you can still open the Quest Board, the Tome and the Exchequer. If today’s daily is not yet done, completing it from bed **refills the pool and gets him up**. Once the daily is done, a second emptying is final until tomorrow. “Retire for the night” on the card marks your real bedtime; the walk home does not.")
+s2 = para_after(s1, BODY, "From bed you can still open the Quest Board, the Tome and the Exchequer. If no daily deed is done yet today, completing one from bed **refills the pool and gets him up**. Once a daily deed is done, a second emptying is final until tomorrow. “Retire for the night” on the card marks your real bedtime; the walk home does not.")
 
 # ---- combat ----
 c0 = para_after(P[20], BODY, f"Left click swings what is in your hand. Three blows chain when you swing in quick succession — a chop, a backhand, a sweep — and all three cost, reach and hit the same. You begin with a stick (damage {PL['attackDamage']}); the chapman sells a cudgel (damage {ITEM['cudgel']['damage']}) and, to a {ITEM['quarterstaff']['minRank']}, a quarterstaff (damage {ITEM['quarterstaff']['damage']} and a longer reach).")
@@ -217,7 +217,7 @@ set_text(P[34], f"you open the game by **{SL['wakeByHour']}:00 AM** local time."
 # ---- new sections before Saving ----
 sh = para_after(P[37], H2, "The Sage & the Chronicler")
 g1 = para_after(sh, BODY, "Two helpers run on the Anthropic API and need an API key, which you grant in the Tome. The key is kept in this browser, outside your save, so a Scribe copy never carries it. Without a key the game plays exactly as before.")
-g2 = para_after(g1, BULLET, "**The Sage** names the virtue of each completed deed, in place of the four-button pick. His verdict is final. If he cannot be reached, is slow, or answers nonsense, the manual pick appears instead; “Choose thyself” cancels him.")
+g2 = para_after(g1, BULLET, "**The Sage** names the virtue of each completed deed — or two, when a deed plainly trained both — in place of the manual pick. His verdict is final. If he cannot be reached, is slow, or answers nonsense, the manual pick appears instead; “Choose thyself” cancels him.")
 g3 = para_after(g2, BULLET, "**The Chronicler** writes one short entry of medieval prose for each finished week, from your deeds and your sleep. He writes at most one entry each time you open the game, and they are read in the Tome under Weekly Chronicle.")
 mh = para_after(g3, H2, "The Map & the Sky")
 m1 = para_after(mh, BODY, f"**M** unrolls the Map of the Kingdom of {C['realm']['kingdom']} — coast, mountains, {C['realm']['lake']}, roads and towns, each named when you hover — with {C['realm']['village']} ringed in wax. Beside it is a plan of the village drawn from the game itself: the buildings, the trees, today’s crop on the strip, and an arrow for where you stand. Only the village can be walked; the kingdom is a picture.")

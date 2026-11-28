@@ -123,11 +123,15 @@ export function renderGuide(guideBody) {
       <h2>The Law of the Land</h2>
       <p class="muted">Post a quest at the board in thine own words. Do the real deed under the
       real sky. Return, mark it complete, and name the virtue it trained — the reward lands there.
-      The game never invents tasks for thee.</p>
+      A deed that truly trained more than one virtue may name each: its XP is shared evenly among
+      them, so naming more never pays more. The game never invents tasks for thee.</p>
+      <p class="muted">The board takes up to ${CONFIG.quests.dailyMax} daily deeds in a day, each done
+      and paid on its own. The first one done claims the day — it feeds the fire and refills thy
+      stamina; the rest pay their XP and coins and ask nothing more.</p>
     </div>
     <div class="sheet-section">
       <h2>Rewards of the Realm</h2>
-      <div class="kv"><span>Daily Quest</span><span class="v">+${R.daily.xp} XP · +${R.daily.coins} coins · refills stamina (even abed, spent) · feeds the fire</span></div>
+      <div class="kv"><span>Daily Quest</span><span class="v">+${R.daily.xp} XP · +${R.daily.coins} coins each · the day&#8217;s first refills stamina (even abed, spent) and feeds the fire</span></div>
       <div class="kv"><span>Weekly Bounty</span><span class="v">+${R.weekly.xp} XP · +${R.weekly.coins} coins · resets Monday</span></div>
       <div class="kv"><span>Monthly Campaign</span><span class="v">+${R.monthly.xp} XP · +${R.monthly.coins} coins · resets the 1st</span></div>
       <div class="kv"><span>The Epic Quest</span><span class="v">the year&#8217;s great work, reckoned by thy hand</span></div>
@@ -143,7 +147,8 @@ export function renderGuide(guideBody) {
     </div>
     <div class="sheet-section">
       <h2>The Streak &amp; the Fire</h2>
-      <p class="muted">Completing the daily quest claims the day. Miss a full day and the fire
+      <p class="muted">The first daily deed done claims the day — one is enough, and more
+      add nothing to the streak. Miss a full day and the fire
       dies in the night — the streak returns to nought. Until today&#8217;s deed is done the flame
       gutters low, a living reminder; it swells the moment the deed is logged.
       Stand still beside it ${CONFIG.player.sitDelay} heartbeats and thou sittest down to warm thy
@@ -153,7 +158,7 @@ export function renderGuide(guideBody) {
     <div class="sheet-section">
       <h2>Stamina</h2>
       <p class="muted">A daily pool spent by arms and legs alike — every step wears on it, a sprint
-      the more; only a leap is free. The cap stands at ${ST.baseCap}; complete the daily quest and the
+      the more; only a leap is free. The cap stands at ${ST.baseCap}; complete the day&#8217;s first daily deed and the
       pool refills, the cap rising to ${ST.questCap} till nightfall. Spend it to the last and thy day
       is done: thy legs carry thee home to thy cot, and thou mayst play again on the morrow. From thy
       bed the Quest Board, the Tome and the Exchequer stay open — and if today&#8217;s deed is yet

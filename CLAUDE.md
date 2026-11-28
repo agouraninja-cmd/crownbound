@@ -19,14 +19,15 @@ happens the moment the character reaches King** (70 total virtue levels).
   round dot (sprites.js), the sun's disc and the moon's face (sky.js). Pictures in the UI
   (the Map, the shop's wares) are SVG built in code.
 - UI is DOM overlay (HTML/CSS), parchment-and-ink styling, font: IM Fell English (Google Fonts, serif fallback).
-- Persistence: localStorage key `crownbound_save`, `saveVersion: 13`, migration hook in `state.js`
+- Persistence: localStorage key `crownbound_save`, `saveVersion: 14`, migration hook in `state.js`
   (v1→v2 adds the monthly campaign; v2→v3 adds sleep tracking; v3→v4 the sleep ledger log;
   v4→v5 the chapman's shop; v5→v6 the earned Coronation — drops the epic deadline;
   v6→v7 the monthly reckoning — grows the treasury; v7→v8 the Chronicler's weekly chronicle;
   v8→v9 the chest — weapon in hand + loaf larder; v9→v10 the virtues renamed —
   str→ath, agi→int; v10→v11 Intelligence reset to level 1, rank recounted; v11→v12 the
   miller's strip — the field begins fallow; v12→v13 the day book — coin laid in by month
-  becomes day-book entries). The test world (`?test=1`, The Proving Ground)
+  becomes day-book entries; v13→v14 several deeds a day — the one daily slot becomes the
+  day's list). The test world (`?test=1`, The Proving Ground)
   keeps a save of its own under `crownbound_test_save` and never writes the true one.
 - Target 60fps on mid-range laptop: merged static geometry (props are baked — meshUtils.bake),
   one shadow-casting directional light, cheap particles, no post-processing.
@@ -90,7 +91,7 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 ## Data model (localStorage `crownbound_save`)
 ```
 {
-  saveVersion: 13,
+  saveVersion: 14,
   createdAt, lastPlayedAt, lastQuestDate,        // lastQuestDate = last day a DAILY was completed
   rank: "Peasant",
   stats: { ath|int|wis|inf: { level, xp } },     // Athleticism, Intelligence, Wisdom, Influence;
@@ -110,12 +111,15 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   },
   streak: { current, best },
   quests: {
-    daily:  { text, completed, date },           // resets each local day
+    daily:  { date, deeds: [ { text, completed, virtues? } ] },  // today's deeds (≤ quests.dailyMax),
+                                                 //   each paid on its own; the list empties each local day
     weekly: { text, completed, weekStart },      // resets each Monday (local)
     monthly:{ text, completed, monthStart },     // resets the 1st of each month (local)
     epic:   { text, progressPct }                // no deadline — the crown is earned, not dated
   },
-  history: [ { date, questText, statTrained, type } ],  // append-only; the Chronicler reads this
+  history: [ { date, questText, statTrained, virtues?, type } ],  // append-only; the Chronicler reads this.
+                                                 //   statTrained = the first virtue named; virtues only when
+                                                 //   a deed named more than one (deedVirtues(h) reads both)
   chronicle: [ { week, text, writtenAt } ],      // the Chronicler's weekly entries, append-only, oldest first
   // v1 additions beyond original spec (documented deviations):
   daysPlayed,                                    // incremented on first login of each local day
@@ -155,8 +159,12 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   (toasts in main.js). Once only — the timestamp guards re-triggering. Board and Tome show the
   road to the crown ("N of 70 virtue levels won"), then the crowning date ever after. The full
   Coronation ceremony (visuals, the event itself) remains v5 scope.
-- Daily quest: +25 XP to chosen stat, +10 coins, refills stamina and raises its cap for the day
-  (even from bed, spent — it gets him up; see below), feeds streak.
+- Daily quests: up to `CONFIG.quests.dailyMax` (5) a day, each +25 XP and +10 coins in full.
+  Only the FIRST done each day claims it: refills stamina and raises its cap for the day (even
+  from bed, spent — it gets him up; see below) and feeds the streak. Later deeds pay XP and coins
+  only. See "Many Deeds, Many Virtues" under Noted decisions.
+- Any quest may train more than one virtue: its XP is shared evenly among those named
+  (`shareXp`, the odd points to the first named), so naming more never pays more.
 - Weekly bounty: +100 XP to chosen stat, +50 coins. Monthly campaign: +300 XP, +150 coins.
   Epic: manual progress %, logged to history.
 - Streak: daily completion counts the day. Missing a full day resets to 0 → "The fire died in the night."
@@ -799,6 +807,29 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     reloads with `?intro=1` — a newcomer's first load, title card first. Own commands kept.
   - Not in the Charter (it is not a rule). CROWNBOUND-Guide.docx tells it under getting started.
 
+- Many Deeds, Many Virtues (2026-11-27), the owner: multiple daily quests, and "I dont think
+  streaks are healthy and I dont want them to have to be forced to only one type of virtue per
+  goal, cause in the end your charecter will kind of represent who you are as a person". His
+  three answers (do not undo): streaks stay in the game but the extra deeds never touch them;
+  every deed pays the full daily XP (no taper — King comes faster for a full day, accepted);
+  only the day's first deed refills stamina. What a future session must know:
+  - `quests.daily` is `{ date, deeds: [] }`. `postDaily(text)` appends (false at the cap),
+    `removeDaily(i)` takes down an undone deed, `completeDaily(virtues, i)` completes one
+    (`i` defaults to the first waiting; returns `first: true` when it claimed the day).
+    `dailyDeeds()` is today's list; `dailyDoneToday()` = any deed done today.
+  - All three complete functions take a key or a list of keys and return
+    `{ xp, coins, gains: [ { stat, xp, levelUps } ] }` (was `levelUps`). `rewardQuest()` in
+    state.js is the shared payout.
+  - The board: one Daily Quests block, a row per deed (`data-slot="daily:N"`; weekly and
+    monthly are `data-slot="weekly"` / `"monthly"`), a "Take down" button on undone deeds, and
+    one box to post another until the cap. The manual picker is toggles (`data-pick` →
+    `.chosen`) plus `data-pick-done` ("Claim", disabled until one is ticked) with the share
+    shown live (`data-pick-share`).
+  - The Sage replies with one or more keys ("ath inf"); one word off the list and the whole
+    answer is distrusted (picker). The prompt asks for a second virtue only when plain.
+  - The opening's oath posts the first deed; the test world's `daily ath inf` shares XP and
+    posts a fresh deed whenever none is waiting (refused at the cap).
+
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
   The Chronicler writes weekly journal entries in medieval prose from the history log.
@@ -1277,6 +1308,20 @@ headlessly; everything else covered by the regression suite below.
   stick ⇄ cudgel swap at the rack, the chest's one picture) rewritten; they, `body`,
   `proving`, `combat` and the render pass (cloud container, `SMOKE_WAIT=load`).
 
+- [x] Post-v1 — "Many Deeds, Many Virtues" (2026-11-27): the Quest Board takes up to five
+  daily deeds a day, each paid in full (+25 XP, +10 coins) — the first one done still claims
+  the day (stamina refill, the fire, the streak), the rest touch neither. Any quest — daily,
+  weekly or monthly — may train more than one virtue: tick each in the picker and the XP is
+  shared evenly (13 + 12, 9 + 8 + 8), shown before "Claim". The Sage may name two. A deed
+  posted in error can be taken down. The Tome's deed list and the Chronicler name every
+  virtue a deed trained. saveVersion 14 (the one daily slot becomes the day's list). Charter,
+  opening oath, test-world `daily` command and CROWNBOUND-Guide.docx (rebuilt) say so.
+  `quests` and `sage` smoke scenarios extended; `proving`'s farm check now expects the five
+  daily deeds' coins. `quests`, `sage`, `rollover`, `fire`, `crown`, `spent`, `intro`,
+  `proving` (on a re-run, after that fix), `chronicle`, `tome`, `guide` and the render pass
+  (cloud container, headless Chromium, `SMOKE_WAIT=load`). Not yet seen on the owner's
+  screen. Details: "Many Deeds, Many Virtues" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1297,7 +1342,7 @@ headlessly; everything else covered by the regression suite below.
   without it. A new scenario that begins on a blank save must keep `${DAY}` on its address,
   or it will sit on the title card with the keys withheld.
 - Regression scenarios (run all after meaningful changes):
-  `''` render · `quests` daily+weekly+monthly complete flow · `rollover` stale-save day handling ·
+  `''` render · `quests` daily+weekly+monthly complete flow + a second deed of two virtues (XP shared 13 + 12, coins in full, no streak or stamina change, the share shown before Claim) + a deed taken down + the cap of five + three virtues sharing 9 + 8 + 8 + a bare list on the morrow with the streak kept (screenshot → scripts/smoke-quests.png) · `rollover` stale-save day handling ·
   `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy/rats/miller-tally greeting/death
   (respawn at the cot) ·
   `walk` movement · `keys` no mouse, the camera stepped by hand: F swings (5 stamina), ← held 1s turns 2.2 rad and stops dead on letting go, → turns back, a tap nudges (even one let go before any frame saw it), − known by its character alone, ↑ ↓ to the pitch bounds, − = to the zoom bounds, a touchpad glide zooms by how far and a pinch zooms the eye not the page, W + → walks a curve, a panel opened mid-turn stops the eye and the arrows do nothing under it, the Charter lists F and the arrows · `body` the player's weight and limbs, stepped by hand at a fixed rate:
@@ -1388,6 +1433,10 @@ headlessly; everything else covered by the regression suite below.
   On Linux (a cloud session) it runs unchanged with `SMOKE_BROWSER=<path to chromium>` and a
   tiny `taskkill` stand-in script on PATH that kills the given PID's process tree; without the
   stand-in the run ends in an unhandled spawn error and leaves `vite preview` holding port 5199.
+  The stand-in must kill the WHOLE tree of the PID in its second argument
+  (`taskkill /PID <pid> /T /F`): vite preview runs four processes deep under the spawned
+  shell, and while it lives node never exits after "SMOKE OK" (2026-11-27). One that works:
+  `tree() { for c in $(pgrep -P "$1"); do tree "$c"; done; echo "$1"; }; kill -9 $(tree "$2")`.
 - In a cloud container the software renderer manages ~3fps (measured 2026-11-14: median frame
   ~350ms, worst ~900ms, for the build before The Living Body and after it alike), so a check
   that waits a fixed 300–600ms for the next frame can read too early. `house` (the closed door
