@@ -7,9 +7,10 @@ import { LAYOUT, pathX, fieldGap, trackGap, doorstep } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { WEAPON_LOOKS } from './player/playerMesh.js';
 import { createOrbitCamera } from './player/camera.js';
+import { initDamage, showDamage, updateDamage, damageShown } from './ui/damage.js';
 import { initHud, showPrompt, placePrompt, showWaymark, placeWaymark, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
-import { loadState, getState, onChange, introOwed, introDone, noDeedYet, KEYS_LINE, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, wieldedWeapon, ownedWeapons, weaponHungUp, FARM_JOBS, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch } from './state/state.js';
+import { loadState, getState, onChange, introOwed, introDone, noDeedYet, hasMet, meet, KEYS_LINE, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, wieldedWeapon, ownedWeapons, weaponHungUp, FARM_JOBS, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch } from './state/state.js';
 import { initPanels, openPanel, closePanel, openPanelId, isPanelOpen } from './ui/panels.js';
 import { initMirror } from './state/mirror.js';
 import { judgeDeed } from './ai/sage.js';
@@ -107,6 +108,8 @@ player.onAttackSwing = () => {
   if (Math.hypot(ddx, ddz) < player.attackReach + dummy.radius) {
     if (angleDiff(Math.atan2(ddx, ddz), player.facing) < halfArc) {
       dummy.hit(player.pos.x, player.pos.z);
+      // the blow's weight, thrown up over the dummy's head
+      showDamage(dummy.x, terrainHeight(dummy.x, dummy.z) + 2.2, dummy.z, player.attackDamage);
     }
   }
 };
@@ -322,6 +325,7 @@ orbitCam.setOnTap(() => {
 });
 
 initHud();
+initDamage();
 initPanels(
   (opened) => {
     player.setEnabled(!opened && !keysWithheld());
@@ -623,10 +627,32 @@ world.exchequer.onGreet = () =>
       : 'The clerk looks up. Any coin come or gone today?',
     ''
   );
-world.miller.onGreet = () => toast('The miller raises a floury hand.', '');
+world.miller.onGreet = () => {
+  // a stranger gets no passing wave: the miller's introduction is his greeting
+  if (introductions && (!hasMet('miller') || openPanelId() === 'miller')) return;
+  toast('The miller raises a floury hand.', '');
+};
 if (world.cart) world.cart.chapman.onGreet = () => toast('The chapman looks up from his wares.', '');
 
-// the miller has no panel — just a word on the day's tally for the rat-catcher
+// Meeting the miller: the first time he is ever come near (once a save —
+// `met.miller`), the miller says who he is and what he pays for, on a card of
+// its own (src/ui/miller.js). It waits for a moment when the keys are the
+// player's and he is on his feet — not mid-swing or mid-leap, not at work or
+// sat down, never on the walk home spent. ?intro=0 leaves it out with the
+// rest of a newcomer's welcome (the smoke suite's old first load).
+const introductions = introParam !== '0';
+const MEET_RANGE = 4; // the miller's own notice range: his nod and his words come together
+function stepMeeting() {
+  if (!introductions || hasMet('miller')) return;
+  if (!player.isEnabled() || player.mode !== 'normal' || player.airborne || homeward || spentPending) return;
+  const m = world.miller.at();
+  if (Math.hypot(player.pos.x - m.x, player.pos.z - m.z) > MEET_RANGE) return;
+  meet('miller'); // told once: a card shut unread is still an introduction made
+  player.faceToward(m.x, m.z);
+  openPanel('miller');
+}
+
+// after that the miller has no panel — just a word on the day's tally for the rat-catcher
 function millerGreeting() {
   const n = getState().counters.ratsKilled;
   if (n === 0) {
@@ -914,7 +940,7 @@ if (PROVING) {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, village: world.village, mapMarks: world.mapMarks, planPath, layout: { LAYOUT, pathX, fieldGap, trackGap, doorstep }, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, village: world.village, mapMarks: world.mapMarks, planPath, layout: { LAYOUT, pathX, fieldGap, trackGap, doorstep }, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, damageShown, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -939,6 +965,7 @@ function step(dt) {
     rats.update(dt, player, (dmg, x, z) => player.takeDamage(dmg, x, z));
     dummy.update(dt);
     aimFieldSpot();
+    stepMeeting();
     promptFor = player.isEnabled() && player.mode !== 'work' ? nearestAction() : null; // none while asleep, dead or busy at a ridge
     showPrompt(promptFor ? promptText(promptFor) : null);
   }
@@ -999,6 +1026,7 @@ function tick() {
   const mark = isPanelOpen() ? null : waymarkPlace();
   showWaymark(mark?.text ?? null);
   if (mark) placeWaymark(mark.pos, mark.edge);
+  updateDamage(Math.min(frameDt, MAX_CATCHUP), camera);
 
   renderer.render(scene, camera);
   requestAnimationFrame(tick);

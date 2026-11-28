@@ -356,6 +356,21 @@ export function introDone() {
   save();
 }
 
+// ---------- introductions ----------
+
+// The villagers who have said who they are (main.js: the miller, the first
+// time he is come near). `met` is absent on a save that has met no one — a
+// blank one and every older one alike — so each is introduced once.
+export function hasMet(who) {
+  return state.met?.[who] === true;
+}
+
+export function meet(who) {
+  if (hasMet(who)) return;
+  state.met = { ...state.met, [who]: true };
+  save();
+}
+
 // No daily deed has ever been logged: the fire has never once been lit.
 export function noDeedYet() {
   return state.streak.best === 0 && !state.history.some((h) => h.type === 'daily');

@@ -80,9 +80,11 @@ src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep 
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt, the waymark (a newcomer shown the way)
 src/ui/toasts.js      flavor message queue
+src/ui/damage.js      damage numbers: a blow's damage thrown up over the dummy, projected each frame like the prompt tag
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Weapon Rack, Chest panel UIs; opens/closes every panel
 src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, the day book (money in / out / into savings), the seals and the climb chart (all SVG built here)
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
+src/ui/miller.js      the miller's introduction: the card shown the first time he is come near — his likeness (SVG) and his words, numbers from config.js
 src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
 src/ui/intro.js       the opening a blank save begins with: the title, the dream of the crown, the waking, the oath; caption() — a line of ink over the scene
 src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT (three zooms; every neighbour's house reads its own line)
@@ -151,6 +153,9 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
                                                         //   version bump); a harvest also lands in history
                                                         //   as type "harvest"
   coronationAt,                                         // ISO timestamp, set once at rank King (else null)
+  met: { miller },                                      // the villagers who have introduced themselves (true once
+                                                        //   the card has been shown); absent = none met — a blank
+                                                        //   save and every older one alike (no version bump)
   introOwed                                             // true on a save begun from nothing, until the opening has
                                                         //   been played or skipped; absent = owes nothing (every
                                                         //   older save — no version bump). Never set in the test world.
@@ -196,6 +201,8 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   (the walk home never does). Opening the game again that day finds him abed; the next day's
   rollover clears it.
 - Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
+  Each blow throws up its damage over the dummy's head (the weapon in hand: stick 1, cudgel 2,
+  quarterstaff 3) — looks only; the dummy has no HP and the number is never XP.
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
 - The miller's strip (the farming job): a fenced wheat field of 10 ridges (`CONFIG.farm.rows`),
@@ -338,6 +345,37 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
 - The miller lives in his granary yard, home post (9.0, 9.3) — the rat bounty's flavor text made
   flesh. Third mute villager, v2 NPC candidate alongside the clerk and chapman. E opens no panel:
   it toasts a one-line tally of today's ratsKilled (`millerGreeting()` in main.js).
+- The Miller's Introduction (2026-11-28), the owner: "Add an introduction for the miller when
+  you first meet him in the game." The first time the player ever comes within the miller's
+  notice (4 units — `MEET_RANGE`, main.js `stepMeeting`), he turns to the miller and a card
+  opens: the miller's likeness in ink and wash, and his own words — who he is, the bounty on
+  the rats, the wage on his strip, and that his coin is only coin (the sacred rule, told by
+  the man who pays). Its form was left to Claude. What a future session must know:
+  - It is a panel like any other (`openPanel('miller')`, src/ui/miller.js `renderMiller`),
+    so the sim is paused under it and Esc closes it; Enter and its one button ("Well met,
+    miller") close it too. Not E: a player walking up to press E for the tally would shut it
+    unread. Every number on it is read from config.js as it is shown.
+  - Once a save: `met.miller` (state.js `hasMet` / `meet`), set as the card OPENS — a card
+    shut unread is still an introduction made. Absent = not met, so an older save (the
+    owner's included) is introduced once on its next visit to the yard. `met` is keyed by
+    villager so the clerk and the chapman can have theirs the same way, if asked for.
+  - It waits its turn: only while the keys are the player's and he is on his feet (mode
+    `normal`, not airborne, not on the walk home spent) — never under another panel, over the
+    opening, abed, at work or sat by the fire. Come near at such a moment and it is said
+    as soon as he is free.
+  - His passing wave ("The miller raises a floury hand.") is left out on the visit he
+    introduces himself, and is his greeting on every load after. E beside him is unchanged —
+    the day's tally.
+  - `?intro=0` leaves the introduction out along with the opening and the cold fire
+    (`introductions`, main.js): the smoke suite's other scenarios stand in his yard on blank
+    saves. Only `miller` (and `intro`) load without it.
+  - The test world is introduced on its own save; `reset miller` there forgets the meeting.
+  - Found on the way and fixed: his E-prompt never did follow him on his rounds. world.js
+    built `millerSpot` and moved it with him, but listed a second, fixed copy among the
+    interactables — so E only worked within reach of his post. The list now holds
+    `millerSpot` itself, and the `alive` scenario stands where only a spot that follows can
+    reach (it used to stand where the post's own reach still covered).
+  - Not in the Charter (it is not a rule). CROWNBOUND-Guide.docx tells it in the tour.
 - The miller walks his rounds (makeStroll in alive.js): post → yard's west corner → south corner,
   fixed waypoints pre-cleared of colliders (scatter is seeded RNG, so cleared once = cleared
   forever), pausing 6–14s to work at each. He stops walking while the player is within notice
@@ -1697,6 +1735,10 @@ headlessly; everything else covered by the regression suite below.
   wider open, off the first ridge. No rule, reward or save changed; Charter and
   CROWNBOUND-Guide.docx (rebuilt) tell of it. New smoke scenario `plough`. All 27 scenarios pass, first time (cloud container, headless
   Chromium, `SMOKE_WAIT=load`); `plough` and `farm` again on the final build.
+  After merging The Tally of Blows and The Miller's Introduction: `plough`, `miller`, `proving`
+  and the render pass on the merge; `combat` fails one check there ("no damage number of 1 over
+  the dummy", the number never seen within its 4s wait) — and fails the same way on plain
+  `main` in this container, so it is not the plough's. Not looked into further.
   Seen only in the software renderer, not yet on the owner's screen; a real touch at the
   keys — how the steering feels — wants his hand. No oxen draw it (a build of its own).
   Details: "The Plough" under "The Miller's Strip" in Noted decisions.
@@ -1727,6 +1769,34 @@ headlessly; everything else covered by the regression suite below.
   owner's screen; the frame rate on a real GPU is not measured, and night in the lanes wants
   his eye. CROWNBOUND-Guide.docx rebuilt. Details: "The Neighbours" under Noted decisions.
 
+- [x] Post-v1 — "The Tally of Blows" (2026-11-28), the owner: "Add a damage counter for each
+  hit on the dummy." Each blow that lands on the dummy throws up its damage — a gold number
+  ringed in ink that pops, rises about a unit and fades in under a second, a little scattered
+  so a flurry doesn't stack. Heavier weapons show bigger, warmer numbers. src/ui/damage.js
+  (DOM in #hud, projected each frame after the camera, like the prompt tag); the digits are
+  set in Palatino Linotype, not IM Fell, whose old-style figures make a 1 a short "I".
+  Reduced motion holds the number still and only fades it. Rats show none (not asked).
+  Looks only; no rule or save change. `combat` checks it; `combat`, render, `body`, `walk`,
+  `keys` and `proving` pass (owner's machine, headless Edge); after merging The Neighbours, `combat`, render and `village` pass on the merge. Not seen in a visible pane.
+
+- [x] Post-v1 — "The Miller's Introduction" (2026-11-28), the owner: "Add an introduction for
+  the miller when you first meet him in the game." The first time the player comes near the
+  miller, a card opens with his portrait and his own words: who he is, the two coins a tail
+  for the granary's rats, the strip to the north-east and its wage, and that his coin will
+  fill the purse but make no one a better man. Enter, Esc or "Well met, miller" closes it;
+  it is said once a save (`met.miller`, no saveVersion bump — older saves are introduced
+  once too). The test world's `reset miller` plays it again. Fixed with it: the miller's
+  E-prompt now truly follows him on his rounds. CROWNBOUND-Guide.docx rebuilt. New smoke
+  scenario `miller`; it, `alive`, `combat`, `intro`, `proving`, `guide`, `spent` and the
+  render pass (cloud container, headless Chromium, `SMOKE_WAIT=load`; `miller` failed once
+  before the prompt fix, on E beside the walking miller). After merging The Tally of Blows,
+  `miller` and the render pass on the merge; `combat` fails there on that feature's own
+  check ("no damage number of 1 over the dummy") — and fails the same way on plain `main`
+  without this work, in this container: the number lives under a second, two or three
+  frames of the software renderer. Seen only in the software renderer, not yet on the
+  owner's screen.
+  Details: "The Miller's Introduction" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1748,7 +1818,7 @@ headlessly; everything else covered by the regression suite below.
   or it will sit on the title card with the keys withheld.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow + a second deed of two virtues (XP shared 13 + 12, coins in full, no streak or stamina change, the share shown before Claim) + a deed taken down + the cap of five + three virtues sharing 9 + 8 + 8 + a bare list on the morrow with the streak kept (screenshot → scripts/smoke-quests.png) · `rollover` stale-save day handling ·
-  `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy/rats/miller-tally greeting/death
+  `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy (its damage number shown over its head, legible size; screenshot with the page clock held → scripts/smoke-damage.png)/rats/miller-tally greeting/death
   (respawn at the cot) ·
   `walk` movement · `keys` no mouse, the camera stepped by hand: F swings (5 stamina), ← held 1s turns 2.2 rad and stops dead on letting go, → turns back, a tap nudges (even one let go before any frame saw it), − known by its character alone, ↑ ↓ to the pitch bounds, − = to the zoom bounds, a touchpad glide zooms by how far and a pinch zooms the eye not the page, W + → walks a curve, a panel opened mid-turn stops the eye and the arrows do nothing under it, the Charter lists F and the arrows · `body` the player's weight and limbs, stepped by hand at a fixed rate:
   sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole
@@ -1783,7 +1853,7 @@ headlessly; everything else covered by the regression suite below.
   `reckoning` v6→current migration (no month closed on an empty ledger) + verdict rules (with and without income/spending) + a day's money through the panel (blank refused, in/out/save with notes, a mistake struck out, the month's sums) + the month closed on a pinned clock (fat from in/out/saved, conquest, 300 Intelligence XP, no coin, log cleared, no second close) & next summit + a v12 save's `laid` migrated and its owed months closed on load (two unreckoned, one held) + a recount and a later month's entry counted apart (bled, then held) + the climb's bars and the seals (months past unfolded → scripts/smoke-reckoning.png) ·
   `alive` villager breathing spread + head-track/greet for all three (off-axis stand, or the
   turn is ~0) + head returns at distance + fidget fires + miller walks his rounds & his prompt
-  follows (screenshot → scripts/smoke-alive.png) ·
+  follows (stood beyond him, out of his post's reach) (screenshot → scripts/smoke-alive.png) ·
   `sage` fetch-stubbed verdict auto-completes the daily + nonsense verdict falls back to the
   picker + Tome dismissal clears the key & restores manual (screenshot → scripts/smoke-sage.png) ·
   `chronicle` v7→current migration (old str/agi deeds re-tagged ath) + fetch-stubbed weekly entries: a failing call writes nothing,
@@ -1848,6 +1918,13 @@ headlessly; everything else covered by the regression suite below.
   offered over the ridge underfoot, the hoe's prompt a step away); the last ridge paying the
   wage once and E then only setting it down; the Charter's lines; spent with it in hand he
   lets go and turns for home (screenshot → scripts/smoke-plough.png) ·
+  `miller` the miller's introduction: with `?intro=0` only his wave; on a true load nothing
+  from six paces, the card on coming near (the village named, the config numbers, his
+  likeness, the keys withheld, the player turned to him, the meeting saved, no wave told over
+  it), Enter closes it and it is not said twice, E beside him still tells the tally, the next
+  load has only the wave, a save without `met` is introduced once it is free (not under the
+  Charter) and his button closes it, the test world meets him on its own save and
+  `reset miller` brings the introduction back (screenshot → scripts/smoke-miller.png) ·
   `aerial`/`front` screenshots.
 - The house bench (2026-11-28): `npx vite --port 5180 --strictPort` serves it beside the game's
   own dev server, and `node scripts/bench/shot.mjs <id> [out.png] [hour=21] [marks=1] [man=0]
