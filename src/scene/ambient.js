@@ -6,7 +6,7 @@ import { createPuffs } from './particles.js';
 import { daylight } from './daylight.js';
 
 // Ambient life — nothing here touches the game, it only keeps the valley from
-// standing still: smoke from the hovel's roof, motes adrift in the sunlight,
+// standing still: smoke from the hovel's roof and the neighbours', motes adrift in the sunlight,
 // birds wheeling high over the wood, butterflies at the flower patches. The
 // birds and butterflies keep the sun's hours: after dusk they are gone to roost.
 // buildAmbient returns { group, update(dt, camera) }; five draw calls in all.
@@ -49,17 +49,20 @@ function makeFliers(count, material) {
 }
 
 // smokeAt      world { x, y, z } of the hovel's smoke hole
+// hearths      world [{ x, y, z }] where the neighbours' smoke leaves their roofs
 // flowerSpots  world [{ x, z }] of flower patches the butterflies may keep to
-export function buildAmbient({ smokeAt, flowerSpots }) {
+export function buildAmbient({ smokeAt, hearths = [], flowerSpots }) {
   const group = new THREE.Group();
   group.name = 'ambient';
   const rng = makeRng(8128);
   let t = 0;
 
   // ---- hearth smoke from the roof ----
-  const smoke = createPuffs({ max: 30 });
+  const smoke = createPuffs({ max: 30 + hearths.length * 6 }); // still the one pool, the one draw call
   group.add(smoke.points);
   let smokeAcc = 0;
+  let hearthAcc = 0;
+  let hearthTurn = 0; // whose puff comes next: each neighbour in turn
 
   // ---- motes: pollen and dust, catching the light around the camera ----
   const MOTES = 110;
@@ -134,6 +137,26 @@ export function buildAmbient({ smokeAt, flowerSpots }) {
         size0: 0.3,
         size1: 1.7,
         alpha: 0.24,
+        from: SMOKE_NEW,
+        to: SMOKE_OLD,
+      });
+    }
+    // the neighbours' hearths: a thinner thread from each, seeping out of the thatch
+    hearthAcc += dt * 0.85 * hearths.length;
+    while (hearthAcc >= 1) {
+      hearthAcc -= 1;
+      const at = hearths[hearthTurn++ % hearths.length];
+      smoke.spawn({
+        x: at.x + (Math.random() - 0.5) * 0.25,
+        y: at.y,
+        z: at.z + (Math.random() - 0.5) * 0.2,
+        vx: 0.18 + Math.random() * 0.2,
+        vy: 0.4 + Math.random() * 0.22,
+        vz: 0.07 + Math.random() * 0.12,
+        life: 4.5 + Math.random() * 2,
+        size0: 0.26,
+        size1: 1.5,
+        alpha: 0.2,
         from: SMOKE_NEW,
         to: SMOKE_OLD,
       });

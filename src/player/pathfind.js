@@ -1,5 +1,5 @@
 // The walk home: a way across the village from wherever he stands to a spot
-// he names, around trees, rocks, walls and fences. A coarse grid over the
+// he names, around trees, rocks, walls, fences and the neighbours' houses. A coarse grid over the
 // walkable world has every collider drawn onto it (grown by the body's
 // width), A* finds a chain of cells across it, and the chain is then pulled
 // taut so he walks straight lines, not a staircase of grid steps.
@@ -30,6 +30,18 @@ function blockedGrid(colliders) {
           if (Math.hypot(centre(gx) - c.x, centre(gz) - c.z) < R) blocked[gz * N + gx] = 1;
         }
       }
+    } else if (c.cos !== undefined) {
+      // a rect turned on the map (a neighbour's house): each cell is asked in the rect's own frame
+      const hu = c.halfX + CLEARANCE;
+      const hw = c.halfZ + CLEARANCE;
+      const R = Math.hypot(hu, hw);
+      for (let gz = toCell(c.z - R); gz <= toCell(c.z + R); gz++) {
+        for (let gx = toCell(c.x - R); gx <= toCell(c.x + R); gx++) {
+          const dx = centre(gx) - c.x;
+          const dz = centre(gz) - c.z;
+          if (Math.abs(dx * c.cos - dz * c.sin) < hu && Math.abs(dx * c.sin + dz * c.cos) < hw) blocked[gz * N + gx] = 1;
+        }
+      }
     } else {
       const x0 = c.minX - CLEARANCE;
       const x1 = c.maxX + CLEARANCE;
@@ -45,6 +57,34 @@ function blockedGrid(colliders) {
     }
   }
   return blocked;
+}
+
+// Shut every open cell that cannot be walked to from cell `from`: the inside
+// of a fold, a pinfold, a ring of fence. Standing beside one, he would
+// otherwise be planned from within it and find no way out at all.
+function sealPockets(blocked, from) {
+  const seen = new Uint8Array(N * N);
+  const queue = new Int32Array(N * N);
+  let head = 0;
+  let tail = 0;
+  seen[from] = 1;
+  queue[tail++] = from;
+  while (head < tail) {
+    const cur = queue[head++];
+    const cx = cur % N;
+    const cz = (cur / N) | 0;
+    for (const [dx, dz] of NEIGHBOURS) {
+      const nx = cx + dx;
+      const nz = cz + dz;
+      if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
+      const ni = nz * N + nx;
+      if (seen[ni] || blocked[ni]) continue;
+      if (dx && dz && (blocked[cz * N + nx] || blocked[nz * N + cx])) continue; // as the walk itself: no squeezing between two corners
+      seen[ni] = 1;
+      queue[tail++] = ni;
+    }
+  }
+  for (let i = 0; i < N * N; i++) if (!seen[i]) blocked[i] = 1;
 }
 
 // the nearest open cell to (x, z) — he may be standing hard against a tree
@@ -130,9 +170,11 @@ const NEIGHBOURS = [
 // through in turn, ending exactly at `to`; null if there is no way.
 export function planPath(colliders, from, to) {
   const blocked = blockedGrid(colliders);
-  const start = nearestOpen(blocked, from.x, from.z);
   const goal = nearestOpen(blocked, to.x, to.z);
-  if (start < 0 || goal < 0) return null;
+  if (goal < 0) return null;
+  sealPockets(blocked, goal); // only ground that leads to the goal counts as open from here on
+  const start = nearestOpen(blocked, from.x, from.z);
+  if (start < 0) return null;
 
   const gx1 = goal % N;
   const gz1 = (goal / N) | 0;

@@ -310,10 +310,12 @@ export function createPlayer(scene, spawn) {
     player.rollDir = { x: dirX, z: dirZ };
   }
 
-  // colliders are circles {x, z, r} (trees, rocks) or axis-aligned rects
-  // {minX, maxX, minZ, maxZ} (hovel walls, furniture). Being pushed out of one
-  // also takes away the speed that was carrying him into it, so he slides
-  // along a wall and stops against it instead of running on the spot.
+  // colliders are circles {x, z, r} (trees, rocks), axis-aligned rects
+  // {minX, maxX, minZ, maxZ} (hovel walls, furniture) or rects turned on the
+  // map {x, z, halfX, halfZ, cos, sin} (the neighbours' houses — cottage.js
+  // turnedRect). Being pushed out of one also takes away the speed that was
+  // carrying him into it, so he slides along a wall and stops against it
+  // instead of running on the spot.
   function resolveCollisions(colliders) {
     const p = player.pos;
     const v = player.vel; // Vector2: y holds z
@@ -329,6 +331,32 @@ export function createPlayer(scene, spawn) {
           const nz = dz / d;
           p.x = c.x + nx * minDist;
           p.z = c.z + nz * minDist;
+          const into = v.x * nx + v.y * nz;
+          if (into < 0) {
+            v.x -= nx * into;
+            v.y -= nz * into;
+          }
+        }
+      } else if (c.cos !== undefined) {
+        // a turned rect: seen in its own frame it is an upright one about the origin
+        const dx = p.x - c.x;
+        const dz = p.z - c.z;
+        const u = dx * c.cos - dz * c.sin;
+        const w = dx * c.sin + dz * c.cos;
+        const hu = c.halfX + PLAYER_RADIUS;
+        const hw = c.halfZ + PLAYER_RADIUS;
+        if (u > -hu && u < hu && w > -hw && w < hw) {
+          // out through the nearest face; (nu, nw) is that face's outward normal
+          let nu = 0;
+          let nw = 0;
+          if (hu - Math.abs(u) < hw - Math.abs(w)) nu = u < 0 ? -1 : 1;
+          else nw = w < 0 ? -1 : 1;
+          const pu = nu ? nu * hu : u;
+          const pw = nw ? nw * hw : w;
+          p.x = c.x + pu * c.cos + pw * c.sin;
+          p.z = c.z - pu * c.sin + pw * c.cos;
+          const nx = nu * c.cos + nw * c.sin;
+          const nz = -nu * c.sin + nw * c.cos;
           const into = v.x * nx + v.y * nz;
           if (into < 0) {
             v.x -= nx * into;

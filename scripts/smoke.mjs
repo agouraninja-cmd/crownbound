@@ -2169,7 +2169,7 @@ try {
     });
     console.log('gap:', JSON.stringify(gap));
     const gv = gap.rolls.map((r) => r.verdict);
-    if (gap.version !== 13 || gap.laid) errors.push(`reckoning: v12 save migrated to ${gap.version}, laid kept: ${gap.laid}`);
+    if (gap.version !== 14 || gap.laid) errors.push(`reckoning: v12 save migrated to ${gap.version}, laid kept: ${gap.laid}`);
     if (gv.length !== 4 || gv[1] !== 'unreckoned' || gv[2] !== 'unreckoned' || gv[3] !== 'held')
       errors.push(`reckoning: the months owed closed as ${JSON.stringify(gv)}`);
     if (gap.rolls[3]?.saved !== 120 || gap.rolls[3]?.counted !== 1220 || 'earned' in (gap.rolls[3] ?? {}))
@@ -3693,6 +3693,199 @@ try {
     const home = await page.evaluate(() => ({ coins: window.__game.getState().coins, banner: !!document.getElementById('proving-banner'), url: location.href }));
     console.log('back:', JSON.stringify(home));
     want(home.coins === 77 && !home.banner && !home.url.includes('test=') && !home.url.includes('market='), `leave: ${JSON.stringify(home)}`);
+  } else if (scenario === 'village') {
+    // The neighbours' houses: 24 stand where the layout says, each one solid;
+    // none on another, on anything that was here before, on the road, the
+    // strip or its track; a man can stand on every doorstep and walk home from
+    // it; the windows light after dark and the hearths smoke; the whole
+    // village is a handful of draw calls; and the map shows each house with
+    // a line of its own.
+    const v = await page.evaluate(() => {
+      const g = window.__game;
+      const { LAYOUT: L, pathX, fieldGap, trackGap, doorstep } = g.layout;
+      const p = g.player;
+      const problems = [];
+      const world = (h, u, w) => {
+        const c = Math.cos(h.rotY);
+        const s = Math.sin(h.rotY);
+        return [h.x + u * c + w * s, h.z - u * s + w * c];
+      };
+      // how far outside a house's walls a spot lies (0 within them)
+      const gap = (h, x, z) => {
+        const c = Math.cos(h.rotY);
+        const s = Math.sin(h.rotY);
+        const dx = x - h.x;
+        const dz = z - h.z;
+        return Math.hypot(Math.max(Math.abs(dx * c - dz * s) - h.length / 2, 0), Math.max(Math.abs(dx * s + dz * c) - h.width / 2, 0));
+      };
+      const edge = (h) => {
+        const pts = [];
+        for (let t = -1; t <= 1.001; t += 0.125) {
+          pts.push(world(h, (t * h.length) / 2, h.width / 2), world(h, (t * h.length) / 2, -h.width / 2), world(h, h.length / 2, (t * h.width) / 2), world(h, -h.length / 2, (t * h.width) / 2));
+        }
+        return pts;
+      };
+      const settle = (x, z) => {
+        p.respawn(x, z);
+        for (let i = 0; i < 4; i++) p.update(1 / 60, 0, g.colliders);
+        return { x: p.pos.x, z: p.pos.z };
+      };
+
+      // 1) solid: a man set just inside each wall, or in the middle, is put out of doors
+      for (const h of L.houses) {
+        for (const [u, w] of [[0, h.width / 2 - 0.25], [0, -h.width / 2 + 0.25], [h.length / 2 - 0.25, 0], [-h.length / 2 + 0.25, 0], [0, 0]]) {
+          const at = settle(...world(h, u, w));
+          if (gap(h, at.x, at.z) < 0.3) problems.push(`${h.id}: a man set inside it at (${u.toFixed(1)}, ${w.toFixed(1)}) was left inside`);
+        }
+      }
+
+      // 2) each on ground of its own
+      const things = [
+        ['thy hovel', L.hovel, 2.3], ['the granary', L.granary, 2.6], ['the Exchequer', L.exchequer, 1.9], ['the Quest Board', L.questBoard, 1.2],
+        ['the Tome', L.tome, 0.6], ['the Charter', L.charter, 0.4], ['the campfire', L.campfire, 0.7], ['the dummy', L.dummy, 0.5],
+        ['the chapman’s pitch', L.cart, 2.6], ['the spawn', L.playerSpawn, 0.5],
+      ];
+      for (const h of L.houses) {
+        for (const [name, at, r] of things) {
+          const d = gap(h, at.x, at.z) - r;
+          if (d < 2.5) problems.push(`${h.id} stands ${d.toFixed(1)} from ${name}`);
+        }
+        for (const t of g.mapMarks.trees) if (gap(h, t.x, t.z) < 0.45 * t.s + 0.6) problems.push(`${h.id} stands on the tree at (${t.x.toFixed(1)}, ${t.z.toFixed(1)})`);
+        for (const r of g.mapMarks.rocks) if (gap(h, r.x, r.z) < r.s * 0.85 + 0.5) problems.push(`${h.id} stands on the boulder at (${r.x.toFixed(1)}, ${r.z.toFixed(1)})`);
+        const pts = edge(h);
+        if (pts.some(([x, z]) => Math.abs(x - pathX(z)) < 4)) problems.push(`${h.id} stands in the road`);
+        if (pts.some(([x, z]) => fieldGap(x, z) < 3.3)) problems.push(`${h.id} stands against the strip's fence`);
+        if (pts.some(([x, z]) => trackGap(x, z) < 2)) problems.push(`${h.id} stands on the cart track`);
+        if (pts.some(([x, z]) => Math.hypot(x, z) > 74)) problems.push(`${h.id} stands at the world's edge`);
+        if (pts.some(([x, z]) => Math.hypot(x - L.granary.x, z - L.granary.z) < 6.5)) problems.push(`${h.id} stands where the rats run`);
+        for (const o of L.houses) {
+          if (o.id <= h.id) continue;
+          const d = Math.min(...pts.map(([x, z]) => gap(o, x, z)), ...edge(o).map(([x, z]) => gap(h, x, z)));
+          if (d < 2.2) problems.push(`${h.id} and ${o.id} stand only ${d.toFixed(1)} apart`);
+        }
+      }
+
+      // 3) every doorstep can be stood on, and there is a way home from it
+      const home = { x: g.door.x + 1.3, z: g.door.z };
+      let longest = { id: '', ratio: 0 };
+      for (const h of L.houses) {
+        const d = doorstep(h, 0.9);
+        const at = settle(d.x, d.z);
+        const shoved = Math.hypot(at.x - d.x, at.z - d.z);
+        if (shoved > 0.25) problems.push(`${h.id}: its doorstep is blocked (a man set on it is shoved ${shoved.toFixed(2)})`);
+        const route = g.planPath(g.colliders, d, home);
+        if (!route) {
+          problems.push(`${h.id}: no way home from its door`);
+          continue;
+        }
+        let len = 0;
+        let from = d;
+        for (const q of route) {
+          len += Math.hypot(q.x - from.x, q.z - from.z);
+          from = q;
+        }
+        const straight = Math.hypot(d.x - home.x, d.z - home.z);
+        if (len / straight > longest.ratio) longest = { id: h.id, ratio: len / straight };
+        if (len > straight * 1.5 + 8) problems.push(`${h.id}: the way home from its door is ${len.toFixed(0)} long for ${straight.toFixed(0)} as the crow flies`);
+      }
+      // ...and from the strip, and from places a spent man is often found
+      for (const [name, x, z] of [['the strip', 27, 33], ['the Quest Board', 4, -0.5], ['the far lane', -36, 2], ['the east road', 4, 44], ['the hill', 36, -8]]) {
+        if (!g.planPath(g.colliders, { x, z }, home)) problems.push(`no way home from ${name}`);
+      }
+      p.respawn(L.playerSpawn.x, L.playerSpawn.z);
+
+      // 4) after dark the windows are lit from within; the hearths smoke
+      const win = g.scene.getObjectByName('village-windows');
+      const col = win.geometry.attributes.color;
+      const brightest = () => {
+        let m = 0;
+        for (let i = 0; i < col.count; i++) m = Math.max(m, col.getX(i));
+        return m;
+      };
+      const noon = new Date(2026, 5, 21, 13, 0);
+      g.sky.setClock(noon);
+      const day = brightest();
+      g.sky.setClock(new Date(2026, 5, 21, 23, 30));
+      const night = brightest();
+      g.sky.setClock(noon);
+
+      // 5) the cost: a couple of meshes a row, however much stands in the yards
+      let meshes = 0;
+      let triangles = 0;
+      g.scene.getObjectByName('village').traverse((o) => {
+        if (!o.isMesh) return;
+        meshes++;
+        triangles += o.geometry.attributes.position.count / 3;
+      });
+
+      return {
+        count: L.houses.length, stood: g.village.houses.length, ids: new Set(L.houses.map((h) => h.id)).size,
+        colliders: g.colliders.length, smokes: g.village.smokes.length, windows: col.count / 6, day, night, meshes, triangles: Math.round(triangles), longest, problems,
+      };
+    });
+    console.log('village:', JSON.stringify({ ...v, problems: v.problems.length }));
+    for (const problem of v.problems) errors.push(`village: ${problem}`);
+    if (v.count !== 24 || v.stood !== 24 || v.ids !== 24) errors.push(`village: ${v.count} plots, ${v.stood} houses stood, ${v.ids} names — wanted 24 of each`);
+    if (v.smokes < 12) errors.push(`village: only ${v.smokes} hearths smoke`);
+    if (v.windows < 30) errors.push(`village: only ${v.windows} doorways and windows`);
+    if (!(v.day < 0.25)) errors.push(`village: the windows glow by day (${v.day.toFixed(2)})`);
+    if (!(v.night > 0.6)) errors.push(`village: the windows stay dark at night (${v.night.toFixed(2)})`);
+    if (v.meshes > 21) errors.push(`village: ${v.meshes} meshes — the rows are not being baked`); // three a row at most, the windows, the embers
+    if (v.triangles > 24 * 6000) errors.push(`village: ${v.triangles} triangles for 24 houses`);
+
+    // the map: The Village shows all 24, each with a line of its own
+    await page.evaluate(() => window.__game.openPanel('map'));
+    await new Promise((r) => setTimeout(r, 400));
+    await page.click('#map-body [data-view="village"]');
+    await new Promise((r) => setTimeout(r, 300));
+    const onMap = await page.evaluate(() => {
+      const caption = document.getElementById('map-caption');
+      const lines = [];
+      for (const el of document.querySelectorAll('#map-body .m-site[data-place^="house-"]')) {
+        el.dispatchEvent(new MouseEvent('mouseenter'));
+        lines.push({ id: el.dataset.place.slice(6), note: caption.textContent });
+        el.dispatchEvent(new MouseEvent('mouseleave'));
+      }
+      return { view: document.querySelector('.map-views button.on')?.dataset.view, lines, idle: caption.textContent };
+    });
+    console.log('on the map:', onMap.lines.length, 'houses;', JSON.stringify(onMap.lines.slice(0, 2)));
+    if (onMap.view !== 'village') errors.push('village: The Village button did not change the plan');
+    if (onMap.lines.length !== 24) errors.push(`village: the map shows ${onMap.lines.length} houses`);
+    if (new Set(onMap.lines.map((l) => l.note)).size !== onMap.lines.length) errors.push('village: two houses read the same line on the map');
+    for (const l of onMap.lines) {
+      if (l.note === onMap.idle || !/^The .+ — ./.test(l.note)) errors.push(`village: ${l.id} reads "${l.note}" on the map`);
+      if (l.note.length > 150) errors.push(`village: ${l.id}'s line is ${l.note.length} characters`);
+      if (/\d\d|centur|england|english/i.test(l.note)) errors.push(`village: ${l.id}'s line names a year, a century or a country`);
+    }
+    await page.screenshot({ path: 'scripts/smoke-village-map.png' });
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 300));
+
+    // pictures: the green, the lanes, the village from the strip, and by night
+    const look = async (file, x, z, yaw, pitch, dist, hour = 13) => {
+      await page.evaluate(
+        (x, z, yaw, pitch, dist, hour) => {
+          const g = window.__game;
+          g.sky.setClock(new Date(2026, 5, 21, Math.floor(hour), (hour % 1) * 60));
+          g.player.respawn(x, z);
+          g.orbitCam.setView(yaw, pitch, dist);
+        },
+        x, z, yaw, pitch, dist, hour
+      );
+      await new Promise((r) => setTimeout(r, 1500));
+      await page.screenshot({ path: `scripts/smoke-village-${file}.png` });
+    };
+    await look('green-north', 2.5, 2, -Math.PI / 2 - 0.3, 0.16, 6); // from the green, up to the knoll (nearer in: the hovel's roof is behind him)
+    await look('green-south', -2, 0, Math.PI / 2 + 0.2, 0.2, 10); // ...and south, past the hovel
+    await look('oak-lane', -13, 5.4, Math.PI / 2, 0.2, 8); // down the oak lane
+    await look('birch-lane', -11, -13.6, Math.PI / 2 - 0.1, 0.2, 8); // down the birch lane
+    await look('east', -7, 15, Math.PI + 0.2, 0.22, 9); // the east lane
+    await look('from-strip', 20, 24, Math.PI / 4, 0.3, 12); // the village from the field gate
+    await look('hill', 32, -8, -Math.PI / 2, 0.2, 9); // up to the two houses on the hill
+    await look('air', -6, 4, 0.6, 1.0, 14); // from above
+    await look('dusk', 2.5, 2, -Math.PI / 2 - 0.3, 0.16, 6, 18.6);
+    await look('night', -12, 5.4, Math.PI / 2 - 0.5, 0.2, 9, 22);
+    await page.evaluate(() => window.__game.sky.setClock(new Date(2026, 5, 21, 13, 0)));
   }
 
   await new Promise((r) => setTimeout(r, 1500));

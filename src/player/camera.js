@@ -64,6 +64,15 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
   let indoor01 = 0;
   const INDOOR_DIST = 1.8;
 
+  // A neighbour's house between the eye and the man would hide him behind a
+  // wall of thatch, so the orbit is shortened to stop the eye at the wall
+  // (setGuard: how far a line from his head is clear). It draws in at once
+  // and lets out again slowly, so passing a house's corner does not pump it.
+  let guard = null; // (x, y, z, dx, dy, dz, length) => the clear length of that line
+  let guarded = Infinity; // how long the orbit is allowed to be while a house is in the way, eased (Infinity: nothing is)
+  const GUARD_GAP = 0.3; // the eye stops this far short of the wall
+  const GUARD_MIN = 0.9; // ...but never nearer his head than this
+
   function tryLock() {
     if (isUiOpen() || document.pointerLockElement === canvas) return;
     // raw 1:1 mouse input — the OS acceleration curve makes aiming swimmy
@@ -218,13 +227,21 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
     }
     smoothDist += (dist - smoothDist) * (1 - Math.exp(-dt * 9)); // wheel zoom eases, rotation doesn't
 
-    const d = smoothDist + (Math.min(smoothDist, INDOOR_DIST) - smoothDist) * indoor01;
+    let d = smoothDist + (Math.min(smoothDist, INDOOR_DIST) - smoothDist) * indoor01;
     const cp = Math.cos(pitch);
-    desired.set(
-      pivot.x + Math.sin(yaw) * cp * d,
-      pivot.y + 1.4 + Math.sin(pitch) * d,
-      pivot.z + Math.cos(yaw) * cp * d
-    );
+    const ox = Math.sin(yaw) * cp; // the way from his head to the eye
+    const oy = Math.sin(pitch);
+    const oz = Math.cos(yaw) * cp;
+    if (guard) {
+      const free = guard(pivot.x, pivot.y + 1.4, pivot.z, ox, oy, oz, d);
+      const want = free >= d ? d : Math.max(GUARD_MIN, free - GUARD_GAP); // the orbit this line of sight allows
+      if (guarded > d) guarded = d; // not drawn in — or the orbit itself has been shortened
+      guarded += (want - guarded) * (1 - Math.exp(-dt * (want < guarded ? 20 : 3.5)));
+      const letGo = want >= d && d - guarded < 0.02; // let out all the way: the guard lets go of the zoom
+      d = guarded;
+      if (letGo) guarded = Infinity;
+    }
+    desired.set(pivot.x + ox * d, pivot.y + 1.4 + oy * d, pivot.z + oz * d);
     const floor = terrainHeight(desired.x, desired.z) + 0.35;
     if (desired.y < floor) desired.y = floor;
     if (indoor01 > 0.001) {
@@ -257,12 +274,18 @@ export function createOrbitCamera(camera, canvas, isUiOpen) {
     setInterior(zone) {
       interior = zone;
     },
+    // fn(x, y, z, dx, dy, dz, length): how much of the line from (x, y, z)
+    // along the unit way (dx, dy, dz) is clear of what the eye must not pass
+    setGuard(fn) {
+      guard = fn;
+    },
     setView(newYaw, newPitch, newDist) {
       glide = null;
       yaw = newYaw;
       pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, newPitch));
       dist = Math.min(14, Math.max(3, newDist));
       smoothDist = dist; // smoke screenshots want the view now, not eased
+      guarded = Infinity; // ...and the guard measured afresh from there
       taken = true; // stop the showcase orbit
     },
     // Swing the eye round to a new yaw and pitch over `seconds`, the short

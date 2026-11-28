@@ -2,7 +2,8 @@
 
 ## Vision
 A third-person, low-poly 3D medieval life RPG — set in **England, around 1250** — that is also the owner's personal goal tracker.
-The player lives in **Brackenley**, a village in a clearing of the Brackenwood, in the **Kingdom of Aldermere**
+The player lives in **Brackenley**, a village in a clearing of the Brackenwood — his hovel and
+twenty-four neighbours' houses about a green — in the **Kingdom of Aldermere**
 (both fictional; names in `CONFIG.realm`, shown on the Map of the Kingdom).
 **Real life levels you up; the game is where you feel it.** The player completes real-world goals
 (lifting, tennis, business, learning, saving), logs them as quests at the in-game Quest Board, and
@@ -42,16 +43,20 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/state/prefs.js    device preferences (mouse feel), own localStorage slot outside the save
 src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
 vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
-src/scene/layout.js   where everything stands: LAYOUT positions, NORTH (the compass), the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap)
-src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() static batching, tint/sway/batch helpers, hit flash
+src/scene/layout.js   where everything stands: LAYOUT positions, NORTH (the compass), the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap), the neighbours' plots and the lanes between them (houseToWorld / worldToHouse / doorstep / houseGap / doorGap / laneGap)
+src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() / bakeDeep() static batching, tint/sway/batch helpers, hit flash
 src/scene/kit.js      the building kit: palette, thatch roofs, boarding, stone footings, villager heads/arms/robes
-src/scene/terrain.js  analytic terrain height fn (gameplay) + the drawn land: faceted vertex-colored ground, dirt path, outer hills, far mountains
+src/scene/cottage.js  the cottage kit the neighbours' houses are raised from: walls (daub/cob/stone/turf, wattle/plank/open for outbuildings), frames (box/cruck/post), thatch in three courses (gable/hip/half-hip), doors, windows, smoke holes, lean-tos, outbuildings, a lean; raiseHouse() stands one on its plot, turnedRect() is its collider
+src/scene/toft.js     the yard kit: fences and hedges, garden beds and their crops, vessels, woodpiles, ricks, tools, a pond, the beasts at rest
+src/scene/houses/     the neighbours' houses, one file each (24): its name, its line on the map, and build(c) — its walls and roof and the touch that sets it apart; index.js lists them
+src/scene/village.js  the 24 houses assembled: each built, stood on its plot (LAYOUT.houses) and baked into its row; their colliders, hearth smoke, doorways and windows lit after dark, and sight() — what the camera's guard may not pass
+src/scene/terrain.js  analytic terrain height fn (gameplay) + the drawn land: faceted vertex-colored ground, dirt path, the worn earth about the neighbours' houses and down the lanes, outer hills, far mountains
 src/scene/daylight.js the hour of the real day: skyAt(date) — where sun and moon stand by the player's own clock (pure), + `daylight`, what unlit things read of it
 src/scene/sky.js      the sky that keeps the hour: dome, sun, moon in her phase, stars, low-poly clouds, fog, the key + fill light, the shadow box that follows the player
 src/scene/scatter.js  merged woodland: pines/oaks/birches, boulders, pebbles, and the backdrop forest beyond the walkable world
 src/scene/flora.js    grass tufts, meadow grass, wildflowers, ferns, bushes — no colliders, all wind-swayed
 src/scene/wind.js     the shared wind clock + the vertex-shader patch that sways foliage and grass
-src/scene/ambient.js  ambient life: hovel smoke, motes in the light, birds, butterflies
+src/scene/ambient.js  ambient life: smoke from the hovel's roof and the neighbours' hearths, motes in the light, birds, butterflies
 src/scene/particles.js  soft-puff particle pool (one Points draw call per pool): smoke
 src/scene/sprites.js  the canvas-drawn soft dot texture + additive glow billboards
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
@@ -63,8 +68,8 @@ src/scene/world.js    assembles scene, exposes interactables + terrainHeight; up
 src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements; the hoe and sickle, hidden in the stick hand
 src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
 src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
-src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed); setGaze / glideTo, the opening's two camera moves
-src/player/pathfind.js  the walk home: grid A* around the colliders, path pulled taut
+src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed); setGaze / glideTo, the opening's two camera moves; setGuard, the eye stopped at a neighbour's wall
+src/player/pathfind.js  the walk home: grid A* around the colliders (circles, upright rects, turned rects), pockets that lead nowhere shut first, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
 src/proving/proving.js   the Proving Ground (?test=1): which world this is, its save slot, the moved clock — must stay main.js's FIRST import
@@ -80,10 +85,11 @@ src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to th
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
 src/ui/rest.js        the rest card shown abed once stamina is spent: his line, "come back tomorrow", ledger buttons
 src/ui/intro.js       the opening a blank save begins with: the title, the dream of the crown, the waking, the oath; caption() — a line of ink over the scene
-src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT
+src/ui/map.js         the Map of the Kingdom (M): the realm drawn once as SVG + the village plan drawn live from LAYOUT (three zooms; every neighbour's house reads its own line)
 src/ui/wares.js       the wares pictured and explained: an ink-and-wash SVG per shop item + the stick, and each one's "read more" (shop + chest)
 src/ui/audio.js       WebAudio synth blips (hit, ding, squeak, page, footfall, landing, hoe/seed/sickle, the dream's bells)
 scripts/smoke.mjs     the headless regression suite (see Session notes)
+scripts/bench/        the house bench (a dev tool, not the game): house.html + house.js stand one neighbour's house on its real plot under the game's own sky, shot.mjs photographs it from four sides (see Session notes)
 scripts/build-guide.py  builds CROWNBOUND-Guide.docx (`npm run guide`): the prose, with every number read from config.js via scripts/guide-config.mjs, laid over scripts/guide-template.docx
 scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / python) and runs build-guide.py
 ```

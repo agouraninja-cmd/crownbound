@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 
 // deterministic rng so the world is identical every load
 export function makeRng(seed) {
@@ -83,6 +84,22 @@ export function mesh(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, 
   return m;
 }
 
+// A closed solid round a handful of points [x, y, z] — the way to make any
+// shape that boxes and cylinders will not (a course of thatch, a beast's
+// barrel). Convex, so it is whole from every side.
+export function hull(points) {
+  const seen = new Set();
+  const pts = [];
+  for (const [x, y, z] of points) {
+    const key = `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      pts.push(new THREE.Vector3(x, y, z));
+    }
+  }
+  return new ConvexGeometry(pts);
+}
+
 // The same colour a shade lighter or darker (k around 1). Boards, stones and
 // straw each take their own, so nothing built from many pieces looks stamped.
 export function tone(hex, k) {
@@ -130,6 +147,52 @@ export function bake(root) {
     const merged = new THREE.Mesh(mergeGeometries(geos, false), BAKED);
     merged.castShadow = shadow;
     merged.receiveShadow = shadow;
+    root.add(merged);
+  }
+  return root;
+}
+
+// bake() all the way down: every plain mesh under root — through child Groups
+// and whatever turns and offsets they carry — is folded into root's own few
+// meshes. For scenery the game never moves again (a whole row of houses): the
+// Groups it was put together from cost nothing once it is done. Meshes bake()
+// would leave alone are left alone here too.
+//   smallBelow  pieces whose longest side is under this (a hen, a leek, a
+//               peg) are shaded by what stands over them but throw no shadow
+//               of their own: one more mesh, and far less for the sun to draw
+export function bakeDeep(root, { smallBelow = 0 } = {}) {
+  root.updateMatrixWorld(true);
+  const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const m4 = new THREE.Matrix4();
+  const size = new THREE.Vector3();
+  const cast = [];
+  const shaded = []; // receives shadow, casts none
+  const plain = [];
+  const folded = [];
+  root.traverse((o) => {
+    if (o === root || !bakeable(o)) return;
+    const geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    if (!geo.attributes.normal) geo.computeVertexNormals();
+    geo.applyMatrix4(m4.multiplyMatrices(toRoot, o.matrixWorld));
+    for (const name of Object.keys(geo.attributes)) {
+      if (name !== 'position' && name !== 'normal') geo.deleteAttribute(name);
+    }
+    paint(geo, o.material.color);
+    let bucket = o.castShadow ? cast : plain;
+    if (o.castShadow && smallBelow) {
+      geo.computeBoundingBox();
+      geo.boundingBox.getSize(size);
+      if (Math.max(size.x, size.y, size.z) < smallBelow) bucket = shaded;
+    }
+    bucket.push(geo);
+    folded.push(o);
+  });
+  for (const o of folded) o.parent.remove(o);
+  for (const [geos, casts, receives] of [[cast, true, true], [shaded, false, true], [plain, false, false]]) {
+    if (!geos.length) continue;
+    const merged = new THREE.Mesh(mergeGeometries(geos, false), BAKED);
+    merged.castShadow = casts;
+    merged.receiveShadow = receives;
     root.add(merged);
   }
   return root;
