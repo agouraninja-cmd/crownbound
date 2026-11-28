@@ -1861,6 +1861,7 @@ headlessly; everything else covered by the regression suite below.
   container (not this change's). On the merge, `cart`, `alive`, `miller`, `market`, `guide` and
   the render pass. `promptOffered()` (smoke.mjs) now waits two frames and for a shown prompt: a
   hidden prompt keeps its last words, and `alive` read the chapwoman's old prompt as the miller's.
+  After merging The Plough as well: `cart`, `plough`, `guide`, `spent` and the render pass.
   Seen only in the software renderer, not yet on the owner's screen; the walk was judged from
   stills. Details: "The Chapwoman's Hours" under Noted decisions.
 
