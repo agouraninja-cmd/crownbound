@@ -43,8 +43,8 @@ src/state/state.js    save/load/migrate, rollover, XP/coins/streak/stamina mutat
 src/state/prefs.js    device preferences (mouse feel), own localStorage slot outside the save
 src/state/mirror.js   dev-only save mirror: pushes each change to /__save; an empty boot adopts the file
 vite.config.js        dev server config + save-mirror plugin (/__save ⇄ saves/crownbound-save.json)
-src/scene/layout.js   where everything stands: LAYOUT positions, NORTH (the compass), the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap), the neighbours' plots and the lanes between them (houseToWorld / worldToHouse / doorstep / houseGap / doorGap / laneGap)
-src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() / bakeDeep() static batching, tint/sway/batch helpers, hit flash
+src/scene/layout.js   where everything stands: LAYOUT positions, NORTH (the compass), the path's centreline, dirt patches, the field's own frame (fieldToWorld / worldToField / fieldGap / trackGap), the neighbours' plots and the lanes between them (houseToWorld / worldToHouse / doorstep / houseGap / yardGap / doorGap / laneGap)
+src/scene/meshUtils.js  shared geometry tools: seeded rng, value noise, mesh() + bake() / bakeDeep() static batching, hull() for any convex solid, tint/sway/batch helpers, hit flash
 src/scene/kit.js      the building kit: palette, thatch roofs, boarding, stone footings, villager heads/arms/robes
 src/scene/cottage.js  the cottage kit the neighbours' houses are raised from: walls (daub/cob/stone/turf, wattle/plank/open for outbuildings), frames (box/cruck/post), thatch in three courses (gable/hip/half-hip), doors, windows, smoke holes, lean-tos, outbuildings, a lean; raiseHouse() stands one on its plot, turnedRect() is its collider
 src/scene/toft.js     the yard kit: fences and hedges, garden beds and their crops, vessels, woodpiles, ricks, tools, a pond, the beasts at rest
@@ -68,7 +68,7 @@ src/scene/world.js    assembles scene, exposes interactables + terrainHeight; up
 src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements; the hoe and sickle, hidden in the stick hand
 src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
 src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
-src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed); setGaze / glideTo, the opening's two camera moves; setGuard, the eye stopped at a neighbour's wall
+src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed); setGaze / glideTo, the opening's two camera moves; setGuard, the eye stopped at a neighbour's wall (crowded(): so near his head that he is left undrawn)
 src/player/pathfind.js  the walk home: grid A* around the colliders (circles, upright rects, turned rects), pockets that lead nowhere shut first, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
 src/combat/rats.js    granary rats: wander/chase/bite AI, bounty, daily respawn
@@ -672,8 +672,9 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     path (`pathX`), the strip (`fieldToWorld`, each ridge coloured by today's `farmRowLooks`),
     the real trees and boulders (`world.mapMarks`, scatter's own arrays), the cart only on a
     market day, the bounds (radius 78) — and the player as a red arrow along `player.facing`.
-    Two zooms: The Green (the village's heart) and The Bounds (all the walkable land); the
-    first open picks by where he stands, then the choice holds for the session.
+    Three zooms (two until The Neighbours): The Green (the village's heart), The Village
+    (every neighbour's house) and The Bounds (all the walkable land); the first open picks
+    by where he stands, then the choice holds for the session.
   - North. The plan is drawn north-up with the world turned by `NORTH` (0.45 rad, layout.js
     since The Turning Sky — the sun rises and sets by it too): that puts the miller's strip
     to the north-east, as the Charter says. The realm's roads agree: the village path leaves east-north-east for
@@ -866,6 +867,171 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
     answer is distrusted (picker). The prompt asks for a second virtue only when plain.
   - The opening's oath posts the first deed; the test world's `daily ath inf` shares XP and
     posts a fresh deed whenever none is waiting (refused at the cap).
+
+- The Neighbours (2026-11-28), the owner: "Add 24 more houses to the villege dont, make all of
+  the houses look the same, have a unique touch to each one of the houses, make sure to have
+  it look like an actual villege for peasents in 1250 AD for the english." Brackenley was a
+  hovel and a granary; it is now twenty-five roofs about a green. The neighbours' houses are
+  SCENERY (Claude's reading — he asked for houses, not for people): solid, lit from within
+  after dark, their hearths smoking, but no door opens, E does nothing at one and nobody is
+  seen living there — the villagers are v2's. No rule, reward or save changed. What a future
+  session must know:
+  - Where they stand: `LAYOUT.houses` (layout.js), one plot each — `{ id, row, seed, x, z,
+    rotY, length, width, door: [wall, at], yard: [u0, v0, u1, v1] }`. A plot has a frame of
+    its own, u along the ridge and v out of the front (the door's side), turned onto the map
+    by `houseToWorld` / `worldToHouse`; `doorstep(plot, out)` is the spot before its door.
+    `yard` is the toft: everything a house's file builds must stand inside it (the bench
+    reports `outsideYard`). `row` is the handful of neighbours a house is baked with. `seed`
+    is the house's own stream of chance (its weathering, its footing stones, where its hens
+    stand): each house was built and looked at with the number it has, so never change one,
+    and give a new plot a new one.
+  - The village's shape is the land's. A village of the time was not a street of equal
+    plots: Brackenley is a green village in six knots (`row`) — `north` on the knoll past the
+    green and out along the road, `west` about the birches, `south` down the oak lane, `east`
+    between the green and the wood, `lane` by the field lane, `hill` at the wood's edge — and
+    about one house in three stands gable-end to its lane. The plots were found by a survey
+    of free ground (clear of every tree, boulder and building, the road, the strip and its
+    track, the rats' yard; no steep fall under a footprint) and then checked against every
+    line the smoke suite walks or photographs. Three of that check's warnings were accepted
+    and are worth knowing: the smithy's front yard must stay low toward +u (the `sky`
+    scenario's night camera looks across it), the flax garth has no front yard (the `body`
+    scenario strafes along z = -9 past it), and the thatcher's yard ends where the walk home
+    from the strip passes. Move a plot and the `village` scenario says whether its ground
+    is free.
+  - Lanes and yards. `LAYOUT.lanes` are worn ways of [x, z] points — eight laid by hand, and
+    a short spur to every door — and, like the cart track, paint only: `laneGap`, `doorGap`
+    (the trodden patch before a door), `yardGap` (a toft, its turf worn thin) and `houseGap`
+    (the earth a house stands on) are read by terrain.js `groundColor`, NOT by `dirtAmount`,
+    and flora weeds them out after its random draws (`built` / `trodden` in flora.js; a bush
+    or fern that would stand in a yard is drawn into a scrap batch). A whole yard is weeded:
+    what stands in it — a pond, a bed of leeks, a heap of chips — must not have meadow
+    growing up through it. The meadow was not re-rolled and `legacyLayout` is untouched.
+    Never add a house to `keepClear()` or `dirtAmount` — the field's rule, for its reason.
+  - One file a house: src/scene/houses/<id>.js exports `{ id, name, note, build(c) }`, and
+    houses/index.js lists them. `name` and `note` are what the map says of it (the note one
+    sentence, "The … — what is seen there", under 150 characters, naming no year, country,
+    village or person — the `village` scenario checks). `build(c)` raises it with the
+    cottage it is handed. `c` is cottage.js's kit — `c.shell({ eave, pitch, walls, wash,
+    frame, timber, roof, thatch, ridge, over, hip, barge, moss, bay, thick })`, `c.door`,
+    `c.window`, `c.smoke`, `c.leanTo`, `c.outbuilding`, `c.lean`, and for hand-made pieces
+    `c.add`, `c.at`, `c.onWall`, `c.onRoof`, `c.solid`, `c.block`, `c.ember`, `c.smokeAt` —
+    with toft.js's yard on top: `c.fence`, `c.bed` and thirty props (`c.barrel`,
+    `c.woodpile`, `c.rick`, `c.tool`, `c.skep`, `c.pond`, `c.tree`, `c.beast`, …; a yard
+    prop may never take the name of a cottage call — `raiseCottage` refuses). Colours are
+    the kit's (`WASH`, `TIMBER`, `THATCHES`, kit.js's palette) and all chance is `c.rng`, so
+    a house is the same on every load. `raiseHouse()` stands it: the floor is the highest
+    ground under the footprint (less 0.04), the walls run 0.9 below it so a slope shows more
+    footing and never a gap, and yard things sit on the real ground (`c.at`, `c.ground`).
+    No house is called a "cot", in its name, its note or its comments: in this game the
+    cot is the player's bed.
+  - How a house of the time is made (the kit's defaults — keep to them): low walls (eaves
+    1.3–1.9; a man stoops at the door) under steep thatch (45–55°, turf 40°) that is most of
+    the house's height; NO chimney — smoke leaves by a hole, a louvre or a gablet, or seeps
+    through the thatch (`c.smoke`'s four kinds); few windows, small, barred, unglazed, with a
+    shutter; oak weathered silver-grey, not black; limewash on a few houses only (four here).
+    Fences are wattle, dead hedge, quick hedge or cleft pales, their gaps shut with slip-poles
+    or a hurdle; washing dries on a hedge. In the garth: leeks, onions, garlic, worts (kale),
+    beans, peas, herbs, hemp, flax. Straw skeps, a two-man hand-barrow, small dark pigs,
+    small red or black cattle, a shaggy pony, geese, hens. Kept out: chimneys, staddle
+    stones, spinning wheels, wheelbarrows, bales, box hives, clothes-lines, round cabbages,
+    picket fences, a roofed well with a windlass, porches, donkeys, dovecotes, rabbits,
+    saw-pits. And not a trade at every door: most of a village farmed.
+  - The 24, so that no two are alike (walls · frame · roof · thatch — its touch):
+    - north — `reeve` limewash · box · half-hip · straw, barge boards, the one louvre: the
+      long house, a barn of its own gable-on behind, a fold yard with a pony, tally sticks ·
+      `alewife` ochre · box · gable · straw: the ale-stake (a bush on a pole over the open
+      door), mash vat, jugs on a board · `smith` soot · post · gable · old thatch, turf
+      ridge: the forge apart under turf, its fire an ember by day, anvil, grindstone ·
+      `potter` clay wash · post · hip · heather: a domed kiln that smokes, boards of grey
+      pots, wasters, a claypit.
+    - west — `flaxwife` daub · box · gable · straw: dyed skeins under the eave, hemp taller
+      than a man, flax in flower, a retting pit · `wright` daub · new-oak box · half-hip ·
+      reed: a beam half hewn on trestles, a wheel short of two felloes, chips · `turfhut`
+      turf walls · no frame · hip · turf: a green hummock, a hurdle for a door, a goat ·
+      `wellhouse` rubble stone (the one stone house) · gable · old mossy thatch: a well's
+      bare kerb, bucket and rope · `newhouse` clean daub · new-oak box · gable · new gold
+      thatch, no hearth yet (dark at night): the daub pit, the builders' ladder.
+    - south — `goosewife` old limewash · post · hip · straw: geese on a long muddy pond,
+      washing on a hedge · `oxhouse` earth wash · cruck · gable · straw: a long house with
+      the byre under the same roof, two oxen in a hurdle yard, the yoke, a plough ·
+      `cruckhouse` daub · cruck (the blades show in both gables) · gable · straw: apple and
+      plum trees, a ladder, a pig at the windfalls · `dairy` fresh limewash · box · hip ·
+      straw: cheeses on a rack under the eaves, a churn, a red cow at her stake · `cottar`
+      cob (the one cob house: rounded corners) · hip · bracken, turf ridge: a garth of leeks
+      and kale, ropes of onions under the eaves, hens.
+    - east — `beekeeper` ochre · box · half-hip · straw: skeps in a row under a thatch of
+      their own · `shepherd` clay wash · post · hip · heather: ewes folded in hurdles, a
+      sheepskin pegged to the wall, a crook, a dog · `carter` daub · box · gable · straw: a
+      cart tipped back under an open hovel, a spare wheel, a tethered pony · `widow` soot ·
+      post · gable · old mossy thatch, turf ridge: the whole house out of plumb (`c.lean`)
+      and shored with three poles; herbs · `ovenwife` clay wash · box · gable · straw: a
+      clay bread oven under its own thatch, the batch on a board, a quern · `swineherd`
+      daub patched in four clays, one panel fallen to the wattle · post · half-hip · old
+      thatch: lean dark pigs penned under the oak.
+    - lane — `thatcher` daub · box · gable · straw: his own roof half laid in new gold
+      strakes, a ladder on the slope, yealms and spars · `hayward` old limewash · box · hip ·
+      straw, he is out (dark at night): the pinfold with a stray cow, his horn by the door.
+    - hill — `collier` soot · post · hip · heather, turf ridge: a smoking charcoal mound,
+      black ground, panniers of charcoal · `woodward` daub · box · gable · straw: a pollard
+      ash, cordwood in long rows, a hurdle half woven on its mould.
+  - Solid, and seen from outside. A house is closed solids — the walls one block, each
+    course of thatch a hull — with no inside, so nothing is drawn that is never seen. The
+    price: an eye inside one sees the backs of its timbers and the underside of its thatch,
+    and a house between the eye and the player hid him altogether. So the camera has a guard
+    (`orbitCam.setGuard(world.village.sight)`): `sight()` (village.js) says how far the line
+    from his head to the eye runs clear of every house (its footprint out to the eaves, up
+    to its roof; a line climbing steeper than the thatch clears it; a line that starts under
+    the eaves is stopped only by the wall it runs into), and the orbit is drawn in to stop
+    0.3 short of the wall — quickly in, slowly out, the wheel's own zoom left as he set it.
+    With his back against a wall there is no room behind him at all: the eye then comes
+    right up behind his head (never past the wall), looks out level along its own line, and
+    main.js leaves him undrawn while it is that close (`orbitCam.crowded()`). The hovel
+    keeps its own indoor rule.
+  - Colliders. A house is one rect TURNED on the map — `{ x, z, halfX, halfZ, cos, sin }`,
+    made by `turnedRect()` (cottage.js) — a third collider shape beside the circle and the
+    upright rect. Two things read colliders and both know it: player.js `resolveCollisions`
+    and pathfind.js `blockedGrid`. The rect is the walls and 0.2 more on the eave sides (all
+    four on a hip — `c.drip`): the thatch hangs to chest height there, and his head went up
+    through it. Yard things are circles; a fence or hedge is a string of them (r 0.27–0.32
+    every 0.4), as round the field. A pen is a pocket no path leads out of, and the walk
+    home must not begin in one: `sealPockets()` (pathfind.js) floods out from the goal and
+    shuts every open cell it cannot reach before the start is chosen. Checked on the whole
+    village: a way home is found from every spot a man can reach (about 5,900 sampled). Left
+    as it was before the village: a start hard against a fence can snap to the fence's far
+    side, and the walk then stalls and he is hurried home (a handful of nooks; one was there
+    already, by the plough at the field gate).
+  - After dark. Every doorway and window in the village is one unlit mesh
+    (`village-windows`) whose colours `village.setNight(night)` rewrites on the sky's slow
+    beat (world.js `sky.onLook`): `openingColour(lit, night)` — the dark within by day,
+    firelight by night by each opening's own `lit`, and a cold house's openings sinking to
+    black (an unlit brown would glow against a night wall). What glows of itself (the forge,
+    the oven's mouth, the kiln's stoke holes) is a `c.ember` piece in a second unlit mesh.
+    No light was added — the perf rule holds. Hearth smoke is the ambient pool's (ambient.js
+    `hearths`; six more puffs a hearth, still the one draw call).
+  - The cost. Each row is baked with `bakeDeep()` (meshUtils) into two meshes — what throws
+    a shadow, and what only takes one (anything under 0.36 on every side, and every piece
+    made with `shadow: false`: unlike `bake()`, such a piece is still shaded here, or moss
+    on a roof's dark side would shine) — and the empty Groups are dropped. The 24 houses and
+    their yards are 14 draw calls and about 105k triangles (65k of them in the shadow pass),
+    3,200–5,300 a house. Views about the village measured 40–130 draw calls and 250–410k
+    triangles in all (they were 40–106 and 250–290k); the rows cull by the frustum, so a
+    view pays for the knots it sees. Not measured on a real GPU.
+  - The map (M). A third zoom, The Village, between The Green and The Bounds; every house
+    is drawn as its roof, turned as it stands, and reads its own `note` on hover.
+  - The bench (scripts/bench/, a dev tool, not the game): `npx vite --port 5180 --strictPort`
+    and then `node scripts/bench/shot.mjs <id> out.png [hour=21] [marks=1] [man=0]
+    [views=bearing,elevation,distance,height;…]` photographs one house on its real plot
+    from four sides and prints its triangles, its colliders and whether anything stands
+    outside its yard. A new house is built there, not in the game.
+  - How it was built, for whoever adds a twenty-fifth: the kits and the layout first, then
+    one builder a house, each given the common rules and a brief of its own (its plot, the
+    walls and roof assigned to it so the 24 differ, its hearth, its touch), working in
+    rounds on the bench. The builders' own reports found the kits' real faults (a prop
+    that shadowed a collider call of the same name, water hidden in its vessel, moss hung
+    off a hip, the wall plate cut above every window) — fix the kit, not the house.
+  - Left as they were, though the same reading of the period frowned on them: the granary's
+    staddle stones (a later fashion), the scarecrow shaped like a man, and the hovel's roof
+    (flatter than thatch was laid).
 
 ## Roadmap (do NOT build before its phase)
 - **v2 — The Living Village**: 2–3 NPC villagers with AI-driven dialogue via the Anthropic API;
@@ -1372,6 +1538,26 @@ headlessly; everything else covered by the regression suite below.
   software renderer, not yet on the owner's screen. Details: "Twice the size and true to
   the year" under "The Miller's Strip" in Noted decisions.
 
+- [x] Post-v1 — "The Neighbours" (2026-11-28), the owner: "Add 24 more houses to the villege
+  dont, make all of the houses look the same, have a unique touch to each one of the houses,
+  make sure to have it look like an actual villege for peasents in 1250 AD". Brackenley is a
+  village now: twenty-four neighbours' houses about the green and down its lanes, on the
+  knoll, among the birches, up at the wood's edge — low walls under steep thatch, no chimney
+  among them, and no two alike: the reeve's long limewashed house with its own barn, the
+  alewife's bush on a pole, the smithy, the potter's kiln, hemp and flax, a wright's yard, a
+  turf hut, a stone house by a well, a house built this year, geese on a pond, a long house
+  with the oxen under the same roof, cruck gables, a dairy, a cob croft under bracken thatch,
+  bee skeps, a sheepfold, a cart hovel, a leaning cottage shored up, a bread oven, pigs, a
+  roof half re-thatched, the pinfold, a charcoal mound, a pollard ash. Smoke rises from their
+  roofs; after dark their doorways and windows show firelight. They are scenery — solid, but
+  no door opens and nobody is seen at home (v2's villagers will move in). The map has a third
+  zoom, The Village, where every roof reads whose it is. Also new, because the houses needed
+  them: a collider turned on the map, a path-finder that will not start a walk inside a pen,
+  and a camera that is drawn in rather than let a house hide the player. No rule, reward or
+  save change. New smoke scenario `village`, which passes (cloud container, headless Chromium,
+  `SMOKE_WAIT=load`); the rest of the suite is being re-run on the final build.
+  CROWNBOUND-Guide.docx rebuilt. Details: "The Neighbours" under Noted decisions.
+
 ### Session notes
 - Headless Chrome renders in software (SwiftShader) at ~9fps since the Renovation; the loop's
   sub-stepping keeps sim time real, so the suite's waits still hold. `render info` is captured
@@ -1471,7 +1657,28 @@ headlessly; everything else covered by the regression suite below.
   way again, skipped at the title, `?intro=0` the old first load, the test world owing none
   and its `intro` command (screenshots → scripts/smoke-intro-dream.png, -waking.png,
   -oath.png, -door.png, -fire.png) ·
+  `village` the 24 neighbours' houses: 24 plots, houses and names; each house's own collider
+  puts out a man set inside it; each on ground of its own (clear of the old things, the trees
+  and boulders, the road, the strip and its track, the rats' yard, the bounds and each other);
+  every doorstep standable and the way home found from it (no long way round), and from five
+  other spots; windows dark by day and lit at night; hearths smoking; the rows baked (≤14
+  meshes) and under 144k triangles; the map's The Village showing 24 roofs, each with a line
+  of its own that names no year or country (screenshots → scripts/smoke-village-green-north.png,
+  -green-south.png, -oak-lane.png, -birch-lane.png, -east.png, -from-strip.png, -hill.png,
+  -air.png, -dusk.png, -night.png, -map.png) ·
   `aerial`/`front` screenshots.
+- The house bench (2026-11-28): `npx vite --port 5180 --strictPort` serves it beside the game's
+  own dev server, and `node scripts/bench/shot.mjs <id> [out.png] [hour=21] [marks=1] [man=0]
+  [views=…]` photographs one neighbour's house on its real plot (the browser is found as the
+  smoke suite finds it; `SMOKE_BROWSER` overrides) and prints its report. `marks=1` draws the
+  yard's bounds and every collider; `all=1` stands the other houses round it. The bench page
+  loads no game and no save. (The game itself opened through a dev server mirrors its save
+  into saves/ — that folder is ignored by git; a stray one from a test session can be deleted.)
+- 2026-11-28: the `reckoning` scenario's v12 seed check still said `gap.version !== 13` after
+  saveVersion went to 14 (Many Deeds), so it failed on plain `main`; it now expects 14.
+- 2026-11-28, building the 24 houses: many agents at once exhausted the week's usage limit of
+  the session's model part-way (every builder stopped mid-run; their files were far enough on
+  to finish by hand). For a job of that size, run fewer at a time, and say which model.
 - Two sessions sharing this folder (no worktree) both serve the suite on port 5199 by default,
   and whichever binds second silently tests the other's server — an old build ("getView is
   not a function"). Give one `SMOKE_PORT=5198` (2026-11-16). They still share dist/: a build
