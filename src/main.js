@@ -191,6 +191,7 @@ const watch = { t: 0, x: 0, z: 0 }; // a stall on the way home: hurried there in
 function beginHomeward() {
   spentPending = false;
   homeward = true;
+  player.dropHaul(); // the plough stays where it stands
   player.setEnabled(false);
   player.invulnerable = true; // no rat spoils the walk home
   showPrompt(null);
@@ -539,9 +540,31 @@ function doorDist() {
   return Math.hypot(player.pos.x - world.door.x, player.pos.z - world.door.z);
 }
 
+// With the plough in his hands E has two uses only: a ridge that wants
+// ploughing (offered from further off than the hoe's — he stands on the last
+// ridge's crown, a ridge's breadth from the next), or setting the plough down.
+// C sets it down anywhere — among ridges that want it, E would only plough.
+const PLOUGH_REACH = 2.6;
+const ploughLeave = { id: 'plough-leave', label: 'leave the plough', x: 0, z: 0 };
+function haulAction() {
+  const s = world.field.spot;
+  const ridgeWaits = farmJob() === 'till' && !getState().farm.done.includes(s.row);
+  // ...and only from inside the fence: the reach is longer than the headland is wide
+  const me = world.field.toField(player.pos.x, player.pos.z);
+  const within = Math.abs(me.u) < world.field.halfLength + 1 && Math.abs(me.v) < (world.field.rows * LAYOUT.field.spacing) / 2 + 1;
+  if (ridgeWaits && within && Math.hypot(player.pos.x - s.x, player.pos.z - s.z) < PLOUGH_REACH) return s;
+  ploughLeave.x = player.pos.x + Math.sin(player.facing) * 0.5;
+  ploughLeave.z = player.pos.z + Math.cos(player.facing) * 0.5;
+  return ploughLeave;
+}
+
 // the door and the panel-interactables all share the E key; nearest wins
 function nearestAction() {
-  const it = nearestInteractable();
+  if (player.haul) return haulAction();
+  let it = nearestInteractable();
+  // the plough left standing on the strip: at its handles they win over the ridge underfoot
+  const ps = world.field.plough.spot;
+  if (it?.id === 'field' && Math.hypot(player.pos.x - ps.x, player.pos.z - ps.z) < 1.0) it = ps;
   const dDoor = doorDist();
   // A newcomer's first E is his own door: straight out of the opening, while
   // it stands shut, it is offered from anywhere in reach — the cot and the
@@ -670,6 +693,7 @@ onChange((reason) => {
 player.groundAt = (x, z) => terrainHeight(x, z) + field.riseAt(x, z);
 
 const FIELD_PROMPTS = { till: 'till this ridge', sow: 'sow this ridge', tend: 'weed this ridge', reap: 'reap this ridge' };
+const PLOUGH_PROMPT = 'plough this ridge <span class="muted">(<b>C</b> sets the plough down)</span>'; // tilling, with the plough in his hands
 const FIELD_PAID = {
   till: (c) => `The strip is tilled. The miller pays a day’s wage. (+${c}c)`,
   sow: (c) => `The seed is in the ground. The miller pays a day’s wage. (+${c}c)`,
@@ -706,13 +730,14 @@ function aimFieldSpot() {
   spot.x = best.x;
   spot.z = best.z;
   spot.row = best.row;
-  spot.label = job ? FIELD_PROMPTS[job] : 'look over the strip';
+  spot.label = !job ? 'look over the strip' : job === 'till' && player.haul ? PLOUGH_PROMPT : FIELD_PROMPTS[job];
 }
 
 // The ridge under the hoe, and the end of it the work began from (-1 or +1
 // along the ridge): each blow works it from there to where the blow lands.
 let workingRow = -1;
 let workingEnd = 1;
+let workingReach = CONFIG.farm.workReach; // how far ahead of him the work lands: the hoe's blow, or the plough's share
 const FURROW_SIDE = 0.5; // he walks this far off the crown, in the furrow beside it
 
 // E at a ridge: he goes to its head — the end the work on it began from, or
@@ -726,6 +751,10 @@ function workTheField() {
     return;
   }
   if (player.mode !== 'normal') return;
+  if (player.haul) {
+    if (job === 'till') ploughTheRidge(field.spot.row);
+    return;
+  }
   const row = field.spot.row;
   const HL = field.halfLength;
   const R = CONFIG.farm.workReach;
@@ -751,6 +780,7 @@ function workTheField() {
     if (farmJob() !== job || !player.startWork(job, from, to, facing)) return;
     workingRow = row;
     workingEnd = end;
+    workingReach = R;
     // the eye swings round to his side: from straight behind, his body hides
     // the tool. A touch of the mouse or a look key calls the swing off.
     orbitCam.glideTo(facing + Math.PI - 1.0, Math.max(orbitCam.getView().pitch, 0.32), 0.9);
@@ -758,13 +788,89 @@ function workTheField() {
   if (Math.hypot(from.x - player.pos.x, from.z - player.pos.z) < 0.3) begin();
   else player.walkRoute([from], begin, { yields: true }); // a movement key calls the walk off
 }
-// where a blow lands: a little ahead of him, the way he faces
+
+// ---------- the plough ----------
+// It lies by the field gate. E at its handles takes them, and it goes before
+// him wherever he walks (player.js: it turns like a cart, and S draws it
+// back); E again sets it down where it stands. On a tilling day, E at a ridge
+// with the plough in his hands ploughs it: he brings the plough round in the
+// open field, draws it back to the ridge's head and walks it down the crown,
+// the earth turning behind the share. The same job as the hoe's and the same
+// pay — the plough is only the quicker way. Where it is left is not saved.
+let ploughTold = false; // its keys are told once a sitting
+function takeThePlough() {
+  if (player.mode !== 'normal') return;
+  const plough = field.plough;
+  const st = plough.stand;
+  const take = () => {
+    if (!player.takeHaul(plough)) return;
+    sfx.creak();
+    if (ploughTold) return;
+    ploughTold = true;
+    toast('The plough is in thy hands: W walks it on, A and D bring it round, S draws it back. C sets it down.', '');
+    if (farmJob() === 'till') toast('The strip wants tilling — E at a ridge ploughs it.', 'gold');
+    else toast('The strip wants no ploughing this day.', '');
+  };
+  // round behind the handles, turned the way it points
+  player.walkRoute([{ x: st.x, z: st.z }], take, { yields: true, facing: st.facing });
+}
+
+const PLOUGH_HEAD = 0.6; // how far out on the headland he may stand to begin: the fence is close behind him
+const PLOUGH_SHORT = 0.45; // the share stops this short of the far end: the wheels are at the fence
+const PLOUGH_ROOM = 3.0; // he brings it round this far in from where the furrow begins, clear of the fences
+function ploughTheRidge(row) {
+  const HL = field.halfLength;
+  const S = field.plough.reach;
+  const me = field.toField(player.pos.x, player.pos.z);
+  const crown = field.toField(field.ridgePoint(row, 0).x, field.ridgePoint(row, 0).z);
+  const part = getState().farm.part[row];
+  const end = part ? part.end : me.u >= 0 ? 1 : -1;
+  // measured in from the head of the ridge at `end`: the share starts where
+  // the work has reached, and he stands the plough's length behind it
+  const worked = part ? part.k * HL * 2 : 0;
+  const startAt = Math.max(-PLOUGH_HEAD, worked - S);
+  const endAt = HL * 2 - PLOUGH_SHORT - S;
+  if (startAt >= endAt - 0.05) {
+    finishRidge(row, end); // a hoe left only the last step of it
+    return;
+  }
+  const at = (a, side = 0) => field.ridgePoint(row, end * (HL - a), side);
+  const from = at(startAt);
+  const to = at(endAt);
+  const facing = Math.atan2(to.x - from.x, to.z - from.z);
+  const begin = () => {
+    if (farmJob() !== 'till' || !player.startWork('till', from, to, facing, { plough: true })) return;
+    workingRow = row;
+    workingEnd = end;
+    workingReach = S;
+    // the eye swings out to his side, to see the earth turn
+    orbitCam.glideTo(facing + Math.PI - 0.8, Math.max(orbitCam.getView().pitch, 0.34), 0.9);
+  };
+  // already on the ridge's line and turned down it (called off, and back): straight on
+  const mine = me.u * -end + HL; // how far in from the head he stands
+  let off = (facing - player.facing) % (Math.PI * 2);
+  if (off > Math.PI) off -= Math.PI * 2;
+  if (off < -Math.PI) off += Math.PI * 2;
+  if (Math.abs(me.v - crown.v) < 0.5 && Math.abs(off) < 0.5 && mine > startAt - 0.3) {
+    begin();
+    return;
+  }
+  // else out into the open field to bring it round — the two outermost
+  // ridges lie too near the side fence for that, so a little inward of them
+  const roomAt = Math.min(startAt + PLOUGH_ROOM, HL * 2 - 2.4);
+  const inward = Math.max(-4.9, Math.min(4.9, crown.v)) - crown.v;
+  player.walkRoute([at(roomAt, inward)], begin, { yields: true, facing });
+}
+
+// where the work lands: a little ahead of him, the way he faces
 const blowAt = () => {
-  const R = CONFIG.farm.workReach;
+  const R = workingReach;
   return { x: player.pos.x + Math.sin(player.facing) * R, z: player.pos.z + Math.cos(player.facing) * R };
 };
 player.onWorkStroke = (kind) => {
-  if (kind === 'sow') sfx.sow();
+  if (player.haul) {
+    if (player.work.strokes % 2) sfx.dig(); // the share's drag, not a blow a beat
+  } else if (kind === 'sow') sfx.sow();
   else if (kind === 'reap') sfx.reap();
   else sfx.dig();
   // earth, seed or chaff flies where it lands — and the ridge is worked up to there
@@ -774,13 +880,14 @@ player.onWorkStroke = (kind) => {
   const k = (HL - workingEnd * field.toField(at.x, at.z).u) / (HL * 2);
   workFarmStretch(workingRow, workingEnd, Math.min(0.999, Math.max(0, k))); // the strip redraws itself on the change
 };
-player.onWorkDone = () => {
-  const worked = workFarmStretch(workingRow, workingEnd, 1); // the whole length: the ridge is done
+player.onWorkDone = () => finishRidge(workingRow, workingEnd);
+function finishRidge(row, end) {
+  const worked = workFarmStretch(row, end, 1); // the whole length: the ridge is done
   if (worked?.done) {
     toast(FIELD_PAID[worked.job](worked.coins), 'gold');
     sfx.coin();
   }
-};
+}
 
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyE' || !player.isEnabled() || isPanelOpen()) return;
@@ -804,10 +911,21 @@ window.addEventListener('keydown', (e) => {
     millerGreeting();
   } else if (a.id === 'field') {
     workTheField();
+  } else if (a.id === 'plough') {
+    takeThePlough();
+  } else if (a.id === 'plough-leave') {
+    player.dropHaul();
   } else {
     orbitCam.unlock();
     openPanel(a.id);
   }
+});
+
+// C lets go of the plough wherever he stands (at a ridge it stops the work
+// first, as any key does; the next C sets it down)
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyC' || e.repeat || !player.haul || !player.isEnabled() || isPanelOpen()) return;
+  if (player.mode === 'normal') player.dropHaul();
 });
 
 // The Proving Ground (?test=1): the test world's command line, and what its

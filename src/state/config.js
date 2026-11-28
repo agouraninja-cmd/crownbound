@@ -206,6 +206,13 @@ export const CONFIG = {
     strokeTime: 0.5, // seconds each blow of the hoe (cast of seed, cut of the sickle) takes
     workPace: 1.6, // how fast he works his way along a ridge, a step between blows (units a second; a ridge is ~18)
     workReach: 0.75, // how far ahead of him each blow lands
+    // The plough by the gate: E takes its handles, and it tills a ridge at a
+    // steady walk instead of blow by blow. Same job, same pay — only quicker.
+    haulPace: 0.62, // share of his walking pace with the plough in his hands
+    haulTurn: 2.4, // how fast the plough comes round (rad a second)
+    haulBack: 1.8, // drawing it backward to the head of a ridge (units a second)
+    ploughPace: 3.0, // along the ridge with the share in the earth (units a second)
+    ploughBeat: 0.25, // seconds between counts of the earth turned behind the share
   },
 
   // The sky keeps the hour of the player's own clock: the sun rises and sets

@@ -3338,6 +3338,363 @@ try {
     });
     await new Promise((r) => setTimeout(r, 2600));
     await page.screenshot({ path: 'scripts/smoke-farm.png' });
+  } else if (scenario === 'plough') {
+    // The plough by the field gate, on a blank save (a tilling day). E at its
+    // handles takes them; it goes where he goes, turning like a cart, and
+    // stops at a fence; E at a ridge ploughs it; C sets it down. Every step of
+    // the player is taken by hand (the loop's own are stopped), so the numbers
+    // do not hang on the frame rate; the prompts are the loop's and are waited for.
+    await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      const DT = 1 / 60;
+      const real = p.update;
+      p.update = () => {};
+      const pl = g.field.plough;
+      const inField = () => g.field.toField(p.pos.x, p.pos.z);
+      window.__pl = {
+        key: (code, down) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code })),
+        run: (seconds, yaw = p.facing + Math.PI) => {
+          for (let i = 0; i < Math.round(seconds / DT); i++) real(DT, yaw, g.colliders);
+        },
+        // step until `done()` or `max` seconds; how long it took, or -1. `each` is called every step.
+        until: (done, max = 30, each = null) => {
+          for (let i = 0; i < max / DT; i++) {
+            if (done()) return i * DT;
+            real(DT, p.facing + Math.PI, g.colliders);
+            if (each) each();
+          }
+          return done() ? max : -1;
+        },
+        // set him down (plough and all, if it is in his hands) at a spot on the strip
+        put: (u, v, facing) => {
+          const w = g.field.ridgePoint(0, u, v - g.field.toField(g.field.ridgePoint(0, 0).x, g.field.ridgePoint(0, 0).z).v);
+          p.pos.x = w.x;
+          p.pos.z = w.z;
+          p.vel.set(0, 0);
+          if (facing !== undefined) p.facing = facing;
+          real(DT, 0, g.colliders);
+        },
+        // how far his fists are from the handles' ends
+        fists: () => {
+          p.mesh.group.updateMatrixWorld(true);
+          return [0, 1].map((i) => {
+            const fist = p.mesh.arms[i].fore.localToWorld(p.mesh.arms[i].fore.position.clone().set(0, -0.27, 0));
+            return fist.distanceTo(pl.hands[i]);
+          });
+        },
+        // the front of the wheels, on the strip
+        nose: () => g.field.toField(p.pos.x + Math.sin(p.facing) * pl.nose, p.pos.z + Math.cos(p.facing) * pl.nose),
+        read: () => {
+          const f = inField();
+          const prompt = document.getElementById('interact-prompt');
+          const st = g.getState();
+          return {
+            mode: p.mode, haul: !!p.haul, held: pl.held, working: pl.working, u: f.u, v: f.v, facing: p.facing,
+            stick: p.mesh.weapon.visible, hoe: p.mesh.tools.hoe.visible, airborne: p.airborne,
+            backing: p.work?.backing ?? null, route: !!p.route,
+            parked: g.colliders.filter((c) => c.x > 1e5).length,
+            prompt: prompt.classList.contains('hidden') ? '' : prompt.textContent,
+            farm: JSON.parse(JSON.stringify(st.farm)), coins: st.coins, stamina: st.stamina.current, job: g.farmJob(),
+            toasts: document.getElementById('toasts').textContent,
+          };
+        },
+      };
+    });
+    const read = () => page.evaluate(() => window.__pl.read());
+    const promptSays = (text, ms = 6000) =>
+      page.waitForFunction((t) => { const el = document.getElementById('interact-prompt'); return !el.classList.contains('hidden') && el.textContent.includes(t); }, { timeout: ms, polling: 100 }, text).then(() => true, () => false);
+    const pause = () => new Promise((r) => setTimeout(r, 350));
+    const F = await page.evaluate(() => {
+      const g = window.__game;
+      const L = g.layout.LAYOUT.field;
+      return { HL: g.field.halfLength, HW: (g.field.rows * L.spacing) / 2, margin: L.margin, spacing: L.spacing, rows: g.field.rows, along: Math.PI / 2 + L.rotY, C: g.CONFIG.farm, walk: g.CONFIG.player.walkSpeed, reach: g.field.plough.reach, nose: g.field.plough.nose };
+    });
+    const rowV = (row) => (row - (F.rows - 1) / 2) * F.spacing;
+
+    // 1) laid by outside the gate: solid, and its handles offer themselves
+    const laid = await page.evaluate(() => {
+      const g = window.__game;
+      const pl = g.field.plough;
+      const st = { ...pl.stand };
+      const body = { x: st.x + Math.sin(st.facing) * 1.9, z: st.z + Math.cos(st.facing) * 1.9 }; // the middle of it
+      g.player.respawn(body.x, body.z);
+      window.__pl.run(0.1);
+      const pushed = Math.hypot(g.player.pos.x - body.x, g.player.pos.z - body.z);
+      g.player.respawn(st.x - 0.7, st.z - 0.5);
+      window.__pl.run(0.1);
+      const f = g.field.toField(st.x, st.z);
+      return { held: pl.held, pushed, u: f.u, v: f.v, shown: pl.group.visible && !!pl.group.parent };
+    });
+    console.log('laid by:', JSON.stringify(laid));
+    if (laid.held || !laid.shown) errors.push(`plough: laid by, it is held ${laid.held} / shown ${laid.shown}`);
+    if (!(laid.pushed > 0.3)) errors.push(`plough: a man set inside it was moved ${laid.pushed.toFixed(2)} — it is not solid`);
+    if (!(Math.abs(laid.v) > F.HW + F.margin)) errors.push(`plough: it lies at v ${laid.v.toFixed(2)}, inside the fence`);
+    if (!(await promptSays('take the plough'))) errors.push(`plough: prompt "${(await read()).prompt}" does not offer the handles`);
+
+    // 2) E: he steps behind the handles, turns the way it points and takes them
+    await page.keyboard.press('KeyE');
+    const took = await page.evaluate(() => {
+      const g = window.__game;
+      const t = window.__pl.until(() => !!g.player.haul, 6);
+      window.__pl.run(0.8); // the hands find the handles
+      return { t, fists: window.__pl.fists(), ...window.__pl.read() };
+    });
+    console.log('taken:', JSON.stringify({ t: took.t, fists: took.fists, haul: took.haul, stick: took.stick, parked: took.parked, facing: took.facing }));
+    if (!took.haul || !took.held) errors.push(`plough: E at the handles did not take them (walked ${took.t}s)`);
+    if (took.stick) errors.push('plough: the stick is still in his fist with both hands on the plough');
+    if (took.parked !== 3) errors.push(`plough: ${took.parked} of its colliders put away while it is carried, expected 3`);
+    if (Math.abs(took.facing - F.along) > 0.06) errors.push(`plough: he took it facing ${took.facing.toFixed(2)}, it points ${F.along.toFixed(2)}`);
+    if (took.fists.some((d) => !(d < 0.09))) errors.push(`plough: his fists are ${took.fists.map((d) => d.toFixed(2))} from the handles`);
+    if (!(await promptSays('leave the plough'))) errors.push(`plough: prompt "${(await read()).prompt}" outside the fence, expected leave the plough`);
+    if (!took.toasts.includes('The plough is in thy hands')) errors.push('plough: its keys were not told');
+
+    // 3) both hands are on it: no swing, no leap, no roll — and no stamina spent on them
+    const handsFull = await page.evaluate(() => {
+      const g = window.__game;
+      const T = window.__pl;
+      const before = g.getState().stamina.current;
+      T.key('KeyF', true);
+      T.key('KeyF', false);
+      T.run(0.1);
+      const swung = g.player.mode;
+      T.key('Space', true);
+      T.run(0.3);
+      T.key('Space', false);
+      return { swung, airborne: g.player.airborne, spent: before - g.getState().stamina.current, haul: !!g.player.haul };
+    });
+    if (handsFull.swung !== 'normal' || handsFull.airborne || handsFull.spent !== 0 || !handsFull.haul)
+      errors.push(`plough: with the plough in hand ${JSON.stringify(handsFull)}, expected no swing, no leap, nothing spent`);
+    await pause();
+
+    // 4) it goes where he goes: slower than a walk, it comes round no faster
+    // than it will, S draws it back, and its wheels turn
+    const wheeled = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      const T = window.__pl;
+      const pl = g.field.plough;
+      const wheel = () => pl.group.children.find((c) => c.isGroup).rotation.x;
+      const at0 = { x: p.pos.x, z: p.pos.z, w: wheel() };
+      const f0 = p.facing;
+      T.key('KeyW', true);
+      T.run(1.0, f0 + Math.PI); // straight on
+      const went = Math.hypot(p.pos.x - at0.x, p.pos.z - at0.z);
+      const stood = Math.hypot(pl.stand.x - p.pos.x, pl.stand.z - p.pos.z);
+      const rolled = Math.abs(wheel() - at0.w);
+      T.run(0.5, f0 + Math.PI - Math.PI / 2); // steered a quarter turn aside
+      const turned = Math.abs(p.facing - f0);
+      T.key('KeyW', false);
+      T.run(0.5);
+      const f1 = p.facing;
+      const at1 = { x: p.pos.x, z: p.pos.z };
+      T.key('KeyS', true);
+      T.run(1.0, f1 + Math.PI); // S: back the way he came
+      T.key('KeyS', false);
+      T.run(0.5);
+      const back = (p.pos.x - at1.x) * Math.sin(f1) + (p.pos.z - at1.z) * Math.cos(f1);
+      return { went, stood, rolled, turned, back, swung: Math.abs(p.facing - f1), fists: T.fists() };
+    });
+    console.log('wheeled:', JSON.stringify(wheeled));
+    const haulSpeed = F.walk * F.C.haulPace;
+    if (!(wheeled.went > haulSpeed * 0.75 && wheeled.went < haulSpeed * 1.02)) errors.push(`plough: a second's walk took it ${wheeled.went.toFixed(2)}, expected about ${haulSpeed.toFixed(2)}`);
+    if (wheeled.stood > 0.01) errors.push(`plough: it stands ${wheeled.stood.toFixed(2)} from the man who holds it`);
+    if (!(wheeled.rolled > 3)) errors.push(`plough: its wheels turned ${wheeled.rolled.toFixed(2)} rad over ${wheeled.went.toFixed(2)} of ground`);
+    if (!(wheeled.turned > 0.6 && wheeled.turned <= F.C.haulTurn * 0.5 + 0.02)) errors.push(`plough: half a second's turn brought it round ${wheeled.turned.toFixed(2)} rad, expected under ${(F.C.haulTurn * 0.5).toFixed(2)}`);
+    if (!(wheeled.back < -0.8) || wheeled.swung > 0.1) errors.push(`plough: S moved him ${wheeled.back.toFixed(2)} along his facing and swung him ${wheeled.swung.toFixed(2)} rad — expected drawn straight back`);
+    if (wheeled.fists.some((d) => !(d < 0.09))) errors.push(`plough: after wheeling, his fists are ${wheeled.fists.map((d) => d.toFixed(2))} from the handles`);
+    await pause();
+
+    // 5) a fence stops it: walked at the far fence down a ridge, the wheels come up against the rails
+    const fenced = await page.evaluate((F) => {
+      const g = window.__game;
+      const T = window.__pl;
+      T.put(F.HL - 6, 0.7, F.along);
+      T.key('KeyW', true);
+      T.run(4, F.along + Math.PI);
+      T.key('KeyW', false);
+      T.run(0.4);
+      return { u: g.field.toField(g.player.pos.x, g.player.pos.z).u, nose: T.nose().u };
+    }, F);
+    console.log('at the fence:', JSON.stringify(fenced));
+    if (!(fenced.nose < F.HL + F.margin + 0.05 && fenced.nose > F.HL + F.margin - 0.7)) errors.push(`plough: walked at the fence its wheels stand at u ${fenced.nose.toFixed(2)} (the fence is at ${(F.HL + F.margin).toFixed(2)})`);
+    await pause();
+
+    // 6) E at a ridge ploughs it: out into the open to bring it round, drawn
+    // back to the head, then down the crown with the share in the earth
+    await page.evaluate((F) => window.__pl.put(1, 0.2, F.along + 1.2), F); // mid-field, askew, between ridges 4 and 5
+    if (!(await promptSays('plough this ridge'))) errors.push(`plough: prompt "${(await read()).prompt}" in the field does not offer the ploughing`);
+    const row = await page.evaluate(() => window.__game.field.spot.row);
+    await page.keyboard.press('KeyE');
+    const begun = await page.evaluate((F) => {
+      const g = window.__game;
+      const p = g.player;
+      const T = window.__pl;
+      let reach = 0; // how far the wheels got toward any fence, on the way
+      const watch = () => {
+        const n = T.nose();
+        reach = Math.max(reach, Math.abs(n.u) - F.HL, Math.abs(n.v) - F.HW);
+      };
+      const walked = T.until(() => p.mode === 'work', 20, watch);
+      const backingAt = T.read();
+      const backed = T.until(() => p.mode === 'work' && !p.work.backing, 10, watch);
+      const head = T.read();
+      T.run(2.5);
+      watch();
+      const mid = T.read();
+      const share = { x: p.pos.x + Math.sin(p.facing) * g.field.plough.reach, z: p.pos.z + Math.cos(p.facing) * g.field.plough.reach };
+      const dir = { x: Math.sin(p.facing), z: Math.cos(p.facing) };
+      return {
+        walked, backed, backingAt, head, mid, reach,
+        behind: g.field.riseAt(share.x - dir.x * 1.5, share.z - dir.z * 1.5), // the crown turned up behind the share
+        ahead: g.field.riseAt(share.x + dir.x * 1.5, share.z + dir.z * 1.5), // ...and the stubble still flat ahead
+        fists: T.fists(),
+      };
+    }, F);
+    const end = begun.head.u >= 0 ? 1 : -1;
+    console.log('ploughing:', JSON.stringify({ row, walked: begun.walked, backed: begun.backed, headU: begun.head.u, headV: begun.head.v, facing: begun.head.facing, midU: begun.mid.u, part: begun.mid.farm.part, working: begun.mid.working, behind: begun.behind, ahead: begun.ahead, reach: begun.reach, fists: begun.fists }));
+    if (begun.walked < 0) errors.push(`plough: E at the ridge never set him to work (${JSON.stringify(begun.backingAt)})`);
+    if (begun.backingAt.backing !== true) errors.push('plough: he did not draw the plough back to the head of the ridge first');
+    if (begun.backed < 0) errors.push('plough: the plough was never drawn back to the head');
+    if (Math.abs(begun.head.v - rowV(row)) > 0.1) errors.push(`plough: he begins at v ${begun.head.v.toFixed(2)}, the crown of ridge ${row} is at ${rowV(row).toFixed(2)}`);
+    if (Math.abs(Math.abs(begun.head.u) - (F.HL + 0.6)) > 0.1) errors.push(`plough: he begins at u ${begun.head.u.toFixed(2)}, expected the headland (${(F.HL + 0.6).toFixed(2)})`);
+    if (begun.head.hoe || begun.mid.hoe || begun.mid.stick) errors.push('plough: a hoe or the stick is in his fist at the plough');
+    if (!begun.mid.working) errors.push('plough: the share is not in the earth');
+    const part = begun.mid.farm.part[row];
+    if (!part || part.end !== end || !(part.k > 0.3 && part.k < 0.7)) errors.push(`plough: 2.5s down the ridge its part is ${JSON.stringify(part)}`);
+    if (!(begun.behind > begun.ahead + 0.08)) errors.push(`plough: the earth stands ${begun.behind.toFixed(2)} behind the share and ${begun.ahead.toFixed(2)} ahead — expected a crown turned up behind`);
+    if (begun.mid.coins !== 0 || begun.mid.farm.done.length) errors.push('plough: paid or counted before the ridge was done');
+    if (begun.reach > F.margin) errors.push(`plough: its wheels went ${begun.reach.toFixed(2)} out from the ploughland — through the fence (${F.margin})`);
+    if (begun.fists.some((d) => !(d < 0.09))) errors.push(`plough: at work his fists are ${begun.fists.map((d) => d.toFixed(2))} from the handles`);
+    await page.evaluate(() => { const p = window.__game.player; window.__game.orbitCam.setView(p.facing + Math.PI - 1.1, 0.42, 4.6); });
+    await new Promise((r) => setTimeout(r, 1800));
+    await page.screenshot({ path: 'scripts/smoke-plough.png' });
+
+    // 7) a movement key calls him off with the plough still in his hands and
+    // the stretch kept; E takes it straight on, to the end; the ridge is done
+    const off = await page.evaluate(() => {
+      const T = window.__pl;
+      T.key('KeyW', true);
+      T.run(0.1);
+      T.key('KeyW', false);
+      T.run(0.4);
+      return T.read();
+    });
+    if (off.mode !== 'normal' || !off.haul || !(off.farm.part[row]?.k >= part?.k)) errors.push(`plough: called off, he is ${off.mode}, hauling ${off.haul}, part ${JSON.stringify(off.farm.part[row])}`);
+    if (!(await promptSays('plough this ridge'))) errors.push(`plough: called off, the prompt is "${(await read()).prompt}"`);
+    await pause();
+    await page.keyboard.press('KeyE');
+    const done = await page.evaluate(() => {
+      const g = window.__game;
+      const T = window.__pl;
+      const straight = g.player.mode === 'work'; // already on its line: no walk round
+      const t = T.until(() => g.player.mode === 'normal' && !g.player.route, 20);
+      return { straight, t, nose: T.nose(), ...T.read() };
+    });
+    console.log('ridge done:', JSON.stringify({ straight: done.straight, t: done.t, done: done.farm.done, noseU: done.nose.u, haul: done.haul }));
+    if (!done.straight) errors.push('plough: E on the ridge he was called off did not take it straight on');
+    if (!done.farm.done.includes(row) || done.farm.part[row]) errors.push(`plough: the ridge is not done: ${JSON.stringify(done.farm)}`);
+    if (!done.haul) errors.push('plough: the plough left his hands at the ridge’s end');
+    if (Math.abs(done.nose.u) > F.HL + F.margin) errors.push(`plough: at the ridge’s end its wheels stand at u ${done.nose.u.toFixed(2)}, through the fence`);
+
+    // 8) the outermost ridge, hard by the side fence: brought round a little
+    // inward of it, and the wheels never through a rail — and quicker than the hoe
+    await page.evaluate((F) => window.__pl.put(F.HL - 5, -F.HW + 0.9, F.along - Math.PI / 2), F); // by ridge 0, the plough pointing in across the strip
+    await page.evaluate(() => new Promise((r) => setTimeout(r, 700)));
+    if (!(await promptSays('plough this ridge'))) errors.push('plough: no prompt by the outermost ridge');
+    const edgeRow = await page.evaluate(() => window.__game.field.spot.row);
+    await page.keyboard.press('KeyE');
+    const edge = await page.evaluate((F) => {
+      const g = window.__game;
+      const p = g.player;
+      const T = window.__pl;
+      let reach = 0;
+      const watch = () => {
+        const n = T.nose();
+        reach = Math.max(reach, Math.abs(n.u) - F.HL, Math.abs(n.v) - F.HW);
+      };
+      const walked = T.until(() => p.mode === 'work' && !p.work.backing, 25, watch);
+      const furrow = T.until(() => p.mode === 'normal', 20, watch);
+      return { walked, furrow, reach, ...T.read() };
+    }, F);
+    console.log('outermost ridge:', JSON.stringify({ edgeRow, walked: edge.walked, furrow: edge.furrow, reach: edge.reach, done: edge.farm.done }));
+    if (edgeRow !== 0) errors.push(`plough: the prompt by the side fence is on ridge ${edgeRow}, expected 0`);
+    if (!edge.farm.done.includes(0)) errors.push('plough: the outermost ridge was not ploughed');
+    if (edge.reach > F.margin) errors.push(`plough: on the outermost ridge its wheels went ${edge.reach.toFixed(2)} out from the ploughland — through the fence (${F.margin})`);
+    const hoeTime = (F.HL * 2) / F.C.workPace;
+    if (!(edge.furrow > 3 && edge.furrow < hoeTime * 0.7)) errors.push(`plough: a ridge took ${edge.furrow.toFixed(1)}s behind the plough; the hoe takes ${hoeTime.toFixed(1)}s`);
+
+    // 9) C sets it down among ridges that want it: solid again where it
+    // stands, the stick back in his fist, its handles offered over the ridge
+    // underfoot — and a step away the hoe still has its ridge
+    await pause();
+    await page.keyboard.press('KeyC');
+    const down = await page.evaluate(() => {
+      const g = window.__game;
+      window.__pl.run(0.3);
+      const pl = g.field.plough;
+      const near = g.colliders.filter((c) => c.r && Math.hypot(c.x - pl.stand.x, c.z - pl.stand.z) < 3.2 && Math.hypot(c.x - pl.stand.x, c.z - pl.stand.z) > 0.5).length;
+      return { near, standOff: Math.hypot(pl.stand.x - g.player.pos.x, pl.stand.z - g.player.pos.z), ...window.__pl.read() };
+    });
+    if (down.haul || down.held || down.parked !== 0 || !down.stick) errors.push(`plough: C did not set it down: ${JSON.stringify({ haul: down.haul, held: down.held, parked: down.parked, stick: down.stick })}`);
+    if (down.near < 3) errors.push(`plough: set down, ${down.near} colliders stand along it, expected its 3`);
+    if (!(await promptSays('take the plough'))) errors.push(`plough: at the handles of a plough left on the strip the prompt is "${(await read()).prompt}"`);
+    await page.evaluate((F) => { const g = window.__game; g.player.respawn(g.field.ridgePoint(7, 2, 0.4).x, g.field.ridgePoint(7, 2, 0.4).z); }, F);
+    if (!(await promptSays('till this ridge'))) errors.push(`plough: away from the plough the prompt is "${(await read()).prompt}", expected the hoe's`);
+
+    // 10) the last ridge ploughed finishes the job: the wage once, and then
+    // E with the plough in hand only sets it down
+    await page.evaluate(() => {
+      const g = window.__game;
+      for (let r = 0; r < g.field.rows; r++) if (r !== 7 && !g.getState().farm.done.includes(r)) g.workFarmRow(r);
+      const st = g.field.plough.stand;
+      g.player.respawn(st.x, st.z);
+      g.player.facing = st.facing;
+      g.player.takeHaul(g.field.plough);
+      window.__pl.put(-2, 3.4, st.facing);
+    });
+    if (!(await promptSays('plough this ridge'))) errors.push('plough: no prompt at the last ridge');
+    await page.keyboard.press('KeyE');
+    const paid = await page.evaluate(() => {
+      const g = window.__game;
+      const t = window.__pl.until(() => g.getState().farm.stage === 1, 40);
+      window.__pl.run(0.3);
+      return { t, ...window.__pl.read() };
+    });
+    console.log('the job done:', JSON.stringify({ t: paid.t, coins: paid.coins, farm: paid.farm, job: paid.job, haul: paid.haul }));
+    if (paid.coins !== F.C.wage) errors.push(`plough: the job finished behind the plough paid ${paid.coins}, expected the wage ${F.C.wage}`);
+    if (paid.job !== null || paid.farm.stage !== 1) errors.push(`plough: after the last ridge the job is ${paid.job}, stage ${paid.farm.stage}`);
+    if (!paid.toasts.includes('The strip is tilled')) errors.push('plough: no word of the wage');
+    if (!(await promptSays('leave the plough'))) errors.push(`plough: with the job done the prompt is "${(await read()).prompt}"`);
+    await page.keyboard.press('KeyE');
+    await page.evaluate(() => window.__pl.run(0.2));
+    const left = await read();
+    if (left.haul || !left.stick) errors.push('plough: E with no ridge wanting it did not set the plough down');
+
+    // 11) the Charter tells of it
+    const told = await page.evaluate(() => {
+      window.__game.openPanel('guide');
+      const text = document.getElementById('panel-body')?.textContent ?? document.body.textContent;
+      return /plough laid by outside the gate/.test(text) && /C sets the plough down/.test(text);
+    });
+    if (!told) errors.push('plough: the Charter does not tell of the plough');
+    await page.keyboard.press('Escape');
+
+    // 12) spent with the plough in his hands: he lets go of it and walks home
+    const spentWith = await page.evaluate(async () => {
+      const g = window.__game;
+      const st = g.field.plough.stand;
+      g.player.respawn(st.x, st.z);
+      g.player.facing = st.facing;
+      g.player.takeHaul(g.field.plough);
+      const had = !!g.player.haul;
+      g.drainStamina(9999);
+      await new Promise((r) => setTimeout(r, 1500)); // the loop notices on its own frame
+      return { had, haul: !!g.player.haul, held: g.field.plough.held, ...g.spent() };
+    });
+    console.log('spent at the plough:', JSON.stringify(spentWith));
+    if (!spentWith.had || spentWith.haul || spentWith.held) errors.push(`plough: spent, the plough is still in his hands (${JSON.stringify(spentWith)})`);
+    if (!spentWith.homeward && !spentWith.resting) errors.push('plough: spent with the plough in hand, he did not turn for home');
   } else if (scenario === 'crown') {
     // the migration must have stripped the old scheduled deadline
     const migrated = await page.evaluate(() => {

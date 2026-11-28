@@ -62,13 +62,13 @@ src/scene/sprites.js  the canvas-drawn soft dot texture + additive glow billboar
 src/scene/structures.js  hovel (+interior, sleep ledger board, shop upgrades), quest board, tome pedestal, charter post, exchequer booth (+clerk), granary, miller, dummy mesh
 src/scene/cartday.js  the chapwoman's day, from the clock alone (pure): her two roads (east road in, west road out), her timetable, cartDay(seconds) — where she should be; hourWords
 src/scene/cart.js     the chapwoman's cart: cart + mule + chapwoman, walked along her roads by the clock (createCart): turning wheels, a walking mule, her steps to her stall
-src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, fence + gate + hayrick + plough + harrow + scarecrow; draw(looks) rebuilds the crop; kick() throws earth/seed/chaff as he works
+src/scene/field.js    the miller's strip: the ploughed bed, the seven looks a ridge can wear, fence + gate + hayrick + harrow + scarecrow; draw(looks) rebuilds the crop; kick() throws earth/seed/chaff as he works; `plough` — the heavy plough, its own Group that is taken by the handles and wheeled about
 src/scene/alive.js    villager aliveness driver: breathing, head-tracking, fidgets, greet nod, waypoint stroll
 src/scene/campfire.js campfire mesh, tongues of flame, sparks, smoke; scales with streak tier
 src/scene/world.js    assembles scene, exposes interactables + terrainHeight; update() drives the ambient scenery
 src/player/playerMesh.js  procedural peasant figure: a jointed rig (knees, ankles, elbows, spine) + RIG, its measurements; the hoe and sickle, hidden in the stick hand
-src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/sleep), springs — the only thing that turns the rig
-src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, HP, stamina spend
+src/player/playerAnim.js  the body in motion: solved legs, the stride, pose layers (leap/roll/swing/field work/the plough/sleep), springs — the only thing that turns the rig
+src/player/player.js  movement physics (momentum, braking, air, walls, hills) + sprint/jump/crouch/dodge/attack/work state machine, the plough in hand (`haul`), HP, stamina spend
 src/player/camera.js  pointer-lock third-person orbit camera; the arrow keys, − and = turn, tilt and zoom it too (no mouse needed); setGaze / glideTo, the opening's two camera moves; setGuard, the eye stopped at a neighbour's wall (crowded(): so near his head that he is left undrawn)
 src/player/pathfind.js  the walk home: grid A* around the colliders (circles, upright rects, turned rects), pockets that lead nowhere shut first, path pulled taut
 src/combat/dummy.js   training dummy wobble + diminishing Athleticism XP
@@ -216,7 +216,10 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   ridge finishes the job and the miller pays: +4 coins for a day's tilling, sowing or weeding,
   +20 for the harvest (`wage` / `harvestPay`). The crop grows only across the days worked
   (shoots the night after sowing, ripe wheat the night after weeding). Nothing spoils: a missed
-  day costs only the day, and a half-done job keeps its ridges. COINS ONLY — field work pays no
+  day costs only the day, and a half-done job keeps its ridges. The plough laid by outside the
+  gate is the quicker way to till: E at its handles takes them, it is wheeled in at the gate
+  (W on, A/D round, S back; C sets it down), and E at a ridge ploughs it at a steady walk
+  (`ploughPace`, ~6s a ridge) — the same job, the same pay. COINS ONLY — field work pays no
   XP, costs no stamina and feeds no streak; virtue is still earned only by real deeds.
 - The shop (the chapwoman's cart): by the path every day from `CONFIG.shop.opens` (8 AM) to
   `closes` (5 PM) by the player's own clock. She walks her mule and cart up the east road a
@@ -681,8 +684,9 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
       every face lay flat (upNormals), so clods carry their own hand shading against a fixed
       light (`SHADE_LIGHT`) — keep that if adding solid things to it.
     - Laid by outside the fence on the gate's other hand: a heavy wheeled plough (beam,
-      coulter, share, mouldboard, handles) and a harrow leaned on the fence, baked into the
-      yard; four more circle colliders (`buildTools`).
+      coulter, share, mouldboard, handles) and a harrow leaned on the fence. The harrow is
+      baked into the yard (`buildTools`, one circle collider); the plough has been its own
+      Group since The Plough (below), because it is used.
     - Working throws things: `field.kick(kind, x, z, facing)` (a 64-puff pool in field.js,
       `field.update` from world.update) — earth and dust off the hoe, a fan of seed from the
       hand, chaff drifting off the sickle. main.js `onWorkStroke` calls it at the stroke's
@@ -733,6 +737,70 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
       stubble ~25k, furrow ~19k, sown ~17k, weedy ~27k, tended ~38k, ripe ~56k, stook ~51k
       (was ~20k in wheat). The village view measured ~290k in all with the fallow strip.
       The first stook draw takes ~90ms in SwiftShader (each ridge's sheaves built once).
+  - The Plough (2026-11-28), the owner: "make it so you can use the plow". He left the how
+    to Claude; what was chosen, and what a future session must know:
+    - The plough is taken by its handles and goes where he goes. E at the handles
+      (`field.plough.spot`, an interactable that moves with it) walks him behind them, turns
+      him the way it points and puts both fists on them (`player.takeHaul(plough)` →
+      `player.haul`). He then wheels it about himself, in at the gate and onto the strip; E
+      at a ridge on a TILLING day ploughs that ridge; C sets the plough down anywhere, and so
+      does E wherever no ridge wants it (`player.dropHaul()`). It may be taken up on any day
+      and wheeled anywhere — only tilling has a use for it. The hoe still tills as before
+      for a man with empty hands: the plough is the quicker way, not the only one (a ridge
+      ~6s behind the plough, ~12s under the hoe; the whole job roughly a third less time once
+      the bringing-round is counted). Same job, same wage, no XP, no stamina beyond the walk.
+    - No oxen. A heavy wheeled plough wants a team; here he is his own (the comment in
+      field.js says the oxen are out at grass). An ox team yoked and walking is the honest
+      next step if the owner asks — it was left out as a build of its own.
+    - With the plough in hand (player.js, mode `normal` with `player.haul` set) he steers
+      like a cart: he turns toward where the keys point no faster than `CONFIG.farm.haulTurn`
+      and walks on only as he lines up (`haulPace` × the walk); a direction more than ~125°
+      behind him is drawn BACKWARD instead (S with the camera behind). No sprint, crouch,
+      leap, roll, swing or sitting by the fire; the stick is put away (`takeUp('plough')`)
+      and comes back when he lets go. Walking with it drains stamina as walking does. Spent
+      for the day, death, the cot and `respawn` all let go of it first.
+    - The plough collides while carried by two PROBES — circles ahead of him along his
+      facing (`PLOUGH.probes`, field.js) put out of every collider each step, moving him by
+      as much (`resolveHaul`; `resolveCollisions(colliders, p, radius)` now takes any
+      circle). So a fence stops the wheels, and turning it into a wall shoves him off
+      instead. Set down, it is three circle colliders along its length (`PLOUGH.rest`),
+      moved to wherever it stands; in hand they are parked far off the map (x = 1e6).
+    - Where it stands is `plough.stand` { x, z, facing } — the place and heading of the man
+      who holds or last held it; `plough.place()` draws it from that (the axle's foot on the
+      ground ahead of him, tipped to the ground between the wheels and the sole's heel, the
+      handles raised a little when wheeled and borne down at work, the wheels turned by the
+      ground covered) and gives `plough.hands`, the handles' ends in the world. NOT SAVED:
+      every load finds it back by the gate.
+    - His hands are solved onto the handles, as the off hand is onto the hoe: playerAnim.js
+      `reachHandles()` carries `plough.hands` into the chest's frame and `solveArm(i, pole,
+      w)` (the old graspShaft's solve, now for either arm) turns each arm onto its handle.
+      He leans to it (`wHaul`, more with the share in the earth, `wPlough`) and STOOPS as
+      far as the handles need (`stoop`, a slow servo on last step's reach — he walks the
+      turned crown, a hand higher than the stubble the wheels run on).
+    - Ploughing a ridge (main.js `ploughTheRidge`) is the same work mode with
+      `startWork('till', from, to, facing, { plough: true })`: he walks the CROWN (the hoe
+      walks the furrow beside it) at `ploughPace`, no blows, the earth counted turned every
+      `ploughBeat` (each a `workFarmStretch` up to the share, `plough.reach` ahead of him —
+      so `farm.part`, calling-off and resuming are the hoe's own rules, and a ridge begun
+      with one tool can be finished with the other). Before the furrow there are two moves,
+      because a plough 3.2 long cannot turn on a headland 1.3 wide: a walk out into the open
+      field to bring it round (`walkRoute(..., { facing })` — a route may now end with a
+      turn; `PLOUGH_ROOM` in from the start, and for the two outermost ridges a little
+      inward of their line, clear of the side fence), then `backing`, the plough drawn
+      backward to where the furrow begins. He starts `PLOUGH_HEAD` (0.6) out on the headland
+      with the fence at his back, so the share first bites ~1.3 into the ridge, and stops
+      with the wheels at the far fence, the share `PLOUGH_SHORT` (0.45) from the end: both
+      stubs are counted with the ridge. Standing already on a ridge's line and turned down
+      it (called off, then E), he goes straight on.
+    - The prompts: "take the plough" at its handles (they win over a ridge underfoot within
+      1.0, so a plough left on the strip can be taken up again); in hand, "plough this ridge
+      (C sets the plough down)" within `PLOUGH_REACH` (2.6) of a ridge that wants tilling —
+      only from inside the fence — else "leave the plough". A walk he was only asked to take
+      (`yields`) is now given up after 2s stopped dead, so a way blocked never holds him.
+    - The gate was thrown wider open for it (swing 1.25 → 2.75 rad): the leaf used to stand
+      across the first ridge's crown, where the hoe's man slid past it and the plough could
+      not. It stands on the headland now, back near the fence.
+    - The test world's `tp plough` stands him at its handles, wherever it was left.
 - The Setting (2026-11-15), the owner's choice: Crownbound takes place in **England, around
   1250** — the High Middle Ages. Everything new should fit that year: watermills and windmills,
   smiths, longbows and crossbows, chainmail, timber-and-thatch, silver pennies, hand-copied
@@ -1704,6 +1772,26 @@ headlessly; everything else covered by the regression suite below.
   `hearth`, `body`, `combat`, `farm`, `house`, `spent` and the render pass (owner's machine,
   headless Edge).
 
+- [x] Post-v1 — "The Plough" (2026-11-28), the owner: "make it so you can use the plow". The
+  heavy plough laid by outside the field gate is no longer scenery. E at its handles takes
+  them and it goes before him wherever he walks — turning like a cart, stopping at a fence,
+  its wheels rolling, his fists on the handles; S draws it back, C sets it down. Wheeled in
+  at the gate on a tilling day, E at a ridge ploughs it: he brings the plough round in the
+  open field, draws it back to the head of the ridge and walks it down the crown with the
+  share in the earth, the furrow turning dark behind it and clods flying. About half the
+  hoe's time on a ridge; the same job, the same wage; the hoe still works for empty hands.
+  Left anywhere, it stands there (solid) until the game is next opened. The gate now stands
+  wider open, off the first ridge. No rule, reward or save changed; Charter and
+  CROWNBOUND-Guide.docx (rebuilt) tell of it. New smoke scenario `plough`. All 27 scenarios pass, first time (cloud container, headless
+  Chromium, `SMOKE_WAIT=load`); `plough` and `farm` again on the final build.
+  After merging The Tally of Blows and The Miller's Introduction: `plough`, `miller`, `proving`
+  and the render pass on the merge; `combat` fails one check there ("no damage number of 1 over
+  the dummy", the number never seen within its 4s wait) — and fails the same way on plain
+  `main` in this container, so it is not the plough's. Not looked into further.
+  Seen only in the software renderer, not yet on the owner's screen; a real touch at the
+  keys — how the steering feels — wants his hand. No oxen draw it (a build of its own).
+  Details: "The Plough" under "The Miller's Strip" in Noted decisions.
+
 - [x] Post-v1 — "The Neighbours" (2026-11-28), the owner: "Add 24 more houses to the villege
   dont, make all of the houses look the same, have a unique touch to each one of the houses,
   make sure to have it look like an actual villege for peasents in 1250 AD". Brackenley is a
@@ -1885,6 +1973,19 @@ headlessly; everything else covered by the regression suite below.
   of its own that names no year or country (screenshots → scripts/smoke-village-green-north.png,
   -green-south.png, -oak-lane.png, -birch-lane.png, -east.png, -from-strip.png, -hill.png,
   -air.png, -dusk.png, -night.png, -map.png) ·
+  `plough` the plough by the gate on a blank save, every step of the player taken by hand:
+  laid by it is solid and offers its handles; E takes them (turned the way it points, fists on
+  the handles, the stick put away, its colliders parked); no swing, leap or stamina spent with
+  it in hand; a second's walk at the hauling pace with the wheels turning, a turn no faster
+  than `haulTurn`, S drawing it straight back; the far fence stopping the wheels; E at a ridge
+  → brought round, drawn back to the head, the share in the earth on the crown's line, the
+  crown turned up behind the share and flat ahead, no pay yet, the wheels never through a
+  rail; a movement key calling him off with the plough still in hand and E going straight
+  on to the ridge's end; the outermost ridge ploughed without touching the side fence, in
+  under 70% of the hoe's time; C setting it down (solid again, the stick back, its handles
+  offered over the ridge underfoot, the hoe's prompt a step away); the last ridge paying the
+  wage once and E then only setting it down; the Charter's lines; spent with it in hand he
+  lets go and turns for home (screenshot → scripts/smoke-plough.png) ·
   `miller` the miller's introduction: with `?intro=0` only his wave; on a true load nothing
   from six paces, the card on coming near (the village named, the config numbers, his
   likeness, the keys withheld, the player turned to him, the meeting saved, no wave told over

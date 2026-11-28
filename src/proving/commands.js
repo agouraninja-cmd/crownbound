@@ -142,6 +142,7 @@ function places(world) {
     dummy: { x: -7.2, z: 8.5 },
     granary: { x: 7.5, z: 7.5 }, // the rats' yard, close enough to be noticed
     field: { x: LAYOUT.field.x, z: LAYOUT.field.z }, // the middle of the miller's strip
+    plough: { x: world.field.plough.stand.x, z: world.field.plough.stand.z }, // at its handles, wherever it was left
   };
 }
 
@@ -382,7 +383,7 @@ export const COMMANDS = [
     also: ['goto'],
     group: 'The village',
     usage: 'tp <place>',
-    about: 'Stand somewhere else: spawn, fire, home, bed, board, tome, charter, exchequer, cart, dummy, granary, field.',
+    about: 'Stand somewhere else: spawn, fire, home, bed, board, tome, charter, exchequer, cart, dummy, granary, field, plough.',
     run([word], game) {
       const all = places(game.world);
       const spot = all[(word ?? '').toLowerCase()];

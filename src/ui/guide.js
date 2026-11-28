@@ -106,6 +106,10 @@ export function renderGuide(guideBody) {
         its turn — till, sow, weed, reap — and a job is all ${FM.rows} ridges. E at a ridge and he goes to its
         head and works his way along it to the other end; a step away stops him, and what is done stays done. The crop
         grows only across the days thou turnest up; a day missed costs nothing but the day.</p>
+        <p class="muted" style="margin-top:8px">The plough laid by outside the gate does the tilling quicker than the hoe.
+        E at its handles takes them, and it goes before thee: W walks it on, A and D bring it round, S draws it back.
+        Wheel it in at the gate, and E at a ridge ploughs it from end to end. C sets the plough down where it stands.
+        The same job and the same pay — only less of the day.</p>
         <div class="kv"><span>a day&#8217;s tilling, sowing or weeding</span><span class="v">${FM.wage} coins</span></div>
         <div class="kv"><span>the wheat brought in</span><span class="v">${FM.harvestPay} coins</span></div>
         <p class="muted" style="margin-top:8px">The field fills the purse and never a virtue:

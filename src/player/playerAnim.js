@@ -230,6 +230,14 @@ const SEAT = {
 // where the off elbow hangs when that hand takes the hoe: down, out and a little back
 const ELBOW_POLE = new THREE.Vector3(-0.6, -1, -0.25).normalize();
 
+// ---------- at the plough: both fists on its handles ----------
+// The hands are solved onto the handles' ends (reachHandles); these channels
+// are only where the arms would be, for the moment they reach or let go.
+const AT_PLOUGH = { swing0: -0.5, spread0: 0.12, elbow0: -0.6, swing1: -0.5, spread1: -0.12, elbow1: -0.6, grip: 0, twist: 0 };
+// ...and where an elbow hangs with the fist on a handle: back, down and a little out (side 1; side 0 is its mirror)
+const HANDLE_POLE = new THREE.Vector3(0.45, -0.6, -1).normalize();
+const EASY_REACH = 0.4; // shoulder to handle with the elbow a little bent (the arm at full stretch is 0.49)
+
 const foot = () => ({ x: 0, y: 0, z: 0, pitch: 0 });
 
 export function createPlayerAnimator(m) {
@@ -259,6 +267,11 @@ export function createPlayerAnimator(m) {
   let blowKind = 0; // which swing: 0 chop, 1 backhand, 2 sweep
   let wWork = 0; // eased weight of the field-work layer
   let wGrasp = 0; // eased weight of the off hand on the hoe's shaft
+  let wHaul = 0; // eased weight of both hands on the plough's handles
+  let wPlough = 0; // ...and of his back put into it, the share in the earth
+  let handles = null; // the handles' ends in the world, kept while the hands let go
+  let stretch = 0; // how far the handles were from his shoulders last step (the further arm)
+  let stoop = 0; // 0..1: bent to handles that lie low — he walks the turned crown, the plough runs ahead on the flat
   let workBeat = 0; // how far through the current stroke, 0..1, held while the layer fades
   let workKind = 'till';
   let lastVx = 0;
@@ -284,6 +297,8 @@ export function createPlayerAnimator(m) {
   const reachC = new THREE.Vector3();
   const pole = new THREE.Vector3();
   const poleC = new THREE.Vector3();
+  const elbowPole = new THREE.Vector3();
+  const toChest = new THREE.Matrix4();
 
   // One foot's place in the stride at cycle position ph. While planted
   // (ph < duty) the ground carries it back under the body at the body's own
@@ -345,6 +360,13 @@ export function createPlayerAnimator(m) {
     toShaft.multiplyMatrices(a1.upper.matrix, a1.fore.matrix).multiply(m.grip.matrix).multiply(m.hold.matrix);
     v3.set(0, -RIG.hoeOffHand, 0).applyMatrix4(toShaft);
     target.set(v3.x + RIG.shoulderX, v3.y - RIG.shoulderY, v3.z); // from the off shoulder
+    solveArm(0, ELBOW_POLE, w);
+  }
+
+  // Two bones and a target: turn arm `i` so its fist lands on `target` (from
+  // its shoulder, in the chest's frame), the elbow hanging toward `hang`.
+  // w blends the solve over whatever the pose had the arm doing.
+  function solveArm(i, hang, w) {
     const U = RIG.upperArm;
     const F = RIG.forearm;
     const d = clamp(target.length(), Math.abs(U - F) + 0.01, U + F - 0.001); // out of reach: reach straight for it
@@ -356,13 +378,29 @@ export function createPlayerAnimator(m) {
     armFrame.makeBasis(reachA, reachB, reachC).transpose();
     // ...and where they belong: the fist on the spot, the elbow toward the pole
     target.normalize();
-    pole.copy(ELBOW_POLE).addScaledVector(target, -ELBOW_POLE.dot(target)).normalize();
+    pole.copy(hang).addScaledVector(target, -hang.dot(target)).normalize();
     poleC.crossVectors(target, pole);
     turn4.makeBasis(target, pole, poleC).multiply(armFrame);
     graspQ.setFromRotationMatrix(turn4);
-    const arm = m.arms[0];
+    const arm = m.arms[i];
     arm.upper.quaternion.slerp(graspQ, w);
     arm.fore.rotation.x = lerp(arm.fore.rotation.x, elbow, w);
+  }
+
+  // Both fists onto the plough's handles: their ends are given in the world
+  // (field.js plough.hands), so they are carried into the chest's frame as
+  // it stands this step — leaned, striding, whatever — and each arm solved.
+  function reachHandles(w) {
+    m.chest.updateWorldMatrix(true, false);
+    toChest.copy(m.chest.matrixWorld).invert();
+    for (let i = 0; i < 2; i++) {
+      const side = i ? 1 : -1;
+      v3.copy(handles[i]).applyMatrix4(toChest);
+      target.set(v3.x - side * RIG.shoulderX, v3.y - RIG.shoulderY, v3.z);
+      stretch = i ? Math.max(stretch, target.length()) : target.length();
+      elbowPole.set(side * HANDLE_POLE.x, HANDLE_POLE.y, HANDLE_POLE.z);
+      solveArm(i, elbowPole, w);
+    }
   }
 
   function update(dt, pl) {
@@ -406,13 +444,19 @@ export function createPlayerAnimator(m) {
       blowT = Math.min(pl.modeT / P.attackDuration, 1);
       blowKind = pl.swing % SWINGS.length;
     }
-    wWork = ease(wWork, pl.mode === 'work' ? 1 : 0, pl.mode === 'work' ? 16 : 9, dt);
-    const hoeing = pl.mode === 'work' && m.tools.hoe.visible;
+    const toiling = pl.mode === 'work' && !pl.work.plough; // at the plough there are no blows: he walks behind it
+    wWork = ease(wWork, toiling ? 1 : 0, toiling ? 16 : 9, dt);
+    const hoeing = toiling && m.tools.hoe.visible;
     wGrasp = ease(wGrasp, hoeing ? 1 : 0, hoeing ? 14 : 18, dt);
-    if (pl.mode === 'work') {
+    if (toiling) {
       workBeat = (pl.modeT / CONFIG.farm.strokeTime) % 1;
       workKind = pl.work.kind;
     }
+    if (pl.haul) handles = pl.haul.hands;
+    wHaul = ease(wHaul, pl.haul ? 1 : 0, pl.haul ? 9 : 12, dt);
+    wPlough = ease(wPlough, pl.haul?.working ? 1 : 0, 6, dt);
+    // he bends until the handles are in easy reach, and straightens as they come up
+    stoop = pl.haul ? clamp(stoop + (stretch - EASY_REACH) * 10 * dt, 0, 1) : ease(stoop, 0, 8, dt);
 
     // ---- the stride ----
     const g = smooth(speed, 0.15, 1.1); // 0 standing … 1 in stride
@@ -533,6 +577,16 @@ export function createPlayerAnimator(m) {
       pose.drop = dropWas + toil.drop * wWork; // he sinks into it from wherever he stood
     }
 
+    // ---- at the plough: leaned to the handles, more with the share in the earth ----
+    if (wHaul > 0.001) {
+      mix(pose, AT_PLOUGH, wHaul);
+      const lean = (0.14 + 0.1 * wPlough + 0.45 * stoop) * wHaul; // he bends at the waist...
+      pose.pitch += (0.04 + 0.05 * wPlough + 0.08 * stoop) * wHaul;
+      pose.chestPitch += lean;
+      pose.headPitch -= lean * 0.7; // eyes on the furrow ahead, not the ground
+      pose.drop += (0.02 * wPlough + 0.06 * stoop) * wHaul; // ...and the knees give a little
+    }
+
     // ---- sat by the fire: breathing slow, and now and then rubbing his hands ----
     const sit = pl.sit01;
     if (sit > 0.001) {
@@ -625,6 +679,7 @@ export function createPlayerAnimator(m) {
     const held = (m.weapon.visible && m.slot.visible) || m.tools.hoe.visible;
     m.grip.rotation.set(held ? clamp(pose.grip, WRIST.back, WRIST.snap) : pose.grip, pose.twist, 0);
     if (wGrasp > 0.001) graspShaft(wGrasp);
+    if (wHaul > 0.001 && handles) reachHandles(wHaul);
 
     // feet: the ground's targets carried into the pelvis's frame, the body's
     // own targets already there — and the knees solved to reach the blend
@@ -663,7 +718,7 @@ export function createPlayerAnimator(m) {
     },
     // stand him up fresh (respawn): no leftover lean, sink or half-blended layer
     reset() {
-      wAir = wRoll = wBlow = wWork = wGrasp = load = 0;
+      wAir = wRoll = wBlow = wWork = wGrasp = wHaul = wPlough = stoop = load = 0;
       blowT = 1;
       lastVx = lastVz = 0;
       for (const s of [bounce, leanF, leanS, reelF, reelS]) s.x = s.v = 0;

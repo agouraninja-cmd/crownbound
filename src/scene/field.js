@@ -589,8 +589,10 @@ function buildFence(g, rng) {
   run(X, Y, -X, Y);
   run(-X, Y, -X, -Y);
 
-  // the gate: a hurdle hung on the left-hand post, standing open into the yard
-  const swing = 1.25; // how far it stands open
+  // the gate: a hurdle hung on the left-hand post, thrown wide open into the
+  // yard — back near the fence, so that it stands on the headland and not
+  // across the first ridge (the plough runs down that ridge's crown)
+  const swing = 2.75; // how far it stands open
   const far = [-G + Math.cos(swing) * (G * 2 - 0.15), -Y + Math.sin(swing) * (G * 2 - 0.15)];
   const hinge = (up) => yardPoint(-G, -Y, up);
   const latch = (up) => yardPoint(far[0], far[1], up);
@@ -628,57 +630,12 @@ function buildHayrick(g, rng) {
   return { x: at.x, z: at.z, r: 1.08 };
 }
 
-// The tools of the strip laid by outside the fence on the gate's other hand:
-// the heavy plough — a long beam on a wheeled fore-carriage, the coulter's
-// knife and the share under it, a mouldboard to lay the earth over, two
-// handles behind for the ploughman — and a harrow, a wooden frame bristling
-// with pegs, leaned on the fence. The oxen are out at grass. Returns their colliders.
+// The harrow — a wooden frame bristling with pegs — leaned on the fence
+// outside it, on the gate's other hand, where the plough is kept too (the
+// plough is its own thing: buildPlough). Returns its collider.
 function buildTools(g, rng) {
   const Y = HW + FIELD.margin;
-  const IRON = 0x4a4744;
   const colliders = [];
-
-  // the plough, its beam along the fence, resting on its wheels and its share
-  const pu = -5.2;
-  const pv = -Y - 1.6;
-  const along = (d, side = 0, up = 0) => yardPoint(pu + d, pv + side, up);
-  const beamA = along(-1.1, 0, 0.36);
-  const beamB = along(1.0, 0, 0.42);
-  timber(g, beamA, beamB, 0.1, 0.09, tone(WOOD, 0.9)); // the beam
-  // the fore-carriage: an axle and two spoked wheels under the beam's front
-  const axle = along(0.95, 0, 0.26);
-  timber(g, along(0.95, -0.38, 0.26), along(0.95, 0.38, 0.26), 0.06, 0.06, WOOD_DARK);
-  for (const side of [-0.4, 0.4]) {
-    const c = along(0.95, side, 0.26);
-    const wheel = mesh(cyl(0.26, 0.26, 0.06, 10), tone(WOOD_DARK, 1.05), { x: c.x, y: c.y, z: c.z });
-    wheel.rotation.order = 'YXZ';
-    wheel.rotation.y = LAYOUT.field.rotY;
-    wheel.rotation.x = Math.PI / 2;
-    g.add(wheel);
-  }
-  timber(g, axle, along(0.95, 0, 0.42), 0.06, 0.06, WOOD_DARK); // the pillow the beam rides on
-  // the coulter, a knife hung down through the beam, and the share at its foot
-  timber(g, along(0.1, 0, 0.4), along(-0.05, 0, 0.03), 0.04, 0.02, IRON);
-  timber(g, along(-0.75, 0, 0.36), along(-0.75, 0, 0.06), 0.07, 0.07, tone(WOOD, 0.85)); // the sheath down to the sole
-  timber(g, along(-0.95, 0, 0.05), along(-0.2, 0, 0.03), 0.07, 0.09, tone(WOOD, 0.8)); // the sole on the ground
-  timber(g, along(-0.25, 0, 0.04), along(-0.02, 0.04, 0.02), 0.03, 0.12, IRON); // the share's point
-  // the mouldboard: a board slewed off the share to turn the slice
-  const mb = mesh(box(0.6, 0.24, 0.04), tone(WOOD_PALE, 0.9));
-  const mc = along(-0.5, 0.13, 0.15);
-  mb.position.set(mc.x, mc.y, mc.z);
-  mb.rotation.order = 'YXZ';
-  mb.rotation.y = LAYOUT.field.rotY + 0.35;
-  mb.rotation.x = -0.3;
-  g.add(mb);
-  // the handles, rising back and out from the sole
-  for (const side of [-0.22, 0.22]) {
-    timber(g, along(-0.85, side * 0.3, 0.08), along(-1.75, side, 0.82), 0.05, 0.05, tone(WOOD_PALE, 0.85 + rng() * 0.1));
-  }
-  timber(g, along(-1.45, -0.18, 0.6), along(-1.45, 0.18, 0.6), 0.035, 0.035, WOOD_PALE); // the rung between them
-  for (const d of [-1.3, 0, 0.9]) {
-    const w = fieldToWorld(pu + d, pv);
-    colliders.push({ x: w.x, z: w.z, r: 0.45 });
-  }
 
   // the harrow, leaned against the fence by its top bar
   const hu = -2.8;
@@ -704,6 +661,73 @@ function buildTools(g, rng) {
   const hc = fieldToWorld(hu, hv - 0.2);
   colliders.push({ x: hc.x, z: hc.z, r: 0.35 });
   return colliders;
+}
+
+// ---------- the plough ----------
+
+// How the heavy plough is laid out, measured from where the ploughman stands
+// between its handles: the wheels' axle ahead of him, the share's bite, the
+// very front of the wheels. main.js and player.js read these off field.plough.
+const PLOUGH = {
+  axle: 2.98, // the man → the axle
+  share: 1.88, // the man → where the share bites the earth
+  heel: 1.08, // the man → the heel of the sole, which rides the earth the share has just turned
+  nose: 3.24, // the man → the front of the wheels
+  wheel: 0.26, // a wheel's radius
+  hand: { x: 0.22, y: 0.72, z: -2.7 }, // a handle's end, from the axle's foot (the other at -x)
+  lift: 0.05, // wheeled about, the handles are raised: the share rides clear (rad about the axle)
+  dig: -0.015, // at work they are borne down on: the share bites
+  rest: [{ d: 0.88, r: 0.42 }, { d: 1.93, r: 0.45 }, { d: 2.93, r: 0.45 }], // laid by: what keeps a man out of it
+  probes: [{ d: 1.75, r: 0.38 }, { d: 2.9, r: 0.42 }], // in hand: what it bumps, ahead of the man
+};
+
+// The heavy plough: a long beam on a wheeled fore-carriage, the coulter's
+// knife and the share under it, a mouldboard to lay the earth over, two
+// handles behind for the ploughman. It is its own Group, because it is used:
+// E takes its handles and it goes where he goes (main.js). Built facing its
+// own +z about the foot of the axle, so it tips about the wheels as a
+// barrow does. The oxen are out at grass — he is his own team.
+function buildPlough(rng) {
+  const g = new THREE.Group();
+  g.name = 'plough';
+  g.rotation.order = 'YXZ'; // turned on the map first, then tipped about the axle
+  const IRON = 0x4a4744;
+  // d along the beam as it was first laid out (0.95 at the axle), side, up
+  const L = (d, side = 0, up = 0) => new THREE.Vector3(side, up, d - 0.95);
+  timber(g, L(-1.1, 0, 0.36), L(1.0, 0, 0.42), 0.1, 0.09, tone(WOOD, 0.9)); // the beam
+  // the fore-carriage: an axle and two spoked wheels under the beam's front
+  timber(g, L(0.95, -0.38, PLOUGH.wheel), L(0.95, 0.38, PLOUGH.wheel), 0.06, 0.06, WOOD_DARK);
+  timber(g, L(0.95, 0, PLOUGH.wheel), L(0.95, 0, 0.42), 0.06, 0.06, WOOD_DARK); // the pillow the beam rides on
+  const wheels = [];
+  for (const side of [-0.4, 0.4]) {
+    const wheel = new THREE.Group(); // its own Group: it turns as the plough rolls
+    wheel.position.set(side, PLOUGH.wheel, 0);
+    wheel.add(mesh(cyl(PLOUGH.wheel, PLOUGH.wheel, 0.06, 10), tone(WOOD_DARK, 1.05), { rz: Math.PI / 2 }));
+    wheel.add(mesh(cyl(0.06, 0.06, 0.11, 6), WOOD_PALE, { rz: Math.PI / 2 })); // the hub
+    for (let k = 0; k < 3; k++) wheel.add(mesh(box(0.075, PLOUGH.wheel * 1.9, 0.04), tone(WOOD_PALE, 0.9), { rx: (k * Math.PI) / 3 })); // spokes
+    g.add(wheel);
+    wheels.push(wheel);
+  }
+  // the coulter, a knife hung down through the beam, and the share at its foot
+  timber(g, L(0.1, 0, 0.4), L(-0.05, 0, 0.03), 0.04, 0.02, IRON);
+  timber(g, L(-0.75, 0, 0.36), L(-0.75, 0, 0.06), 0.07, 0.07, tone(WOOD, 0.85)); // the sheath down to the sole
+  timber(g, L(-0.95, 0, 0.05), L(-0.2, 0, 0.03), 0.07, 0.09, tone(WOOD, 0.8)); // the sole on the ground
+  timber(g, L(-0.25, 0, 0.04), L(-0.02, 0.04, 0.02), 0.03, 0.12, IRON); // the share's point
+  // the mouldboard: a board slewed off the share to turn the slice
+  const mb = mesh(box(0.6, 0.24, 0.04), tone(WOOD_PALE, 0.9));
+  mb.position.copy(L(-0.5, 0.13, 0.15));
+  mb.rotation.order = 'YXZ';
+  mb.rotation.y = -Math.PI / 2 - 0.35;
+  mb.rotation.x = -0.3;
+  g.add(mb);
+  // the handles, rising back and out from the sole to a man's hip
+  const H = PLOUGH.hand;
+  for (const s of [-1, 1]) {
+    timber(g, L(-0.85, s * 0.066, 0.08), new THREE.Vector3(s * H.x, H.y, H.z), 0.05, 0.05, tone(WOOD_PALE, 0.85 + rng() * 0.1));
+  }
+  timber(g, L(-1.45, -0.17, 0.467), L(-1.45, 0.17, 0.467), 0.035, 0.035, WOOD_PALE); // the rung between them
+  bake(g);
+  return { group: g, wheels };
 }
 
 // ---------- the scarecrow ----------
@@ -759,6 +783,80 @@ export function buildField() {
   colliders.push(buildHayrick(yard, yardRng));
   colliders.push(...buildTools(yard, yardRng));
   group.add(bake(yard));
+
+
+  // The plough, laid by outside the fence on the gate's other hand, its beam
+  // along the fence and its handles away from the gate. It keeps the place
+  // and heading of the man who holds it (or last held it) — `stand` — and is
+  // drawn from that: the axle's foot on the ground ahead of him, tipped to
+  // the ground between the wheels and the sole's heel. Left anywhere, it stays there till
+  // the game is next opened, when it is back by the gate.
+  const built = buildPlough(yardRng);
+  group.add(built.group);
+  const restAt = fieldToWorld(-5.2 + 0.95 - PLOUGH.axle, -(HW + FIELD.margin) - 1.6);
+  const ploughColliders = PLOUGH.rest.map((c) => ({ x: 0, z: 0, r: c.r }));
+  colliders.push(...ploughColliders);
+  const groundAt = (x, z) => terrainHeight(x, z) + riseAt(x, z);
+  const plough = {
+    group: built.group,
+    held: false,
+    working: false, // the share in the earth (a ridge being ploughed)
+    stand: { x: restAt.x, z: restAt.z, facing: Math.PI / 2 + LAYOUT.field.rotY }, // where its man stands, and the way it points
+    spot: { id: 'plough', label: 'take the plough', x: restAt.x, z: restAt.z, radius: 1.3 }, // E here takes its handles
+    hands: [new THREE.Vector3(), new THREE.Vector3()], // the handles' ends in the world: his fists go there
+    reach: PLOUGH.share, // the man → the share's bite
+    nose: PLOUGH.nose,
+    probes: PLOUGH.probes,
+    tip: 0, // how far the handles are raised or borne down, eased
+    // Stand it before a man at (x, z) facing `facing`; dt eases the handles
+    // up or down and turns the wheels by the ground covered.
+    place(x, z, facing, dt = 0) {
+      const st = this.stand;
+      const rolled = (x - st.x) * Math.sin(st.facing) + (z - st.z) * Math.cos(st.facing);
+      st.x = x;
+      st.z = z;
+      st.facing = facing;
+      const sin = Math.sin(facing);
+      const cos = Math.cos(facing);
+      const ax = x + sin * PLOUGH.axle;
+      const az = z + cos * PLOUGH.axle;
+      const ay = groundAt(ax, az);
+      const hy = groundAt(x + sin * PLOUGH.heel, z + cos * PLOUGH.heel);
+      const want = !this.held ? 0 : this.working ? PLOUGH.dig : PLOUGH.lift;
+      this.tip += (want - this.tip) * (dt > 0 ? 1 - Math.exp(-dt * 9) : 1);
+      const lie = Math.asin(Math.min(0.5, Math.max(-0.5, (hy - ay) / (PLOUGH.axle - PLOUGH.heel)))); // laid to the ground under wheels and heel
+      const g = this.group;
+      g.position.set(ax, ay, az);
+      g.rotation.set(lie + this.tip, facing, 0);
+      for (const w of built.wheels) w.rotation.x += rolled / PLOUGH.wheel;
+      g.updateMatrixWorld(true);
+      const H = PLOUGH.hand;
+      this.hands[0].set(-H.x, H.y, H.z).applyMatrix4(g.matrixWorld);
+      this.hands[1].set(H.x, H.y, H.z).applyMatrix4(g.matrixWorld);
+      this.spot.x = x;
+      this.spot.z = z;
+    },
+    // his hands on the handles: it stops being a thing in the way
+    take() {
+      this.held = true;
+      for (const c of ploughColliders) {
+        c.x = 1e6;
+        c.z = 1e6;
+      }
+    },
+    // let go: it stands where it is, in the way again
+    rest() {
+      this.held = false;
+      this.working = false;
+      this.tip = 0;
+      const st = this.stand;
+      this.place(st.x, st.z, st.facing);
+      PLOUGH.rest.forEach((c, i) => {
+        ploughColliders[i].x = st.x + Math.sin(st.facing) * c.d;
+        ploughColliders[i].z = st.z + Math.cos(st.facing) * c.d;
+      });
+    },
+  };
 
   // what flies up while he works: earth off the hoe, seed from the hand, chaff off the sickle
   const puffs = createPuffs({ max: 64 });
@@ -819,6 +917,35 @@ export function buildField() {
   let drawn = [];
   let drawnParts = {};
   let lookOf = () => 'stubble';
+
+  // How far the worked earth stands above the ground at (x, z), 0 off the
+  // strip — what the player walks on (main.js adds it to terrainHeight).
+  // The crowns and furrows as drawn; where a ridge's look changes partway,
+  // and where the ridges run out into the headland, it ramps over a step
+  // as the drawn earth does. The lumps of the earth are left out.
+  function riseAt(x, z) {
+    const { u, v } = worldToField(x, z);
+    const cu = Math.min(HL, Math.max(-HL, u));
+    const cv = Math.min(HW, Math.max(-HW, v));
+    const off = Math.hypot(u - cu, v - cv);
+    const EDGE = 0.3; // the bed's edge slopes away into the ground over this
+    if (off >= EDGE) return 0;
+    const row = rowAt(cv);
+    const RAMP = 0.35; // one step of the drawn earth along the ridge
+    const p = drawnParts[row];
+    let rise = riseOf(drawn[row] ?? 'stubble', cv, row);
+    if (p) {
+      // a ridge half worked: the stroke's edge, ramped like the drawn earth
+      const edgeU = p.end > 0 ? HL - p.k * HL * 2 : -HL + p.k * HL * 2;
+      const into = (cu - edgeU) * p.end; // > 0 inside the worked stretch
+      const w = Math.min(1, Math.max(0, into / RAMP + 0.5));
+      rise += (riseOf(p.look, cv, row) - rise) * w;
+    }
+    const toEnd = HL - Math.abs(cu); // ...and the ridges run out at both ends
+    if (toEnd < RAMP) rise = TROUGH + (rise - TROUGH) * (toEnd / RAMP);
+    return Math.max(0, rise * (1 - off / EDGE));
+  }
+  plough.rest(); // laid by, by the gate
 
   return {
     group,
@@ -901,33 +1028,8 @@ export function buildField() {
       growth.visible = total > 0;
     },
 
-    // How far the worked earth stands above the ground at (x, z), 0 off the
-    // strip — what the player walks on (main.js adds it to terrainHeight).
-    // The crowns and furrows as drawn; where a ridge's look changes partway,
-    // and where the ridges run out into the headland, it ramps over a step
-    // as the drawn earth does. The lumps of the earth are left out.
-    riseAt(x, z) {
-      const { u, v } = worldToField(x, z);
-      const cu = Math.min(HL, Math.max(-HL, u));
-      const cv = Math.min(HW, Math.max(-HW, v));
-      const off = Math.hypot(u - cu, v - cv);
-      const EDGE = 0.3; // the bed's edge slopes away into the ground over this
-      if (off >= EDGE) return 0;
-      const row = rowAt(cv);
-      const RAMP = 0.35; // one step of the drawn earth along the ridge
-      const p = drawnParts[row];
-      let rise = riseOf(drawn[row] ?? 'stubble', cv, row);
-      if (p) {
-        // a ridge half worked: the stroke's edge, ramped like the drawn earth
-        const edgeU = p.end > 0 ? HL - p.k * HL * 2 : -HL + p.k * HL * 2;
-        const into = (cu - edgeU) * p.end; // > 0 inside the worked stretch
-        const w = Math.min(1, Math.max(0, into / RAMP + 0.5));
-        rise += (riseOf(p.look, cv, row) - rise) * w;
-      }
-      const toEnd = HL - Math.abs(cu); // ...and the ridges run out at both ends
-      if (toEnd < RAMP) rise = TROUGH + (rise - TROUGH) * (toEnd / RAMP);
-      return Math.max(0, rise * (1 - off / EDGE));
-    },
+    riseAt,
+    plough,
 
     // The point `side` off the crown of ridge `row` (across it, toward +v),
     // `u` along it, in the world.
@@ -946,7 +1048,7 @@ export function buildField() {
     kick(kind, x, z, facing) {
       const fx = Math.sin(facing);
       const fz = Math.cos(facing);
-      const y = terrainHeight(x, z) + this.riseAt(x, z) + 0.12;
+      const y = terrainHeight(x, z) + riseAt(x, z) + 0.12;
       const r = Math.random;
       if (kind === 'sow') {
         for (let k = 0; k < 9; k++) {

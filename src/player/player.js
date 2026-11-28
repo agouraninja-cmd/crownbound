@@ -6,17 +6,22 @@ import { createPlayerAnimator } from './playerAnim.js';
 import { flash } from '../scene/meshUtils.js';
 
 const P = CONFIG.player;
-const PLAYER_RADIUS = 0.35;
+const RADIUS = 0.35; // the player's own girth
 const WORLD_RADIUS = 78;
 const SLOPE_PROBE = 0.25; // how far each way the ground is felt for its tilt
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
-function lerpAngle(a, b, t) {
+// the way round from angle a to angle b, the short way: -π..π
+function turnBetween(a, b) {
   let d = (b - a) % (Math.PI * 2);
   if (d > Math.PI) d -= Math.PI * 2;
   if (d < -Math.PI) d += Math.PI * 2;
-  return a + d * t;
+  return d;
+}
+
+function lerpAngle(a, b, t) {
+  return a + turnBetween(a, b) * t;
 }
 
 export function createPlayer(scene, spawn) {
@@ -60,6 +65,7 @@ export function createPlayer(scene, spawn) {
 
   const keys = new Set();
   let enabled = true;
+  const angleTo = (facing) => turnBetween(player.facing, facing); // how far round he must turn to face it
 
   // double-tapping a movement key dodge-rolls that way; axes are (right, forward)
   const TAP_AXES = { KeyW: [0, 1], KeyS: [0, -1], KeyA: [-1, 0], KeyD: [1, 0] };
@@ -84,7 +90,8 @@ export function createPlayer(scene, spawn) {
     vel: new THREE.Vector2(0, 0), // xz
     facing: m.group.rotation.y,
     mode: 'normal', // normal | roll | attack | sleep | work | sit
-    work: null, // while a ridge is being worked: { kind, ax, az, dx, dz, len, facing, strokes }
+    work: null, // while a ridge is being worked: { kind, ax, az, dx, dz, len, facing, strokes, plough, backing }
+    haul: null, // the plough, while his hands are on its handles (field.js plough): it goes where he goes
     modeT: 0,
     invulnerable: false,
     vy: 0,
@@ -173,6 +180,7 @@ export function createPlayer(scene, spawn) {
       return;
     }
     if (player.mode !== 'normal' || player.sit01 > 0) return; // not while still getting up
+    if (player.haul) return; // both hands are on the plough
     if (player.unarmed) {
       player.onUnarmed();
       return;
@@ -192,7 +200,7 @@ export function createPlayer(scene, spawn) {
   }
 
   function startJump() {
-    if (player.mode !== 'normal' || player.airborne || player.jumpIn > 0 || player.sit01 > 0) return;
+    if (player.mode !== 'normal' || player.airborne || player.jumpIn > 0 || player.sit01 > 0 || player.haul) return;
     player.jumpIn = Math.max(P.jumpWindup, 1e-4); // update() springs the leap once the knees have loaded
   }
 
@@ -200,6 +208,7 @@ export function createPlayer(scene, spawn) {
   // main.js times the fade-out and ends the nap with respawn().
   function startSleep(bed) {
     if (player.mode === 'sleep') return;
+    dropHaul();
     player.route = null;
     player.sleepTarget = bed; // { x, z, y: mattress top (world), facing }
     player.mode = 'sleep';
@@ -317,30 +326,55 @@ export function createPlayer(scene, spawn) {
     for (const [name, tool] of Object.entries(m.tools)) tool.visible = TOOL_FOR[kind] === name;
   }
 
+  // The plough (field.js): his hands take its handles and it goes before him
+  // wherever he walks — slowly, turning like the cart it nearly is — until he
+  // lets go. The stick is put away meanwhile; he cannot swing, leap or roll.
+  function takeHaul(plough) {
+    if (player.mode !== 'normal' || player.airborne || player.haul) return false;
+    player.haul = plough;
+    plough.take();
+    player.vel.set(0, 0);
+    takeUp('plough'); // no tool of his own: both hands are on it
+    return true;
+  }
+  function dropHaul() {
+    if (!player.haul) return;
+    const plough = player.haul;
+    player.haul = null;
+    plough.rest();
+    if (player.mode !== 'work') takeUp(null);
+  }
+
   // Begin working along a line: from (from.x, from.z) to (to.x, to.z), turned
   // to `facing` all the while (toward the crown of the ridge he walks beside).
   // False if he is busy or in the air.
-  function startWork(kind, from, to, facing) {
+  // With the plough in hand the line is ploughed instead (`plough: true`):
+  // no blows — he walks it at CONFIG.farm.ploughPace with the share in the
+  // earth, first drawing the plough back to the line's start if he stands
+  // further along it.
+  function startWork(kind, from, to, facing, { plough = false } = {}) {
     if (player.mode !== 'normal' || player.airborne) return false;
+    if (plough && !player.haul) return false;
     const len = Math.hypot(to.x - from.x, to.z - from.z);
     player.route = null;
     player.mode = 'work';
     player.modeT = 0;
     player.jumpIn = 0;
-    player.work = { kind, ax: from.x, az: from.z, dx: (to.x - from.x) / (len || 1), dz: (to.z - from.z) / (len || 1), len, facing, strokes: 0 };
-    takeUp(kind);
+    player.work = { kind, ax: from.x, az: from.z, dx: (to.x - from.x) / (len || 1), dz: (to.z - from.z) / (len || 1), len, facing, strokes: 0, plough, backing: plough };
+    takeUp(plough ? 'plough' : kind);
     return true;
   }
 
-  // down tools, finished or not
+  // down tools, finished or not (the plough stays in his hands)
   function stopWork() {
     if (player.mode === 'work') player.mode = 'normal';
     player.work = null;
-    takeUp(null);
+    if (player.haul) player.haul.working = false;
+    takeUp(player.haul ? 'plough' : null);
   }
 
   function startRoll(dirX, dirZ) {
-    if (player.mode !== 'normal' || player.airborne || player.sit01 > 0) return;
+    if (player.mode !== 'normal' || player.airborne || player.sit01 > 0 || player.haul) return;
     if (!player.trySpend(CONFIG.stamina.dodgeCost)) {
       player.onActionBlocked();
       return;
@@ -356,15 +390,15 @@ export function createPlayer(scene, spawn) {
   // map {x, z, halfX, halfZ, cos, sin} (the neighbours' houses — cottage.js
   // turnedRect). Being pushed out of one also takes away the speed that was
   // carrying him into it, so he slides along a wall and stops against it
-  // instead of running on the spot.
-  function resolveCollisions(colliders) {
-    const p = player.pos;
+  // instead of running on the spot. (p, radius: another circle put out of
+  // them instead of his own — the plough's, resolveHaul.)
+  function resolveCollisions(colliders, p = player.pos, radius = RADIUS) {
     const v = player.vel; // Vector2: y holds z
     for (const c of colliders) {
       if (c.r !== undefined) {
         const dx = p.x - c.x;
         const dz = p.z - c.z;
-        const minDist = c.r + PLAYER_RADIUS;
+        const minDist = c.r + radius;
         const d2 = dx * dx + dz * dz;
         if (d2 < minDist * minDist && d2 > 1e-6) {
           const d = Math.sqrt(d2);
@@ -384,8 +418,8 @@ export function createPlayer(scene, spawn) {
         const dz = p.z - c.z;
         const u = dx * c.cos - dz * c.sin;
         const w = dx * c.sin + dz * c.cos;
-        const hu = c.halfX + PLAYER_RADIUS;
-        const hw = c.halfZ + PLAYER_RADIUS;
+        const hu = c.halfX + radius;
+        const hw = c.halfZ + radius;
         if (u > -hu && u < hu && w > -hw && w < hw) {
           // out through the nearest face; (nu, nw) is that face's outward normal
           let nu = 0;
@@ -405,10 +439,10 @@ export function createPlayer(scene, spawn) {
           }
         }
       } else {
-        const minX = c.minX - PLAYER_RADIUS;
-        const maxX = c.maxX + PLAYER_RADIUS;
-        const minZ = c.minZ - PLAYER_RADIUS;
-        const maxZ = c.maxZ + PLAYER_RADIUS;
+        const minX = c.minX - radius;
+        const maxX = c.maxX + radius;
+        const minZ = c.minZ - radius;
+        const maxZ = c.maxZ + radius;
         if (p.x > minX && p.x < maxX && p.z > minZ && p.z < maxZ) {
           // push out along the axis of least penetration
           const toMinX = p.x - minX;
@@ -444,6 +478,25 @@ export function createPlayer(scene, spawn) {
     }
   }
 
+  // The plough in his hands bumps what it meets: each of its probes (a circle
+  // ahead of him, along his facing) is put out of whatever it has entered, and
+  // he is moved by as much — so a fence stops the plough, and turning it into
+  // a wall shoves him off instead.
+  const probe = { x: 0, z: 0 };
+  function resolveHaul(colliders) {
+    const sin = Math.sin(player.facing);
+    const cos = Math.cos(player.facing);
+    for (const { d, r } of player.haul.probes) {
+      probe.x = player.pos.x + sin * d;
+      probe.z = player.pos.z + cos * d;
+      const x0 = probe.x;
+      const z0 = probe.z;
+      resolveCollisions(colliders, probe, r);
+      player.pos.x += probe.x - x0;
+      player.pos.z += probe.z - z0;
+    }
+  }
+
   // Finite push, finite grip: velocity moves toward what is wanted at `rate`
   // units/s² and no faster. A sprint takes a moment to wind up, a stop slides
   // a step, and a hard turn is carved rather than snapped.
@@ -476,6 +529,7 @@ export function createPlayer(scene, spawn) {
     standUp(); // a bite gets him off the ground
     if (player.hp === 0) {
       stopWork(); // a dead man finishes no ridge
+      dropHaul();
       player.onDeath();
     }
   };
@@ -493,6 +547,7 @@ export function createPlayer(scene, spawn) {
     player.rising = null;
     player.sitK = player.sit01 = player.stillFor = 0;
     player.route = null;
+    dropHaul();
     stopWork(); // the stick back in hand — after a nap, or a death in the field
     anim.reset(); // on his feet, no leftover lean or half-finished pose
     player.onHpChange(player.hp, player.maxHp);
@@ -523,7 +578,7 @@ export function createPlayer(scene, spawn) {
     if (keys.has('KeyD')) ix += 1;
     const sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
 
-    player.crouching = keys.has('KeyC') && player.mode === 'normal' && !player.airborne;
+    player.crouching = keys.has('KeyC') && player.mode === 'normal' && !player.airborne && !player.haul;
     player.crouch01 += ((player.crouching ? 1 : 0) - player.crouch01) * (1 - Math.exp(-dt * 12));
 
     const fwdX = -Math.sin(camYaw);
@@ -542,7 +597,9 @@ export function createPlayer(scene, spawn) {
       const last = r.i === r.points.length - 1;
       // a waypoint counts as passed a stride early; the last must be reached
       if (Math.hypot(t.x - player.pos.x, t.z - player.pos.z) < (last ? 0.25 : 0.6)) {
-        if (last) {
+        if (last && r.facing !== undefined && Math.abs(angleTo(r.facing)) > 0.04) {
+          r.turning = true; // there: now round to the way he was asked to face
+        } else if (last) {
           player.route = null;
           r.onArrive();
         } else {
@@ -550,7 +607,16 @@ export function createPlayer(scene, spawn) {
           t = r.points[r.i];
         }
       }
-      if (player.route) {
+      // a walk he was only asked to take is given up if something stops him
+      // dead for a couple of seconds (the walk home has its own watch, main.js)
+      if (player.route?.yields && !player.route.turning) {
+        r.stalled = player.vel.lengthSq() < 0.04 ? (r.stalled ?? 0) + dt : 0;
+        if (r.stalled > 2) player.route = null;
+      }
+      if (player.route?.turning) {
+        dirX = 0;
+        dirZ = 0;
+      } else if (player.route) {
         dirX = t.x - player.pos.x;
         dirZ = t.z - player.pos.z;
       } else {
@@ -634,11 +700,43 @@ export function createPlayer(scene, spawn) {
       const along = ox * job.dx + oz * job.dz;
       const offX = ox - along * job.dx;
       const offZ = oz - along * job.dz;
-      if (along >= job.len - 0.02) {
+      if (job.backing) {
+        // the plough drawn back to where the furrow is to begin, his face to the work
+        if (along <= 0.03) {
+          job.backing = false;
+          player.modeT = 0;
+          player.vel.set(0, 0);
+        } else if (player.modeT > 12) {
+          stopWork();
+          player.onWorkStopped(job.kind);
+        } else {
+          const step = Math.min(W.haulBack, along / Math.max(dt, 1e-4));
+          // ...and eased onto its line as he goes, no faster than a plough will be dragged aside
+          const aside = Math.hypot(offX, offZ);
+          const ease = aside > 1e-4 ? Math.min(aside * 3, 1.5) / aside : 0;
+          player.vel.set(-job.dx * step - offX * ease, -job.dz * step - offZ * ease);
+        }
+      } else if (along >= job.len - 0.02) {
         // the ridge's end: the last blow has landed
         player.vel.set(0, 0);
         stopWork();
         player.onWorkDone(job.kind);
+      } else if (job.plough) {
+        // the share in the earth, and a steady walk behind it: the earth is
+        // counted turned every `ploughBeat` of the way
+        player.haul.working = true;
+        const beats = Math.floor(player.modeT / W.ploughBeat);
+        while (job.strokes < beats) {
+          job.strokes += 1;
+          player.onWorkStroke(job.kind);
+        }
+        const pace = W.ploughPace * Math.min(1, 0.25 + player.modeT * 2.5); // leaning into it as the share bites
+        const step = Math.min(pace, (job.len - along) / Math.max(dt, 1e-4));
+        player.vel.set(job.dx * step - offX * 6, job.dz * step - offZ * 6);
+        if (player.modeT > job.len / W.ploughPace * 1.6 + 4) {
+          stopWork();
+          player.onWorkStopped(job.kind);
+        }
       } else if (player.modeT > job.len / W.workPace * 1.6 + 4) {
         // held up somewhere along the line (it should never happen): give it up, keeping what is done
         stopWork();
@@ -668,7 +766,57 @@ export function createPlayer(scene, spawn) {
       : Math.max(0, player.sitK - dt / P.sitUp);
     player.sit01 = player.sitK * player.sitK * (3 - 2 * player.sitK);
 
-    if (player.mode === 'normal') {
+    let haulTurn = 0; // how far the plough lets him turn this step
+    if (player.mode === 'normal' && player.haul) {
+      // The plough goes only the way it points: he turns it toward where he
+      // is steered (no faster than it will come round) and walks on as it
+      // lines up. Steered back the way he came, he draws it backward instead.
+      const W = CONFIG.farm;
+      const sin = Math.sin(player.facing);
+      const cos = Math.cos(player.facing);
+      let want = 0;
+      const turning = player.route?.turning;
+      if (len > 0 || turning) {
+        let off = turning ? angleTo(player.route.facing) : angleTo(Math.atan2(dirX, dirZ));
+        const back = !player.route && Math.abs(off) > 2.2;
+        if (back) off -= Math.sign(off) * Math.PI; // his back to where he is going
+        haulTurn = clamp(off, -W.haulTurn * dt, W.haulTurn * dt);
+        if (turning && Math.abs(off) <= 0.04) {
+          const r = player.route;
+          player.route = null;
+          haulTurn = off;
+          r.onArrive();
+        } else if (!turning) {
+          const lined = clamp((Math.cos(off) - 0.6) / 0.35, 0, 1); // far off the line he only turns
+          const gait = player.route ? CONFIG.stamina.homewardPace : 1;
+          want = P.walkSpeed * W.haulPace * gait * lined * (back ? -0.6 : 1);
+          if (!player.route) {
+            player.fatigue += CONFIG.stamina.walkDrain * dt;
+            if (player.fatigue >= 1) {
+              const whole = Math.floor(player.fatigue);
+              player.fatigue -= whole;
+              player.tire(whole);
+            }
+          }
+        }
+      }
+      let pace = player.vel.x * sin + player.vel.y * cos; // what he has along its line; the rest is shed
+      const gap = want - pace;
+      pace += Math.sign(gap) * Math.min(Math.abs(gap), (len > 0 ? P.accel : P.brake) * 0.6 * dt);
+      player.vel.set(sin * pace, cos * pace);
+    } else if (player.mode === 'normal' && player.route?.turning) {
+      // at the end of a walk he was asked to take: round to the way he was asked to face
+      steer(0, 0, P.brake, dt);
+      const off = angleTo(player.route.facing);
+      if (Math.abs(off) <= 0.04) {
+        const r = player.route;
+        player.route = null;
+        player.facing += off;
+        r.onArrive();
+      } else {
+        haulTurn = clamp(off, -8 * dt, 8 * dt);
+      }
+    } else if (player.mode === 'normal') {
       // getting up from the fire, he finds his feet before he finds his pace;
       // the walk home (spent for the day) is a weary walk, never a run
       const gait = player.route ? CONFIG.stamina.homewardPace : player.crouching ? P.crouchMult : sprinting ? P.sprintMult : 1;
@@ -699,6 +847,7 @@ export function createPlayer(scene, spawn) {
     player.pos.x += player.vel.x * dt;
     player.pos.z += player.vel.y * dt;
     resolveCollisions(colliders);
+    if (player.haul && player.mode === 'normal') resolveHaul(colliders); // at work its line is clear by the laying-out
     const px = player.pos.x;
     const pz = player.pos.z;
     const groundY = player.groundAt(px, pz);
@@ -720,12 +869,12 @@ export function createPlayer(scene, spawn) {
 
     // stood still by the fire long enough, he sits down to warm himself
     const still = enabled && player.mode === 'normal' && !player.airborne && player.jumpIn === 0 &&
-      len === 0 && !player.crouching && player.hp > 0 && player.vel.lengthSq() < 0.01;
+      len === 0 && !player.crouching && !player.haul && !player.route && player.hp > 0 && player.vel.lengthSq() < 0.01;
     player.stillFor = still && hearthDist() < P.sitNear ? player.stillFor + dt : 0;
     if (player.stillFor >= P.sitDelay) startSit();
     // the stick is laid on the ground beside him while he sits, and taken up
     // again as he rises (the field's tools manage their own)
-    if (player.mode !== 'work') layStick(player.sit01 >= 0.5 && !player.unarmed);
+    if (player.mode !== 'work' && !player.haul) layStick(player.sit01 >= 0.5 && !player.unarmed);
 
     // feel the ground's tilt: it slows a climb and lays the soles to the slope
     player.slope.x = (player.groundAt(px + SLOPE_PROBE, pz) - player.groundAt(px - SLOPE_PROBE, pz)) / (SLOPE_PROBE * 2);
@@ -736,6 +885,8 @@ export function createPlayer(scene, spawn) {
     const facingWas = player.facing;
     if (player.mode === 'roll') {
       player.facing = lerpAngle(player.facing, Math.atan2(player.rollDir.x, player.rollDir.z), 1 - Math.exp(-dt * P.turnLerp));
+    } else if (player.mode === 'normal' && (player.haul || haulTurn !== 0)) {
+      player.facing += haulTurn; // the plough's turn, or the turn at a walk's end, worked out above
     } else if (player.mode === 'normal' && len > 0) {
       player.facing = lerpAngle(player.facing, Math.atan2(dirX, dirZ), 1 - Math.exp(-dt * P.turnLerp));
     } else if (player.mode === 'sit') {
@@ -748,6 +899,8 @@ export function createPlayer(scene, spawn) {
     }
     player.turnRate = dt > 1e-4 ? (player.facing - facingWas) / dt : 0;
     m.group.rotation.y = player.facing;
+    // the plough goes before him, wherever that has left him
+    if (player.haul) player.haul.place(player.pos.x, player.pos.z, player.facing, dt);
 
     anim.update(dt, player);
   };
@@ -756,12 +909,14 @@ export function createPlayer(scene, spawn) {
   player.startSleep = startSleep;
   player.rise = startRise;
   player.startWork = startWork;
+  player.takeHaul = takeHaul;
+  player.dropHaul = dropHaul;
 
   // walk himself through `points` ({x, z} each) in turn; onArrive at the last
   // (yields: true lets a movement key call the walk off — a walk he was asked
   // to take, not one he must)
-  player.walkRoute = function walkRoute(points, onArrive, { yields = false } = {}) {
-    player.route = points.length ? { points, i: 0, onArrive, yields } : null;
+  player.walkRoute = function walkRoute(points, onArrive, { yields = false, facing } = {}) {
+    player.route = points.length ? { points, i: 0, onArrive, yields, facing, turning: false } : null;
     if (!points.length) onArrive();
   };
 
