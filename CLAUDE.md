@@ -1701,8 +1701,12 @@ headlessly; everything else covered by the regression suite below.
   E-prompt now truly follows him on his rounds. CROWNBOUND-Guide.docx rebuilt. New smoke
   scenario `miller`; it, `alive`, `combat`, `intro`, `proving`, `guide`, `spent` and the
   render pass (cloud container, headless Chromium, `SMOKE_WAIT=load`; `miller` failed once
-  before the prompt fix, on E beside the walking miller). Seen only in the software
-  renderer, not yet on the owner's screen.
+  before the prompt fix, on E beside the walking miller). After merging The Tally of Blows,
+  `miller` and the render pass on the merge; `combat` fails there on that feature's own
+  check ("no damage number of 1 over the dummy") — and fails the same way on plain `main`
+  without this work, in this container: the number lives under a second, two or three
+  frames of the software renderer. Seen only in the software renderer, not yet on the
+  owner's screen.
   Details: "The Miller's Introduction" under Noted decisions.
 
 ### Session notes
