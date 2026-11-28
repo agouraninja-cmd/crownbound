@@ -72,9 +72,15 @@ try {
 
   // What the E-prompt says once it says anything (up to 4s). A fixed wait can
   // fall between two frames where the software renderer manages ~3fps.
+  // A hidden prompt keeps its last words, so the step that moved the player
+  // must be drawn first (two frames), or the old prompt is read as the new.
   const promptOffered = async () => {
     const el = () => document.getElementById('interact-prompt').textContent;
-    await page.waitForFunction(() => document.getElementById('interact-prompt').textContent.length > 0, { timeout: 4000 }).catch(() => {});
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await page.waitForFunction(() => {
+      const p = document.getElementById('interact-prompt');
+      return !p.classList.contains('hidden') && p.textContent.length > 0;
+    }, { timeout: 4000 }).catch(() => {});
     return page.evaluate(el);
   };
 
