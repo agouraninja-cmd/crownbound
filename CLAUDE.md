@@ -80,6 +80,7 @@ src/ai/chronicler.js  the Chronicler: weekly prose entries from history + sleep 
 src/ui/ui.css         parchment styling
 src/ui/hud.js         HP/stamina bars, coins, rank, streak flame, interact prompt, the waymark (a newcomer shown the way)
 src/ui/toasts.js      flavor message queue
+src/ui/damage.js      damage numbers: a blow's damage thrown up over the dummy, projected each frame like the prompt tag
 src/ui/panels.js      Quest Board, Character Sheet, Sleep Ledger, Shop, Weapon Rack, Chest panel UIs; opens/closes every panel
 src/ui/treasury.js    the Treasury panel: the coffer that fills, the track to the goal, the opening questions, the day book (money in / out / into savings), the seals and the climb chart (all SVG built here)
 src/ui/guide.js       the Village Charter: in-game rule sheet, numbers rendered live from config.js
@@ -200,6 +201,8 @@ scripts/guide.mjs     `npm run guide`: finds a real Python 3 (py -3 / python3 / 
   (the walk home never does). Opening the game again that day finds him abed; the next day's
   rollover clears it.
 - Dummy: tiny Athleticism XP, hard daily cap (diminishing: 2 XP/hit → 1 → 0, capped in config).
+  Each blow throws up its damage over the dummy's head (the weapon in hand: stick 1, cudgel 2,
+  quarterstaff 3) — looks only; the dummy has no HP and the number is never XP.
 - Rats: 3 at the granary, chase + bite chip damage, 3 HP, +2 coins each ("the miller pays a bounty per tail"),
   dead rats respawn next day. Player death (0 HP): wake on the cot inside the hovel, full HP, flavor text, no penalty.
 - The miller's strip (the farming job): a fenced wheat field of 10 ridges (`CONFIG.farm.rows`),
@@ -1678,6 +1681,16 @@ headlessly; everything else covered by the regression suite below.
   owner's screen; the frame rate on a real GPU is not measured, and night in the lanes wants
   his eye. CROWNBOUND-Guide.docx rebuilt. Details: "The Neighbours" under Noted decisions.
 
+- [x] Post-v1 — "The Tally of Blows" (2026-11-28), the owner: "Add a damage counter for each
+  hit on the dummy." Each blow that lands on the dummy throws up its damage — a gold number
+  ringed in ink that pops, rises about a unit and fades in under a second, a little scattered
+  so a flurry doesn't stack. Heavier weapons show bigger, warmer numbers. src/ui/damage.js
+  (DOM in #hud, projected each frame after the camera, like the prompt tag); the digits are
+  set in Palatino Linotype, not IM Fell, whose old-style figures make a 1 a short "I".
+  Reduced motion holds the number still and only fades it. Rats show none (not asked).
+  Looks only; no rule or save change. `combat` checks it; `combat`, render, `body`, `walk`,
+  `keys` and `proving` pass (owner's machine, headless Edge); after merging The Neighbours, `combat`, render and `village` pass on the merge. Not seen in a visible pane.
+
 - [x] Post-v1 — "The Miller's Introduction" (2026-11-28), the owner: "Add an introduction for
   the miller when you first meet him in the game." The first time the player comes near the
   miller, a card opens with his portrait and his own words: who he is, the two coins a tail
@@ -1713,7 +1726,7 @@ headlessly; everything else covered by the regression suite below.
   or it will sit on the title card with the keys withheld.
 - Regression scenarios (run all after meaningful changes):
   `''` render · `quests` daily+weekly+monthly complete flow + a second deed of two virtues (XP shared 13 + 12, coins in full, no streak or stamina change, the share shown before Claim) + a deed taken down + the cap of five + three virtues sharing 9 + 8 + 8 + a bare list on the morrow with the streak kept (screenshot → scripts/smoke-quests.png) · `rollover` stale-save day handling ·
-  `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy/rats/miller-tally greeting/death
+  `fire` streak-35 blaze + stamina drain (to 1 — nought would send him to bed) · `combat` dummy (its damage number shown over its head, legible size; screenshot with the page clock held → scripts/smoke-damage.png)/rats/miller-tally greeting/death
   (respawn at the cot) ·
   `walk` movement · `keys` no mouse, the camera stepped by hand: F swings (5 stamina), ← held 1s turns 2.2 rad and stops dead on letting go, → turns back, a tap nudges (even one let go before any frame saw it), − known by its character alone, ↑ ↓ to the pitch bounds, − = to the zoom bounds, a touchpad glide zooms by how far and a pinch zooms the eye not the page, W + → walks a curve, a panel opened mid-turn stops the eye and the arrows do nothing under it, the Charter lists F and the arrows · `body` the player's weight and limbs, stepped by hand at a fixed rate:
   sprint wind-up and sliding stop, knees straight standing / folded crouched with the sole

@@ -7,6 +7,7 @@ import { LAYOUT, pathX, fieldGap, trackGap, doorstep } from './scene/layout.js';
 import { createPlayer } from './player/player.js';
 import { WEAPON_LOOKS } from './player/playerMesh.js';
 import { createOrbitCamera } from './player/camera.js';
+import { initDamage, showDamage, updateDamage, damageShown } from './ui/damage.js';
 import { initHud, showPrompt, placePrompt, showWaymark, placeWaymark, setHp, setStamina, setCoins, setRank, setStreak } from './ui/hud.js';
 import { terrainHeight } from './scene/terrain.js';
 import { loadState, getState, onChange, introOwed, introDone, noDeedYet, hasMet, meet, KEYS_LINE, staminaCap, spendStamina, drainStamina, staminaSpent, exportSave, importSave, dailyDoneToday, recordBedtime, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, wieldedWeapon, ownedWeapons, weaponHungUp, FARM_JOBS, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch } from './state/state.js';
@@ -107,6 +108,8 @@ player.onAttackSwing = () => {
   if (Math.hypot(ddx, ddz) < player.attackReach + dummy.radius) {
     if (angleDiff(Math.atan2(ddx, ddz), player.facing) < halfArc) {
       dummy.hit(player.pos.x, player.pos.z);
+      // the blow's weight, thrown up over the dummy's head
+      showDamage(dummy.x, terrainHeight(dummy.x, dummy.z) + 2.2, dummy.z, player.attackDamage);
     }
   }
 };
@@ -321,6 +324,7 @@ orbitCam.setOnTap(() => {
 });
 
 initHud();
+initDamage();
 initPanels(
   (opened) => {
     player.setEnabled(!opened && !keysWithheld());
@@ -818,7 +822,7 @@ if (PROVING) {
 
 // headless smoke-test hook, harmless in normal play
 if (new URLSearchParams(location.search).has('smoke')) {
-  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, village: world.village, mapMarks: world.mapMarks, planPath, layout: { LAYOUT, pathX, fieldGap, trackGap, doorstep }, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
+  window.__game = { scene, camera, renderer, sky: world.sky, skyAt, clockHour, compass, colliders: world.colliders, village: world.village, mapMarks: world.mapMarks, planPath, layout: { LAYOUT, pathX, fieldGap, trackGap, doorstep }, orbitCam, player, openPanel, openPanelId, getState, spendStamina, drainStamina, spent: () => ({ resting, homeward, pending: spentPending, last: lastHomeward }), intro: { beat: introBeat, hurry: hurryIntro, playing: introPlaying, waymark: () => waymark, fireCold: () => fireCold }, exportSave, importSave, rats, dummy, damageShown, campfire: world.campfire, door: world.door, chest: world.chest, cart: world.cart, exchequer: world.exchequer, miller: world.miller, field, farmJob, farmRowLooks, farmRowParts, workFarmRow, workFarmStretch, homeUpgrades: world.homeUpgrades, sleepAtCot, evaluateSleep, applySleepReward, judgeReckoning, closeMonths, monthTally, loggedToday, logMoney, unlogMoney, recount, layIn, setPledge, setSummit, judgeDeed, wakeSpot: world.wakeSpot, CONFIG };
 }
 
 window.addEventListener('resize', () => {
@@ -904,6 +908,7 @@ function tick() {
   const mark = isPanelOpen() ? null : waymarkPlace();
   showWaymark(mark?.text ?? null);
   if (mark) placeWaymark(mark.pos, mark.edge);
+  updateDamage(Math.min(frameDt, MAX_CATCHUP), camera);
 
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
