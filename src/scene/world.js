@@ -310,6 +310,7 @@ export function buildWorld(scene, marketToday = false, skyClock) {
   // is how far off that ridge's crest he may stand.
   field.spot = { id: 'field', label: 'the miller’s strip', x: LAYOUT.field.x, z: LAYOUT.field.z, radius: 1.25, row: 0 };
   interactables.push(field.spot);
+  interactables.push(field.plough.spot); // the plough's handles: it moves the spot as it is wheeled about
 
   if (cart) {
     // the chapman's side of the cart, in world coords (the cart is rotated)
